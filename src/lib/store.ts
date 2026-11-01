@@ -5,15 +5,28 @@ import type { Store } from "./types"
 
 const file = path.join(process.cwd(), "data", "store.json")
 
+function normalize(store: Store): Store {
+  for (const agent of store.agents) {
+    agent.abandoned ??= 0
+    agent.late ??= 0
+    agent.reviews ??= 0
+    agent.up ??= 0
+  }
+  for (const task of store.tasks) {
+    task.review ??= null
+  }
+  return store
+}
+
 let queue: Promise<void> = Promise.resolve()
 
 async function load(): Promise<Store> {
   try {
     const raw = await readFile(file, "utf8")
-    return JSON.parse(raw) as Store
+    return normalize(JSON.parse(raw) as Store)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
-    const store = createSeed()
+    const store = normalize(createSeed())
     await persist(store)
     return store
   }

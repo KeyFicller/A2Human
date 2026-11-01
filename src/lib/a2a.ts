@@ -1,4 +1,4 @@
-import { DomainError, cancelCommandedTask, receiveCommand } from "./rules"
+import { CALLER_ID, DomainError, cancelCommandedTask, rateTask, receiveCommand } from "./rules"
 import type { ProtocolMessage, Store, Task, TaskStatus } from "./types"
 
 type Scope = { kind: "human"; agentId: string } | { kind: "pool" }
@@ -102,16 +102,21 @@ function textFromParts(parts: unknown) {
   return text.length > 0 ? text : null
 }
 
-function callerName(params: Record<string, unknown>, message: Record<string, unknown>) {
+function metadataValue(params: Record<string, unknown>, message: Record<string, unknown>, key: string) {
   const sources = [params.metadata, message.metadata]
   for (const source of sources) {
     if (!source || typeof source !== "object" || Array.isArray(source)) continue
-    const name = (source as { caller?: unknown }).caller
-    if (typeof name !== "string") continue
-    const trimmed = name.trim()
-    const length = [...trimmed].length
-    if (length >= 1 && length <= 24) return trimmed
+    if (key in source) return (source as Record<string, unknown>)[key]
   }
+  return undefined
+}
+
+function callerName(params: Record<string, unknown>, message: Record<string, unknown>) {
+  const name = metadataValue(params, message, "caller")
+  if (typeof name !== "string") return "外部模型"
+  const trimmed = name.trim()
+  const length = [...trimmed].length
+  if (length >= 1 && length <= 24) return trimmed
   return "外部模型"
 }
 
@@ -147,6 +152,14 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
   const text = textFromParts(record.parts)
   if (!text) throw new DomainError("parts 里需要一段文字")
   const taskId = typeof record.taskId === "string" && record.taskId.trim() ? record.taskId.trim() : undefined
+  const vote = metadataValue(params, record, "review")
+  if (vote === "up" || vote === "down") {
+    if (!taskId) throw new DomainError("评价要带上 taskId")
+    const rated = rateTask(store, taskId, CALLER_ID, vote)
+    return { task: projectTask(store, rated, { includeArtifacts: true }) }
+  }
+  const dueRaw = metadataValue(params, record, "dueHours")
+  const dueHours = typeof dueRaw === "number" && Number.isInteger(dueRaw) && dueRaw >= 1 && dueRaw <= 168 ? dueRaw : 24
   const task = receiveCommand(store, {
     mode: scope.kind === "human" ? "direct" : "pool",
     humanId: scope.kind === "human" ? scope.agentId : undefined,
@@ -154,6 +167,7 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
     messageId: record.messageId.trim(),
     taskId,
     callerName: callerName(params, record),
+    dueHours,
   })
   return { task: projectTask(store, task, { includeArtifacts: true }) }
 }

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
-import { archLabel, formatB } from "@/lib/format"
+import { Reputation } from "@/components/reputation"
 import type { Agent, Task } from "@/lib/types"
 
 export default function AgentProfilePage() {
@@ -72,13 +72,11 @@ export default function AgentProfilePage() {
         <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">
           {agent.human ? "HUMAN" : "MODEL"}
         </p>
-        <p className="mt-3 font-serif text-7xl leading-none text-stamp">{formatB(agent.paramsB)}</p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {archLabel(agent.arch)} · {agent.temperament}
-        </p>
         <p className="mt-4 leading-7">{agent.bio}</p>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">{agent.blurb}</p>
+        <div className="mt-6">
+          <Reputation agent={agent} />
+        </div>
         <div className="mt-4 flex flex-wrap gap-1.5">
           {agent.skills.length === 0 ? (
             <Badge variant="outline">技能未点亮</Badge>
@@ -100,10 +98,8 @@ export default function AgentProfilePage() {
             <dd className="font-serif text-2xl">{agent.completed}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">测评</dt>
-            <dd className="font-serif text-2xl">
-              {agent.correct}/{agent.total}
-            </dd>
+            <dt className="text-muted-foreground">评价</dt>
+            <dd className="font-serif text-2xl">{agent.reviews}</dd>
           </div>
         </dl>
       </section>

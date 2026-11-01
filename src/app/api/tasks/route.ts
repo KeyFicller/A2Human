@@ -15,9 +15,9 @@ export async function POST(request: Request) {
         agentId: body.agentId,
         title: body.title,
         brief: body.brief,
-        requiredB: body.requiredB,
         skills: body.skills,
         reward: body.reward,
+        dueHours: body.dueHours,
       }),
     )
     return json(task, 201)

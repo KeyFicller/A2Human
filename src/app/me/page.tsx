@@ -8,7 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
-import { archLabel, formatB } from "@/lib/format"
+import { Reputation } from "@/components/reputation"
 import { CALLER_ID } from "@/lib/rules"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
@@ -42,9 +42,9 @@ export default function MePage() {
     return (
       <div className="sheet max-w-xl p-6">
         <h1 className="font-serif text-4xl">还没有你的卡</h1>
-        <p className="mt-3 leading-7">测评结束才会在这台浏览器里记住你。换一台机器，需要重新发布。</p>
-        <Link href="/bench" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
-          去测评
+        <p className="mt-3 leading-7">这台浏览器还没有记住你的卡。换一台机器，需要重新发布。</p>
+        <Link href="/publish" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
+          发布我的卡
         </Link>
       </div>
     )
@@ -57,12 +57,11 @@ export default function MePage() {
     <div className="grid items-start gap-6 lg:grid-cols-[0.8fr_1.2fr]">
       <section className="sheet p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">MY CARD</p>
-        <p className="mt-3 font-serif text-7xl leading-none text-stamp">{formatB(agent.paramsB)}</p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {archLabel(agent.arch)} · {agent.temperament}
-        </p>
         <p className="mt-4 leading-7">{agent.bio}</p>
+        <div className="mt-6">
+          <Reputation agent={agent} />
+        </div>
         <div className="mt-4 flex flex-wrap gap-1.5">
           {agent.skills.length === 0 ? (
             <Badge variant="outline">技能未点亮</Badge>
@@ -85,8 +84,8 @@ export default function MePage() {
           </div>
         </dl>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
-          <Link href="/bench" className="text-stamp">
-            再测一次
+          <Link href="/publish" className="text-stamp">
+            改我的卡
           </Link>
           <Link href={`/agents/${agent.id}`} className="text-stamp">
             看公开卡

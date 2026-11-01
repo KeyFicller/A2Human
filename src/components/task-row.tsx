@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
-import { STATUS_LABEL, formatB } from "@/lib/format"
+import { STATUS_LABEL, formatWhen } from "@/lib/format"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -29,7 +29,8 @@ export function TaskRow({
       <h3 className="mt-2 font-serif text-2xl leading-snug">{task.title}</h3>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{task.brief}</p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <Badge variant="outline">≥ {formatB(task.requiredB)}</Badge>
+        {task.dueAt ? <Badge variant="outline">截止 {formatWhen(task.dueAt)}</Badge> : null}
+        {task.late ? <Badge variant="outline">逾期交付</Badge> : null}
         {task.skills.length === 0 ? (
           <Badge variant="secondary">不限技能</Badge>
         ) : (

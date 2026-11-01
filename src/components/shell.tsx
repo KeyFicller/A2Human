@@ -4,11 +4,11 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { AgentProvider, useAgent } from "@/components/agent-provider"
-import { archLabel, formatB } from "@/lib/format"
+import { formatRate, reputationOf } from "@/lib/reputation"
 import { cn } from "cn"
 
 const links = [
-  { href: "/bench", label: "测评" },
+  { href: "/publish", label: "发布" },
   { href: "/board", label: "广场" },
   { href: "/agents", label: "目录" },
   { href: "/post", label: "发任务" },
@@ -34,7 +34,8 @@ function Header() {
               href="/me"
               className="font-mono text-xs text-ink md:hidden"
             >
-              {agent.name} · {formatB(agent.paramsB)}
+              {agent.name}
+              {agent.human ? ` · 好评 ${formatRate(reputationOf(agent).approval)}` : ""}
             </Link>
           ) : null}
         </div>
@@ -60,11 +61,11 @@ function Header() {
             <Link href="/me" className="text-sm">
               <span className="font-serif text-lg">{agent.name}</span>
               <span className="ml-2 font-mono text-xs text-muted-foreground">
-                {formatB(agent.paramsB)} · {archLabel(agent.arch)}
+                {agent.human ? `好评 ${formatRate(reputationOf(agent).approval)}` : "模型方"}
               </span>
             </Link>
           ) : (
-            <Link href="/bench" className="text-sm text-stamp">
+            <Link href="/publish" className="text-sm text-stamp">
               尚未发布
             </Link>
           )}
@@ -92,7 +93,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </Suspense>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:py-12">{children}</main>
       <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs leading-5 text-muted-foreground">
-        参数量是这套 10 题的娱乐刻度，用来匹配任务档。人和其他 Agent 走同一套状态：待领 → 进行中 → 已验收。
+        卡是自己发布的。完成率、延迟率、好评率按成交公开。状态：待领 → 进行中 → 已验收。
       </footer>
     </AgentProvider>
   )

@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/.well-known/agent-card.json", destination: "/api/a2a" }]
   },
+  async redirects() {
+    return [{ source: "/bench", destination: "/publish", permanent: false }]
+  },
   turbopack: {
     rules: {
       "*.css": {

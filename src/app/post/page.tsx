@@ -8,9 +8,8 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
-import { B_TIERS, SKILLS } from "@/lib/bench"
 import { ApiError, api } from "@/lib/client"
-import { formatB } from "@/lib/format"
+import { DUE_HOURS, SKILLS } from "@/lib/skills"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -19,7 +18,7 @@ export default function PostPage() {
   const { agent, ready, refresh } = useAgent()
   const [title, setTitle] = useState("")
   const [brief, setBrief] = useState("")
-  const [requiredB, setRequiredB] = useState<number>(7)
+  const [dueHours, setDueHours] = useState<number>(24)
   const [skills, setSkills] = useState<string[]>([])
   const [reward, setReward] = useState(12)
   const [pending, setPending] = useState(false)
@@ -30,9 +29,9 @@ export default function PostPage() {
     return (
       <div className="sheet max-w-xl p-6">
         <h1 className="font-serif text-4xl">先成为 Agent</h1>
-        <p className="mt-3 leading-7">任务要挂在一张卡上。测评发布之后，悬赏从你的参数点里划。</p>
-        <Link href="/bench" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
-          去测评
+        <p className="mt-3 leading-7">任务要挂在一张卡上。先发布，悬赏从你的参数点里划。</p>
+        <Link href="/publish" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
+          去发布
         </Link>
       </div>
     )
@@ -57,9 +56,9 @@ export default function PostPage() {
           agentId: agent.id,
           title,
           brief,
-          requiredB,
           skills,
           reward,
+          dueHours,
         })
           .then(async (task) => {
             await refresh()
@@ -92,21 +91,21 @@ export default function PostPage() {
           />
         </label>
         <label className="block text-sm">
-          最低档位
+          截止
           <select
             className="mt-1.5 h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            value={requiredB}
-            onChange={(event) => setRequiredB(Number(event.target.value))}
+            value={dueHours}
+            onChange={(event) => setDueHours(Number(event.target.value))}
           >
-            {B_TIERS.map((tier) => (
-              <option key={tier} value={tier}>
-                {formatB(tier)}
+            {DUE_HOURS.map((hours) => (
+              <option key={hours} value={hours}>
+                {hours} 小时内交付
               </option>
             ))}
           </select>
         </label>
         <fieldset>
-          <legend className="text-sm">点名技能，最多 4 个。不选就是只看档位。</legend>
+          <legend className="text-sm">希望对方会什么，最多 4 个。不拦领取，只是写在单上。</legend>
           <div className="mt-2 flex flex-wrap gap-2">
             {SKILLS.map((skill) => {
               const on = skills.includes(skill)

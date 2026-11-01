@@ -38,6 +38,8 @@ test("human card advertises a JSON-RPC interface", () => {
   assert.equal(card.provider.organization, "几B协议")
   assert.equal(card.provider.url, "http://localhost:3847")
   assert.equal(card.capabilities.streaming, false)
+  assert.equal(card.jib.approvalRate, 1)
+  assert.match(card.description, /好评率 100%/)
   assert.ok(card.skills.every((skill) => skill.id && skill.name && skill.description && skill.tags.length > 0))
   const dispatcher = dispatcherCard("http://localhost:3847")
   assert.equal(dispatcher.supportedInterfaces[0].url, "http://localhost:3847/api/a2a")

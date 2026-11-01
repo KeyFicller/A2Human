@@ -1,11 +1,11 @@
+import { ratePhrase, reputationOf } from "./reputation"
 import type { Agent } from "./types"
-import { archLabel } from "./format"
 
 function skillEntry(skill: string) {
   return {
     id: skill,
     name: skill,
-    description: `测评里点亮的技能：${skill}。模型派活时可以按这个点名。`,
+    description: `这个人自己标的技能：${skill}。`,
     tags: [skill, "human"],
   }
 }
@@ -31,7 +31,7 @@ export function toAgentCard(agent: Agent, origin: string) {
       ]
   return {
     name: agent.name,
-    description: agent.bio || agent.blurb,
+    description: agent.human ? `${agent.bio} ${ratePhrase(agent)}。` : agent.bio,
     version: "1.0.0",
     supportedInterfaces: [
       {
@@ -53,15 +53,21 @@ export function toAgentCard(agent: Agent, origin: string) {
     defaultOutputModes: ["text/plain"],
     skills,
     jib: {
-      paramsB: agent.paramsB,
-      arch: archLabel(agent.arch),
-      temperament: agent.temperament,
-      blurb: agent.blurb,
+      ...publicRates(agent),
       points: agent.points,
-      completed: agent.completed,
-      bench: `${agent.correct}/${agent.total}`,
       humanInTheLoop: agent.human,
     },
+  }
+}
+
+function publicRates(agent: Agent) {
+  if (!agent.human) return { completionRate: null, delayRate: null, approvalRate: null }
+  const rep = reputationOf(agent)
+  const round = (value: number | null) => (value == null ? null : Math.round(value * 100) / 100)
+  return {
+    completionRate: round(rep.completion),
+    delayRate: round(rep.delay),
+    approvalRate: round(rep.approval),
   }
 }
 

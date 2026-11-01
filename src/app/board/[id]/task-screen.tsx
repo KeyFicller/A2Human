@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
-import { KIND_LABEL, STATUS_LABEL, formatB, formatWhen } from "@/lib/format"
+import { Reputation } from "@/components/reputation"
+import { KIND_LABEL, STATUS_LABEL, formatWhen } from "@/lib/format"
 import { CALLER_ID, canClaim } from "@/lib/rules"
 import type { Agent, ProtocolMessage, Task } from "@/lib/types"
 import { cn } from "cn"
@@ -29,12 +30,14 @@ export default function TaskPage() {
   const [text, setText] = useState("")
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [clock, setClock] = useState<number | null>(null)
   const draftFor = useRef<string | null>(null)
 
   const load = useCallback(() => {
     api<Detail>(`/api/tasks/${params.id}`)
       .then((next) => {
         setDetail(next)
+        setClock(Date.now())
         const first = draftFor.current !== params.id
         if (first) draftFor.current = params.id
         setText((current) => {
@@ -113,8 +116,8 @@ export default function TaskPage() {
           {!agent && task.status === "submitted" ? (
             <p className="text-sm">
               领任务之前先
-              <Link href="/bench" className="mx-1 text-stamp">
-                测评并发布
+              <Link href="/publish" className="mx-1 text-stamp">
+                发布你的卡
               </Link>
               。
             </p>
@@ -167,6 +170,25 @@ export default function TaskPage() {
               </div>
             </form>
           ) : null}
+          {postedByMe && task.status === "completed" && !task.review ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" className="h-10 px-4" disabled={pending} onClick={() => act("rate", { vote: "up" })}>
+                好评
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 px-4"
+                disabled={pending}
+                onClick={() => act("rate", { vote: "down" })}
+              >
+                差评
+              </Button>
+            </div>
+          ) : null}
+          {task.review ? (
+            <p className="mt-4 text-sm">{task.review === "up" ? "发布方给了好评。" : "发布方给了差评。"}</p>
+          ) : null}
           {postedByMe && task.status === "submitted" ? (
             <Button
               type="button"
@@ -201,7 +223,8 @@ export default function TaskPage() {
           <p className="mt-1 font-serif text-4xl text-stamp">+{task.reward}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <Badge variant="outline">≥ {formatB(task.requiredB)}</Badge>
+          {task.dueAt ? <Badge variant="outline">截止 {formatWhen(task.dueAt)}</Badge> : null}
+          {task.late ? <Badge variant="outline">逾期</Badge> : null}
           {task.skills.length === 0 ? (
             <Badge variant="secondary">不限技能</Badge>
           ) : (
@@ -221,15 +244,23 @@ export default function TaskPage() {
           ) : (
             task.posterName
           )}
-          {poster && poster.id !== CALLER_ID
-            ? ` · ${poster.human ? "人类" : "模型方"} ${formatB(poster.paramsB)}`
-            : ""}
+          {poster && poster.id !== CALLER_ID ? ` · ${poster.human ? "人类" : "模型方"}` : ""}
         </p>
         {task.claimantName ? (
-          <p className="text-sm">领取人 {task.claimantName}</p>
+          <div className="text-sm">
+            <p>领取人 {task.claimantName}</p>
+            {detail.claimant?.human ? (
+              <div className="mt-3">
+                <Reputation agent={detail.claimant} compact />
+              </div>
+            ) : null}
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">还没有人领</p>
         )}
+        {task.status === "working" && task.dueAt && clock != null && Date.parse(task.dueAt) < clock ? (
+          <p className="text-sm text-stamp">已过截止。现在提交会计入延迟率。</p>
+        ) : null}
         <p className="text-xs leading-5 text-muted-foreground">
           {task.posterId === CALLER_ID
             ? "人一提交，调用方的 GetTask 就会在 artifacts 里读到这段文字。"

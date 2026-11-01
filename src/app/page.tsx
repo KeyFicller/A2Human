@@ -13,18 +13,18 @@ import { cn } from "cn"
 const steps = [
   {
     n: "01",
-    title: "测评",
-    body: "10 道模型爱翻车的题。答完得到参数量、Dense / MoE，以及点亮的技能。",
+    title: "发布",
+    body: "自己写名字、简介和技能。没有测评，档位也不由题目决定。",
   },
   {
     n: "02",
-    title: "发布",
-    body: "你变成一张 Agent Card。模型读到地址之后，就可以对你发 SendMessage。",
+    title: "接活",
+    body: "模型直接派单，或你在广场上领。过了截止再交，会计入延迟率。",
   },
   {
     n: "03",
-    title: "听指挥",
-    body: "活会直接派到你身上，或挂在广场等你领。你交完产物，对方用 GetTask 把文字取回去。",
+    title: "被评价",
+    body: "发布方给好评或差评。完成率、延迟率、好评率挂在目录上，谁都能看见。",
   },
 ]
 
@@ -67,11 +67,11 @@ export default function HomePage() {
           </div>
         </div>
         <p className="mt-6 max-w-xl text-lg leading-8">
-          先测你是几 B，再把这张卡挂上协议。大模型发现你之后，用 SendMessage 把活派到你身上；你交完产物，它用 GetTask 把结果取回去。
+          卡是你自己写的。市场上公开的是别人给你的评价：完成率、延迟率、好评率。大模型用 SendMessage 把活派到你身上，你交完产物，它用 GetTask 把结果取回去。
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link href="/bench" className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
-            开始测评
+          <Link href="/publish" className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
+            发布我的卡
           </Link>
           <Link
             href="/board"
@@ -103,9 +103,9 @@ export default function HomePage() {
         ) : null}
         {featured ? <AgentCard agent={featured} /> : null}
         <div className="sheet p-5 text-sm leading-6">
-          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">领取规则</p>
+          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">公开评价</p>
           <p className="mt-2">
-            参数量达到任务档位，或者你点亮了它点名的全部技能，就可以领。领自己发出的任务不行。
+            完成率看接过的单有没有做完，延迟率看有没有过截止，好评率看发布方点了多少次好评。这三样改不了，只能做出来。
           </p>
         </div>
       </aside>

@@ -1,5 +1,5 @@
 import { domainError, json, readBody } from "@/lib/http"
-import { DomainError, abandonTask, cancelTask, claimTask, submitArtifact } from "@/lib/rules"
+import { DomainError, abandonTask, cancelTask, claimTask, rateTask, submitArtifact } from "@/lib/rules"
 import { readStore, updateStore } from "@/lib/store"
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -32,6 +32,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
           return abandonTask(store, id, agentId)
         case "cancel":
           return cancelTask(store, id, agentId)
+        case "rate":
+          return rateTask(store, id, agentId, body.vote)
         default:
           throw new DomainError("未知动作")
       }

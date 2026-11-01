@@ -1,6 +1,5 @@
-import { B_TIERS, QUESTIONS, defaultBio, scoreBench, type Skill } from "./bench"
-import type { Agent, ProtocolMessage, Store, Task } from "./types"
-import { formatB } from "./format"
+import { DUE_HOURS, SKILLS, type Skill } from "./skills"
+import type { Agent, ProtocolMessage, Review, Store, Task } from "./types"
 
 export class DomainError extends Error {}
 
@@ -43,19 +42,6 @@ function addMessage(
   })
 }
 
-export function assertAnswers(answers: unknown): number[] {
-  if (!Array.isArray(answers) || answers.length !== QUESTIONS.length) {
-    fail("答卷不完整")
-  }
-  return answers.map((value, index) => {
-    const size = QUESTIONS[index].options.length
-    if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= size) {
-      fail(`第 ${index + 1} 题没有有效选项`)
-    }
-    return value
-  })
-}
-
 function cleanName(name: unknown) {
   if (typeof name !== "string") fail("需要一个名字")
   const trimmed = name.trim()
@@ -78,8 +64,8 @@ function cleanSkills(skills: unknown): Skill[] {
   const unique = [...new Set(skills)]
   if (unique.length > 4) fail("一张任务最多点名 4 个技能")
   return unique.map((skill) => {
-    if (typeof skill !== "string" || !QUESTIONS.some((question) => question.skill === skill)) {
-      fail("有技能不在协议目录里")
+    if (typeof skill !== "string" || !(SKILLS as readonly string[]).includes(skill)) {
+      fail("有技能不在目录里")
     }
     return skill as Skill
   })
@@ -90,67 +76,47 @@ export function canClaim(agent: Agent, task: Task): { ok: true } | { ok: false; 
   if (task.status === "completed") return { ok: false, reason: "这单已经结算" }
   if (task.status === "canceled") return { ok: false, reason: "发布方已撤回" }
   if (task.posterId === agent.id) return { ok: false, reason: "不能领自己发出的任务" }
+  return { ok: true }
+}
 
-  const sizeOk = agent.paramsB >= task.requiredB
-  const skillOk =
-    task.skills.length > 0 && task.skills.every((skill) => agent.skills.includes(skill))
-  if (sizeOk || skillOk) return { ok: true }
-
-  if (task.skills.length === 0) {
-    return { ok: false, reason: `需要 ≥ ${formatB(task.requiredB)}` }
-  }
-  return {
-    ok: false,
-    reason: `需要 ≥ ${formatB(task.requiredB)}，或同时点亮 ${task.skills.join("、")}`,
-  }
+function claimedSkills(skills: unknown) {
+  const cleaned = cleanSkills(skills)
+  if (cleaned.length < 1) fail("至少标一项你会的")
+  return cleaned
 }
 
 export function publishAgent(
   store: Store,
-  input: { name: unknown; bio: unknown; answers: unknown },
+  input: { name: unknown; bio: unknown; skills: unknown },
 ): Agent {
-  const name = cleanName(input.name)
-  const answers = assertAnswers(input.answers)
-  const result = scoreBench(answers)
-  const bio = cleanBio(input.bio) || defaultBio(result)
   const agent: Agent = {
     id: crypto.randomUUID(),
-    name,
-    bio,
+    name: cleanName(input.name),
+    bio: cleanBio(input.bio) || "人发布的 Agent。",
     human: true,
-    paramsB: result.paramsB,
-    blurb: result.blurb,
-    arch: result.arch,
-    temperament: result.temperament,
-    skills: result.skills,
+    skills: claimedSkills(input.skills),
     points: 40,
     completed: 0,
-    correct: result.correct,
-    total: result.total,
+    abandoned: 0,
+    late: 0,
+    reviews: 0,
+    up: 0,
     createdAt: now(),
   }
   store.agents.push(agent)
   return agent
 }
 
-export function retakeBench(
+export function updateAgent(
   store: Store,
   agentId: string,
-  input: { name: unknown; bio: unknown; answers: unknown },
+  input: { name: unknown; bio: unknown; skills: unknown },
 ): Agent {
   const agent = requireAgent(store, agentId)
-  if (!agent.human) fail("模型方的卡不能重测")
-  const answers = assertAnswers(input.answers)
-  const result = scoreBench(answers)
+  if (!agent.human) fail("模型方的卡不能改")
   agent.name = cleanName(input.name)
-  agent.bio = cleanBio(input.bio) || defaultBio(result)
-  agent.paramsB = result.paramsB
-  agent.blurb = result.blurb
-  agent.arch = result.arch
-  agent.temperament = result.temperament
-  agent.skills = result.skills
-  agent.correct = result.correct
-  agent.total = result.total
+  agent.bio = cleanBio(input.bio) || "人发布的 Agent。"
+  agent.skills = claimedSkills(input.skills)
   return agent
 }
 
@@ -160,9 +126,9 @@ export function postTask(
     agentId: unknown
     title: unknown
     brief: unknown
-    requiredB: unknown
     skills: unknown
     reward: unknown
+    dueHours: unknown
   },
 ): Task {
   if (typeof input.agentId !== "string") fail("缺少发布方")
@@ -180,8 +146,8 @@ export function postTask(
   if (poster.points < input.reward) {
     fail(`参数点不够。你有 ${poster.points}，这单要 ${input.reward}`)
   }
-  if (typeof input.requiredB !== "number" || !(B_TIERS as readonly number[]).includes(input.requiredB)) {
-    fail("档位不在协议刻度上")
+  if (typeof input.dueHours !== "number" || !(DUE_HOURS as readonly number[]).includes(input.dueHours)) {
+    fail("截止时间要是 4、12、24 或 72 小时")
   }
   const skills = cleanSkills(input.skills)
   poster.points -= input.reward
@@ -192,13 +158,14 @@ export function postTask(
     brief,
     posterId: poster.id,
     posterName: poster.name,
-    requiredB: input.requiredB,
     skills,
     reward: input.reward,
     status: "submitted",
     claimantId: null,
     claimantName: null,
     artifact: null,
+    dueAt: new Date(Date.now() + input.dueHours * 60 * 60 * 1000).toISOString(),
+    review: null,
     createdAt,
     updatedAt: createdAt,
     source: "board",
@@ -230,7 +197,7 @@ export function claimTask(store: Store, taskId: string, agentId: string): Task {
     fromId: agent.id,
     fromName: agent.name,
     kind: "task.claim",
-    text: `${agent.name} 领取。当前尺寸 ${formatB(agent.paramsB)}。`,
+    text: `${agent.name} 领取。`,
   })
   return task
 }
@@ -246,11 +213,14 @@ export function submitArtifact(store: Store, taskId: string, agentId: string, te
   if (textLength(artifact) < 8 || textLength(artifact) > 800) {
     fail("产物用 8 到 800 个字")
   }
+  const overdue = Boolean(task.dueAt && Date.parse(task.dueAt) < Date.now())
   task.artifact = artifact
+  task.late = overdue
   task.status = "completed"
   task.updatedAt = now()
   agent.points += task.reward
   agent.completed += 1
+  if (overdue) agent.late += 1
   addMessage(store, {
     taskId: task.id,
     fromId: agent.id,
@@ -281,7 +251,9 @@ export function abandonTask(store: Store, taskId: string, agentId: string): Task
   task.claimantId = null
   task.claimantName = null
   task.artifact = null
+  task.late = false
   task.updatedAt = now()
+  agent.abandoned += 1
   addMessage(store, {
     taskId: task.id,
     fromId: agent.id,
@@ -318,15 +290,13 @@ export function ensureCaller(store: Store): Agent {
     name: "外部模型",
     bio: "从 JSON-RPC 进来的调用方。不领任务，只把活派给人。",
     human: false,
-    paramsB: 0,
-    blurb: "协议入口，不参加测评。",
-    arch: "dense",
-    temperament: "协议调用",
     skills: [],
     points: 100000,
     completed: 0,
-    correct: 0,
-    total: 0,
+    abandoned: 0,
+    late: 0,
+    reviews: 0,
+    up: 0,
     createdAt: now(),
   }
   store.agents.push(caller)
@@ -357,6 +327,7 @@ export function receiveCommand(
     messageId: string
     taskId?: string
     callerName: string
+    dueHours?: number
   },
 ): Task {
   const replay = findCommandTask(store, input.messageId)
@@ -406,13 +377,14 @@ export function receiveCommand(
     brief: text,
     posterId: caller.id,
     posterName: input.callerName,
-    requiredB: 0.5,
     skills: [],
     reward,
     status: human ? "working" : "submitted",
     claimantId: human?.id ?? null,
     claimantName: human?.name ?? null,
     artifact: null,
+    dueAt: new Date(Date.now() + (input.dueHours ?? 24) * 60 * 60 * 1000).toISOString(),
+    review: null,
     createdAt,
     updatedAt: createdAt,
     contextId: crypto.randomUUID(),
@@ -455,6 +427,31 @@ export function cancelCommandedTask(store: Store, taskId: string): Task {
     fromName: task.posterName,
     kind: "task.cancel",
     text: task.reward > 0 ? `调用方取消，${task.reward} 参数点退回。` : "调用方取消。",
+  })
+  return task
+}
+
+export function rateTask(store: Store, taskId: string, agentId: string, vote: unknown): Task {
+  const task = requireTask(store, taskId)
+  const agent = requireAgent(store, agentId)
+  if (task.posterId !== agent.id) fail("只有发布方能评价")
+  if (task.status !== "completed") fail("还没有可评价的产物")
+  if (vote !== "up" && vote !== "down") fail("评价只能是好评或差评")
+  if (task.review === vote) return task
+  if (task.review) fail("已经评价过")
+  if (!task.claimantId) fail("这单没有领取人")
+  const claimant = requireAgent(store, task.claimantId)
+  const review = vote as Review
+  task.review = review
+  task.updatedAt = now()
+  claimant.reviews += 1
+  if (review === "up") claimant.up += 1
+  addMessage(store, {
+    taskId: task.id,
+    fromId: agent.id,
+    fromName: agent.name,
+    kind: "task.review",
+    text: review === "up" ? "好评。" : "差评。",
   })
   return task
 }

@@ -1,6 +1,6 @@
-export type Arch = "dense" | "moe"
-
 export type TaskStatus = "submitted" | "working" | "completed" | "canceled"
+
+export type Review = "up" | "down"
 
 export type MessageKind =
   | "task.submit"
@@ -10,6 +10,7 @@ export type MessageKind =
   | "task.abandon"
   | "task.cancel"
   | "task.note"
+  | "task.review"
 
 export type TaskSource = "board" | "direct" | "pool"
 
@@ -18,15 +19,13 @@ export type Agent = {
   name: string
   bio: string
   human: boolean
-  paramsB: number
-  blurb: string
-  arch: Arch
-  temperament: string
   skills: string[]
   points: number
   completed: number
-  correct: number
-  total: number
+  abandoned: number
+  late: number
+  reviews: number
+  up: number
   createdAt: string
 }
 
@@ -36,13 +35,15 @@ export type Task = {
   brief: string
   posterId: string
   posterName: string
-  requiredB: number
   skills: string[]
   reward: number
   status: TaskStatus
   claimantId: string | null
   claimantName: string | null
   artifact: string | null
+  dueAt?: string
+  review?: Review | null
+  late?: boolean
   createdAt: string
   updatedAt: string
   contextId?: string

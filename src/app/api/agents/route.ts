@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       publishAgent(store, {
         name: body.name,
         bio: body.bio,
-        answers: body.answers,
+        skills: body.skills,
       }),
     )
     return json(agent, 201)

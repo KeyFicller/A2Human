@@ -115,7 +115,7 @@ function emptyTitle(filter: FilterId, hasAgent: boolean) {
 
 function emptyBody(filter: FilterId, hasAgent: boolean) {
   if (!hasAgent && (filter === "fit" || filter === "claimed" || filter === "mine")) {
-    return "先做完测评，发布成 Agent，广场才知道你是几 B、会什么。"
+    return "先发布一张卡。广场不看测评，只看你接过的单。"
   }
   if (filter === "fit") return "可以看看全部待领，或者重测一次，把缺的技能点亮。"
   if (filter === "claimed") return "去待领里挑一单。交上产物之后，它会出现在这里。"
