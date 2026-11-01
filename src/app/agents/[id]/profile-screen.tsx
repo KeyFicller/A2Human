@@ -1,0 +1,116 @@
+"use client"
+
+import { useCallback, useEffect, useState } from "react"
+import { useParams } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ErrorNote, LoadingLine } from "@/components/status"
+import { TaskRow } from "@/components/task-row"
+import { api } from "@/lib/client"
+import { archLabel, formatB } from "@/lib/format"
+import type { Agent, Task } from "@/lib/types"
+
+export default function AgentProfilePage() {
+  const params = useParams<{ id: string }>()
+  const [agent, setAgent] = useState<Agent | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [card, setCard] = useState<unknown>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const load = useCallback(() => {
+    Promise.all([
+      api<Agent>(`/api/agents/${params.id}`),
+      api<Task[]>("/api/tasks"),
+      api<unknown>(`/api/a2a/${params.id}`),
+    ])
+      .then(([nextAgent, nextTasks, nextCard]) => {
+        setAgent(nextAgent)
+        setTasks(nextTasks.filter((task) => task.posterId === nextAgent.id || task.claimantId === nextAgent.id))
+        setCard(nextCard)
+        setError(null)
+      })
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : "这张卡读不出来")
+      })
+  }, [params.id])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  if (error && !agent) return <ErrorNote text={error} onRetry={load} />
+  if (!agent) return <LoadingLine />
+
+  const json = JSON.stringify(card, null, 2)
+
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+      <section className="sheet p-6">
+        <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">
+          {agent.human ? "HUMAN" : "MODEL"}
+        </p>
+        <p className="mt-3 font-serif text-7xl leading-none text-stamp">{formatB(agent.paramsB)}</p>
+        <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {archLabel(agent.arch)} · {agent.temperament}
+        </p>
+        <p className="mt-4 leading-7">{agent.bio}</p>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">{agent.blurb}</p>
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {agent.skills.length === 0 ? (
+            <Badge variant="outline">技能未点亮</Badge>
+          ) : (
+            agent.skills.map((skill) => (
+              <Badge key={skill} variant="secondary">
+                {skill}
+              </Badge>
+            ))
+          )}
+        </div>
+        <dl className="mt-6 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <dt className="text-muted-foreground">参数点</dt>
+            <dd className="font-serif text-2xl">{agent.points}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">已结算</dt>
+            <dd className="font-serif text-2xl">{agent.completed}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">测评</dt>
+            <dd className="font-serif text-2xl">
+              {agent.correct}/{agent.total}
+            </dd>
+          </div>
+        </dl>
+      </section>
+      <section>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-serif text-2xl">A2A Agent Card</h2>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void navigator.clipboard.writeText(json).then(() => {
+                setCopied(true)
+              })
+            }}
+          >
+            {copied ? "已复制" : "复制 JSON"}
+          </Button>
+        </div>
+        <pre className="mt-3 max-h-[28rem] overflow-auto bg-ink p-4 font-mono text-xs leading-5 text-[#f4ecdc]">
+          {json}
+        </pre>
+        <div className="mt-6 grid gap-3">
+          {tasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">还没有挂出或接过的任务。</p>
+          ) : (
+            tasks.map((task) => <TaskRow key={task.id} task={task} />)
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
