@@ -64,7 +64,7 @@ export default function MePage() {
         </div>
         <div className="mt-4 flex flex-wrap gap-1.5">
           {agent.skills.length === 0 ? (
-            <Badge variant="outline">技能未点亮</Badge>
+            <Badge variant="outline">未标技能</Badge>
           ) : (
             agent.skills.map((skill) => (
               <Badge key={skill} variant="secondary">
