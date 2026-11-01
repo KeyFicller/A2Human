@@ -1,6 +1,11 @@
+import { dispatchA2a } from "@/lib/a2a"
 import { toAgentCard } from "@/lib/card"
 import { json } from "@/lib/http"
-import { readStore } from "@/lib/store"
+import { readStore, updateStore } from "@/lib/store"
+
+function rpcError(code: number, message: string) {
+  return json({ jsonrpc: "2.0", id: null, error: { code, message } })
+}
 
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
@@ -9,4 +14,18 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   if (!agent) return json({ error: "找不到这个 Agent" }, 404)
   const origin = new URL(request.url).origin
   return json(toAgentCard(agent, origin))
+}
+
+export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return rpcError(-32700, "请求体不是 JSON")
+  }
+  const known = await readStore()
+  if (!known.agents.some((item) => item.id === id)) return rpcError(-32001, "找不到这个 Agent")
+  const result = await updateStore((store) => dispatchA2a(store, { kind: "human", agentId: id }, body))
+  return json(result)
 }

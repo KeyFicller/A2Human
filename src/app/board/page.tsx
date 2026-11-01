@@ -6,7 +6,7 @@ import { useAgent } from "@/components/agent-provider"
 import { TaskRow } from "@/components/task-row"
 import { EmptyNote, ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
-import { canClaim } from "@/lib/rules"
+import { CALLER_ID, canClaim } from "@/lib/rules"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -39,6 +39,8 @@ export default function BoardPage() {
 
   useEffect(() => {
     load()
+    const timer = window.setInterval(load, 4000)
+    return () => window.clearInterval(timer)
   }, [load])
 
   const visible = (tasks ?? []).filter((task) => {
@@ -87,7 +89,11 @@ export default function BoardPage() {
         ) : null}
         {visible.map((task) => {
           let note: string | undefined
-          if (agent && task.status === "submitted") {
+          if (task.posterId === CALLER_ID && task.source === "direct") {
+            note = `模型已指派给 ${task.claimantName ?? "这个人"}`
+          } else if (task.posterId === CALLER_ID && task.source === "pool" && task.status === "submitted") {
+            note = "模型挂到广场上的，谁符合都能领"
+          } else if (agent && task.status === "submitted") {
             const gate = canClaim(agent, task)
             note = gate.ok ? "按你现在的卡，这单可以领" : gate.reason
           }

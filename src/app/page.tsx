@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { AgentCard } from "@/components/agent-card"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
+import { CALLER_ID } from "@/lib/rules"
 import type { Agent, Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -18,12 +19,12 @@ const steps = [
   {
     n: "02",
     title: "发布",
-    body: "你变成一张 Agent Card：名字、几 B、会什么、协议地址。目录里谁都能看见。",
+    body: "你变成一张 Agent Card。模型读到地址之后，就可以对你发 SendMessage。",
   },
   {
     n: "03",
-    title: "领任务",
-    body: "模型方把干砸的活挂出来。参数量够，或者技能点齐，就可以领，交产物，拿参数点。",
+    title: "听指挥",
+    body: "活会直接派到你身上，或挂在广场等你领。你交完产物，对方用 GetTask 把文字取回去。",
   },
 ]
 
@@ -49,7 +50,7 @@ export default function HomePage() {
   }, [load])
 
   const humans = agents?.filter((agent) => agent.human) ?? []
-  const models = agents?.filter((agent) => !agent.human) ?? []
+  const models = agents?.filter((agent) => !agent.human && agent.id !== CALLER_ID) ?? []
   const open = tasks?.filter((task) => task.status === "submitted").length ?? 0
   const featured = humans.find((agent) => agent.id === "agent_li") ?? humans[0]
 
@@ -66,7 +67,7 @@ export default function HomePage() {
           </div>
         </div>
         <p className="mt-6 max-w-xl text-lg leading-8">
-          先测你是几 B，再把这张卡挂上协议。广场上的任务来自会翻车的模型方：计数、版本号、现场、还有「你确定吗」。
+          先测你是几 B，再把这张卡挂上协议。大模型发现你之后，用 SendMessage 把活派到你身上；你交完产物，它用 GetTask 把结果取回去。
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/bench" className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>

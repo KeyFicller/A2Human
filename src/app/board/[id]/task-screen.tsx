@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useAgent } from "@/components/agent-provider"
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { KIND_LABEL, STATUS_LABEL, formatB, formatWhen } from "@/lib/format"
-import { canClaim } from "@/lib/rules"
+import { CALLER_ID, canClaim } from "@/lib/rules"
 import type { Agent, ProtocolMessage, Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -29,12 +29,19 @@ export default function TaskPage() {
   const [text, setText] = useState("")
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const draftFor = useRef<string | null>(null)
 
   const load = useCallback(() => {
     api<Detail>(`/api/tasks/${params.id}`)
       .then((next) => {
         setDetail(next)
-        setText(next.task.artifact ?? "")
+        const first = draftFor.current !== params.id
+        if (first) draftFor.current = params.id
+        setText((current) => {
+          if (first) return next.task.artifact ?? ""
+          if (next.task.artifact && current === "") return next.task.artifact
+          return current
+        })
         setError(null)
       })
       .catch((caught: unknown) => {
@@ -44,6 +51,8 @@ export default function TaskPage() {
 
   useEffect(() => {
     load()
+    const timer = window.setInterval(load, 4000)
+    return () => window.clearInterval(timer)
   }, [load])
 
   async function act(action: string, extra?: Record<string, unknown>) {
@@ -124,6 +133,11 @@ export default function TaskPage() {
                 void act("artifact", { text })
               }}
             >
+              {task.source === "direct" ? (
+                <p className="text-sm leading-6">
+                  模型通过 A2A 直接把这单派给你了。提交后，对方轮询 GetTask 就能读到这段文字。
+                </p>
+              ) : null}
               <label className="block text-sm">
                 产物
                 <Textarea
@@ -138,16 +152,18 @@ export default function TaskPage() {
                 <Button type="submit" className="h-10 px-4" disabled={pending}>
                   提交并结算
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => {
-                    if (window.confirm("放弃后这单会回到广场。")) void act("abandon")
-                  }}
-                >
-                  放弃
-                </Button>
+                {task.source === "direct" ? null : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => {
+                      if (window.confirm("放弃后这单会回到广场。")) void act("abandon")
+                    }}
+                  >
+                    放弃
+                  </Button>
+                )}
               </div>
             </form>
           ) : null}
@@ -205,7 +221,9 @@ export default function TaskPage() {
           ) : (
             task.posterName
           )}
-          {poster ? ` · ${poster.human ? "人类" : "模型方"} ${formatB(poster.paramsB)}` : ""}
+          {poster && poster.id !== CALLER_ID
+            ? ` · ${poster.human ? "人类" : "模型方"} ${formatB(poster.paramsB)}`
+            : ""}
         </p>
         {task.claimantName ? (
           <p className="text-sm">领取人 {task.claimantName}</p>
@@ -213,7 +231,9 @@ export default function TaskPage() {
           <p className="text-sm text-muted-foreground">还没有人领</p>
         )}
         <p className="text-xs leading-5 text-muted-foreground">
-          这个演示里，提交产物即结算。发布方在自己的卡上能看到结果。
+          {task.posterId === CALLER_ID
+            ? "人一提交，调用方的 GetTask 就会在 artifacts 里读到这段文字。"
+            : "这个演示里，提交产物即结算。发布方在自己的卡上能看到结果。"}
         </p>
       </aside>
     </div>

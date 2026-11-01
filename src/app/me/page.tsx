@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
 import { archLabel, formatB } from "@/lib/format"
+import { CALLER_ID } from "@/lib/rules"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -17,14 +18,23 @@ export default function MePage() {
   const [tasks, setTasks] = useState<Task[] | null>(null)
   const [taskError, setTaskError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!agent) return
     api<Task[]>("/api/tasks")
-      .then(setTasks)
+      .then((next) => {
+        setTasks(next)
+        setTaskError(null)
+      })
       .catch((caught: unknown) => {
         setTaskError(caught instanceof Error ? caught.message : "任务列表读不出来")
       })
   }, [agent])
+
+  useEffect(() => {
+    load()
+    const timer = window.setInterval(load, 4000)
+    return () => window.clearInterval(timer)
+  }, [load])
 
   if (!ready) return <LoadingLine />
   if (error) return <ErrorNote text={error} />
@@ -96,7 +106,17 @@ export default function MePage() {
               <p className="text-sm text-muted-foreground">还没有。广场上标了「可以领」的单，直接进。</p>
             ) : null}
             {claimed.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                note={
+                  task.posterId === CALLER_ID && task.source === "direct"
+                    ? "模型直接指派给你。交完产物后，对方用 GetTask 就能读到。"
+                    : task.posterId === CALLER_ID && task.source === "pool"
+                      ? "你从协议广场领来的。交完产物后，对方用 GetTask 就能读到。"
+                      : undefined
+                }
+              />
             ))}
           </div>
         </div>

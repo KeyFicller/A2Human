@@ -28,6 +28,10 @@ function requireTask(store: Store, id: string) {
   return task
 }
 
+export const CALLER_ID = "agent_a2a"
+const COMMAND_REWARD = 12
+const COMMAND_TEXT_MAX = 4000
+
 function addMessage(
   store: Store,
   message: Omit<ProtocolMessage, "id" | "createdAt">,
@@ -197,6 +201,8 @@ export function postTask(
     artifact: null,
     createdAt,
     updatedAt: createdAt,
+    source: "board",
+    contextId: crypto.randomUUID(),
   }
   store.tasks.unshift(task)
   addMessage(store, {
@@ -268,6 +274,9 @@ export function abandonTask(store: Store, taskId: string, agentId: string): Task
   if (task.status !== "working" || task.claimantId !== agent.id) {
     fail("这单不在你手上")
   }
+  if (task.source === "direct") {
+    fail("这是模型直接派给你的，不能转手。做完提交，或等对方取消。")
+  }
   task.status = "submitted"
   task.claimantId = null
   task.claimantName = null
@@ -297,6 +306,155 @@ export function cancelTask(store: Store, taskId: string, agentId: string): Task 
     fromName: agent.name,
     kind: "task.cancel",
     text: `任务撤回，${task.reward} 参数点退回。`,
+  })
+  return task
+}
+
+export function ensureCaller(store: Store): Agent {
+  const existing = store.agents.find((item) => item.id === CALLER_ID)
+  if (existing) return existing
+  const caller: Agent = {
+    id: CALLER_ID,
+    name: "外部模型",
+    bio: "从 JSON-RPC 进来的调用方。不领任务，只把活派给人。",
+    human: false,
+    paramsB: 0,
+    blurb: "协议入口，不参加测评。",
+    arch: "dense",
+    temperament: "协议调用",
+    skills: [],
+    points: 100000,
+    completed: 0,
+    correct: 0,
+    total: 0,
+    createdAt: now(),
+  }
+  store.agents.push(caller)
+  return caller
+}
+
+function findCommandTask(store: Store, messageId: string) {
+  const created = store.tasks.find((item) => item.a2aMessageId === messageId)
+  if (created) return created
+  const noted = store.messages.find((item) => item.a2aMessageId === messageId)
+  if (!noted) return undefined
+  return store.tasks.find((item) => item.id === noted.taskId)
+}
+
+function commandTitle(text: string) {
+  const flat = text.replace(/\s+/g, " ").trim()
+  const slice = [...flat].slice(0, 32).join("")
+  if (textLength(slice) >= 4) return slice
+  return "模型派来的活"
+}
+
+export function receiveCommand(
+  store: Store,
+  input: {
+    mode: "direct" | "pool"
+    humanId?: string
+    text: string
+    messageId: string
+    taskId?: string
+    callerName: string
+  },
+): Task {
+  const replay = findCommandTask(store, input.messageId)
+  if (replay) return replay
+
+  const text = input.text.trim()
+  if (textLength(text) < 1 || textLength(text) > COMMAND_TEXT_MAX) {
+    fail(`指令用 1 到 ${COMMAND_TEXT_MAX} 个字`)
+  }
+
+  if (input.taskId) {
+    const task = requireTask(store, input.taskId)
+    if (input.mode === "direct") {
+      const mine = task.targetId === input.humanId || task.claimantId === input.humanId
+      if (!mine) fail("这张任务不在这个人身上")
+    } else if (task.source !== "pool") {
+      fail("这张任务不在广场入口")
+    }
+    if (task.status === "completed" || task.status === "canceled") fail("任务已经结束")
+    const caller = ensureCaller(store)
+    addMessage(store, {
+      taskId: task.id,
+      fromId: caller.id,
+      fromName: input.callerName,
+      kind: "task.note",
+      text,
+      a2aMessageId: input.messageId,
+    })
+    task.updatedAt = now()
+    return task
+  }
+
+  let human: Agent | null = null
+  if (input.mode === "direct") {
+    if (!input.humanId) fail("缺少要指挥的人")
+    human = requireAgent(store, input.humanId)
+    if (!human.human) fail("只能指挥已经发布的人")
+  }
+
+  const caller = ensureCaller(store)
+  const reward = caller.points >= COMMAND_REWARD ? COMMAND_REWARD : 0
+  caller.points -= reward
+  const createdAt = now()
+  const task: Task = {
+    id: crypto.randomUUID(),
+    title: commandTitle(text),
+    brief: text,
+    posterId: caller.id,
+    posterName: input.callerName,
+    requiredB: 0.5,
+    skills: [],
+    reward,
+    status: human ? "working" : "submitted",
+    claimantId: human?.id ?? null,
+    claimantName: human?.name ?? null,
+    artifact: null,
+    createdAt,
+    updatedAt: createdAt,
+    contextId: crypto.randomUUID(),
+    a2aMessageId: input.messageId,
+    source: input.mode,
+    targetId: human?.id,
+  }
+  store.tasks.unshift(task)
+  addMessage(store, {
+    taskId: task.id,
+    fromId: caller.id,
+    fromName: input.callerName,
+    kind: "task.submit",
+    text,
+    a2aMessageId: input.messageId,
+  })
+  if (human) {
+    addMessage(store, {
+      taskId: task.id,
+      fromId: human.id,
+      fromName: human.name,
+      kind: "task.claim",
+      text: `${human.name} 被直接指派，不用再领。`,
+    })
+  }
+  return task
+}
+
+export function cancelCommandedTask(store: Store, taskId: string): Task {
+  const task = requireTask(store, taskId)
+  if (task.posterId !== CALLER_ID) fail("只有协议派来的任务能从这里取消")
+  if (task.status === "completed" || task.status === "canceled") fail("任务已经结束")
+  const caller = ensureCaller(store)
+  caller.points += task.reward
+  task.status = "canceled"
+  task.updatedAt = now()
+  addMessage(store, {
+    taskId: task.id,
+    fromId: caller.id,
+    fromName: task.posterName,
+    kind: "task.cancel",
+    text: task.reward > 0 ? `调用方取消，${task.reward} 参数点退回。` : "调用方取消。",
   })
   return task
 }

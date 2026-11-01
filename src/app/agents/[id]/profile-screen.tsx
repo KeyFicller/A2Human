@@ -17,6 +17,8 @@ export default function AgentProfilePage() {
   const [card, setCard] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copiedCurl, setCopiedCurl] = useState(false)
+  const [origin, setOrigin] = useState("")
 
   const load = useCallback(() => {
     Promise.all([
@@ -39,10 +41,30 @@ export default function AgentProfilePage() {
     load()
   }, [load])
 
+  useEffect(() => {
+    const next = window.location.origin
+    Promise.resolve().then(() => setOrigin(next))
+  }, [])
+
   if (error && !agent) return <ErrorNote text={error} onRetry={load} />
   if (!agent) return <LoadingLine />
 
   const json = JSON.stringify(card, null, 2)
+  const endpoint = `${origin}/api/a2a/${agent.id}`
+  const curl = `curl -s ${endpoint} \\
+  -H 'content-type: application/json' \\
+  -d '${JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "SendMessage",
+    params: {
+      message: {
+        role: "ROLE_USER",
+        messageId: "msg-1",
+        parts: [{ text: "用一句话介绍你自己。" }],
+      },
+    },
+  })}'`
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -86,6 +108,27 @@ export default function AgentProfilePage() {
         </dl>
       </section>
       <section>
+        {agent.human ? (
+          <div className="mb-6">
+            <h2 className="font-serif text-2xl">让模型指挥这个人</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              广场入口是 {origin ? `${origin}/.well-known/agent-card.json` : "加载中"}。下面这条会把活直接派到这个人身上，状态进入 TASK_STATE_WORKING。人交完产物后，用 GetTask 读取。
+            </p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="truncate font-mono text-xs text-muted-foreground">{endpoint}</p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard.writeText(curl).then(() => setCopiedCurl(true))
+                }}
+              >
+                {copiedCurl ? "已复制" : "复制调用"}
+              </Button>
+            </div>
+            <pre className="mt-3 overflow-auto bg-ink p-4 font-mono text-xs leading-5 text-[#f4ecdc]">{curl}</pre>
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-serif text-2xl">A2A Agent Card</h2>
           <Button

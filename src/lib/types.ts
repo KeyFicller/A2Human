@@ -9,6 +9,9 @@ export type MessageKind =
   | "task.complete"
   | "task.abandon"
   | "task.cancel"
+  | "task.note"
+
+export type TaskSource = "board" | "direct" | "pool"
 
 export type Agent = {
   id: string
@@ -42,6 +45,10 @@ export type Task = {
   artifact: string | null
   createdAt: string
   updatedAt: string
+  contextId?: string
+  a2aMessageId?: string
+  source?: TaskSource
+  targetId?: string
 }
 
 export type ProtocolMessage = {
@@ -52,6 +59,7 @@ export type ProtocolMessage = {
   kind: MessageKind
   text: string
   createdAt: string
+  a2aMessageId?: string
 }
 
 export type Store = {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { AgentCard } from "@/components/agent-card"
 import { EmptyNote, ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
+import { CALLER_ID } from "@/lib/rules"
 import type { Agent } from "@/lib/types"
 import { cn } from "cn"
 
@@ -28,6 +29,7 @@ export default function AgentsPage() {
   }, [load])
 
   const visible = (agents ?? [])
+    .filter((agent) => agent.id !== CALLER_ID)
     .filter((agent) => (side === "human" ? agent.human : !agent.human))
     .sort((a, b) => b.paramsB - a.paramsB)
 

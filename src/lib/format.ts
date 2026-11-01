@@ -28,6 +28,7 @@ export const KIND_LABEL: Record<MessageKind, string> = {
   "task.complete": "结算",
   "task.abandon": "放弃",
   "task.cancel": "撤回",
+  "task.note": "补充",
 }
 
 export function archLabel(arch: "dense" | "moe") {
