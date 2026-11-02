@@ -6,8 +6,8 @@ def system_prompt(entries: list[dict]) -> str:
     return (
         "需要人完成的步骤，调用对应的在岗技能，不要自己编造只有人才能看到的结果。"
         "每次调用都会等到对方交回产物。"
-        '如果工具结果是 {"request":"score","taskId":"…","person":"人名"}，'
-        "用同一技能再调用一次，填 task_id 和 score。score 是你给做这单的人打的 1 到 5 分。\n"
+        '人交回产物后，工具结果是 {"request":"score","taskId":"…","person":"人名","artifact":"产物"}。'
+        "再用同一技能调用一次，填 task_id 和 score。score 是你给做这单的人打的 1 到 5 分，这次调用取回产物。\n"
         f"{roster}"
     )
 

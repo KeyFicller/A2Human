@@ -172,6 +172,7 @@ export function submitArtifact(store: Store, taskId: string, agentId: string, te
   if (!answering || task.claimantId !== agent.id) {
     fail("只有被派到这单的人能提交产物")
   }
+  if (awaitingScore(store, task)) fail("产物已经交了，等模型打分")
   if (text != null && typeof text !== "string") fail("产物要是一段文字")
   const artifact = typeof text === "string" ? text.trim() : ""
   if (artifact && textLength(artifact) > 4000) fail("产物用 1 到 4000 个字")
@@ -194,7 +195,7 @@ export function submitArtifact(store: Store, taskId: string, agentId: string, te
   if (!picture && textLength(stored) < 1) fail("产物用 1 到 4000 个字")
   task.artifact = stored || null
   task.artifactImage = picture ?? null
-  task.status = "completed"
+  task.status = "input-required"
   task.updatedAt = now()
   addMessage(store, {
     taskId: task.id,
@@ -205,10 +206,10 @@ export function submitArtifact(store: Store, taskId: string, agentId: string, te
   })
   addMessage(store, {
     taskId: task.id,
-    fromId: task.posterId,
-    fromName: task.posterName,
-    kind: "task.complete",
-    text: "产物已交。",
+    fromId: agent.id,
+    fromName: agent.name,
+    kind: "task.scoreRequest",
+    text: `请${task.posterName}给这次工作打分`,
   })
   return task
 }
@@ -295,7 +296,14 @@ export function receiveCommand(
         text: `${input.callerName}给${task.claimantName ?? "这个人"}打了 ${score} 分`,
         a2aMessageId: input.messageId,
       })
-      task.status = "working"
+      addMessage(store, {
+        taskId: task.id,
+        fromId: task.posterId,
+        fromName: task.posterName,
+        kind: "task.complete",
+        text: "产物已交。",
+      })
+      task.status = "completed"
       task.updatedAt = now()
       return task
     }
@@ -377,6 +385,7 @@ export function decideTask(store: Store, taskId: string, agentId: string, action
   if (task.claimantId !== agent.id) fail("只有被派到这单的人能改状态")
   if (!taskOpenStatus(task.status)) fail("任务已经结束")
   if (typeof action !== "string" || !(action in DECISIONS)) fail("未知动作")
+  if (awaitingScore(store, task) && action !== "cancel") fail("产物已经交了，等模型打分")
   const decision = DECISIONS[action as TaskDecision]
   const reason = typeof text === "string" ? text.trim() : ""
   if (textLength(reason) < 1 || textLength(reason) > 200) fail("用 1 到 200 个字说明")
@@ -413,23 +422,6 @@ function requireWorkScore(text: string) {
   const score = record.score
   if (typeof score !== "number" || !Number.isInteger(score) || score < 1 || score > 5) fail("分数要是 1 到 5 的整数", -32602)
   return score
-}
-
-export function requestScore(store: Store, taskId: string, agentId: string): Task {
-  const task = requireTask(store, taskId)
-  const agent = requireAgent(store, agentId)
-  if (task.claimantId !== agent.id) fail("只有被派到这单的人能请模型打分")
-  if (!taskOpenStatus(task.status)) fail("任务已经结束")
-  task.status = "input-required"
-  task.updatedAt = now()
-  addMessage(store, {
-    taskId: task.id,
-    fromId: agent.id,
-    fromName: agent.name,
-    kind: "task.scoreRequest",
-    text: `请${task.posterName}给这次工作打分`,
-  })
-  return task
 }
 
 export function cancelCommandedTask(store: Store, taskId: string): Task {

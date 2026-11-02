@@ -138,7 +138,7 @@ function statusMessage(store: Store, task: Task, contextId: string) {
       : task.status === "submitted"
         ? "任务还没派到人。请用 GetTask 轮询。"
         : decision?.kind === "task.scoreRequest"
-          ? JSON.stringify({ request: "score", taskId: task.id, person: task.claimantName ?? "" })
+          ? JSON.stringify({ request: "score", taskId: task.id, person: task.claimantName ?? "", artifact: task.artifact ?? "" })
           : decision?.text
   if (!waiting) return {}
   return {

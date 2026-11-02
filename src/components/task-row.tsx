@@ -18,7 +18,7 @@ export function TaskRow({ task }: { task: Task }) {
   return (
     <Link href={`/tasks/${task.id}`} className="sheet block px-4 py-4 transition hover:-translate-y-0.5 md:px-5">
       <p className={cn("font-mono text-[11px] tracking-[0.14em]", tone[task.status])}>
-        {STATUS_LABEL[task.status]}
+        {task.status === "input-required" && (task.artifact || task.artifactImage) ? "等打分" : STATUS_LABEL[task.status]}
       </p>
       <h3 className="mt-2 font-serif text-2xl leading-snug">{task.title}</h3>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{task.brief}</p>

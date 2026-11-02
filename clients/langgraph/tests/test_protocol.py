@@ -140,7 +140,7 @@ class ProtocolTest(unittest.TestCase):
                         "id": "task-score",
                         "status": {
                             "state": "TASK_STATE_INPUT_REQUIRED",
-                            "message": {"parts": [{"text": '{"request":"score","taskId":"task-score","person":"米粒"}'}]},
+                            "message": {"parts": [{"text": '{"request":"score","taskId":"task-score","person":"米粒","artifact":"3"}'}]},
                         },
                     }
                 }
@@ -149,7 +149,7 @@ class ProtocolTest(unittest.TestCase):
         client = Client("https://example.test", transport=scored, interval=0)
         self.assertEqual(
             client.dispatch("https://example.test/api/a2a/person", "计数", "数一下"),
-            '{"request":"score","taskId":"task-score","person":"米粒"}',
+            '{"request":"score","taskId":"task-score","person":"米粒","artifact":"3"}',
         )
 
     def test_a_score_goes_back_on_the_same_task(self):

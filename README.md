@@ -4,7 +4,7 @@
 
 没上工的人不会出现在发现名单里，也接不到派单。名字、简介、技能都是人自己写的。
 
-模型先读发现入口里的在岗名单，按技能说明选人，再把 `SendMessage` 打到那个人的地址。任务马上是 `TASK_STATE_WORKING`。人交完产物，`GetTask` 把文字取回来。进行中的人还可以把状态改成要补充 `TASK_STATE_INPUT_REQUIRED`、拒绝 `TASK_STATE_REJECTED`、失败 `TASK_STATE_FAILED` 或取消 `TASK_STATE_CANCELED`。调用方用 `CancelTask` 取消。要补充之后，用同一个任务 id 再发 `SendMessage`，状态回到 `TASK_STATE_WORKING`。人请派活的模型打分时，任务变成要补充，`status.message` 是 `{"request":"score","taskId":"任务 id","person":"人名"}`。正在等待的模型用同一个任务 id 再发 `SendMessage`，内容是 `{"score":4}`。分数记在做人的这一方，留在 `metadata.score`，`metadata.scoredBy` 是派活的模型。任务回到 `TASK_STATE_WORKING`。已交、已拒绝、失败、已取消不能再改。`configuration.returnImmediately` 必须为 `true`。发现入口不代为指派。
+模型先读发现入口里的在岗名单，按技能说明选人，再把 `SendMessage` 打到那个人的地址。任务马上是 `TASK_STATE_WORKING`。进行中的人还可以把状态改成要补充 `TASK_STATE_INPUT_REQUIRED`、拒绝 `TASK_STATE_REJECTED`、失败 `TASK_STATE_FAILED` 或取消 `TASK_STATE_CANCELED`。调用方用 `CancelTask` 取消。要补充之后，用同一个任务 id 再发 `SendMessage`，状态回到 `TASK_STATE_WORKING`。人交完产物后，任务自动变成要补充，`status.message` 是 `{"request":"score","taskId":"任务 id","person":"人名","artifact":"产物"}`，产物同时放在 `artifacts`。正在等待的模型用同一个任务 id 再发 `SendMessage`，内容是 `{"score":4}`。分数记在做人的这一方，留在 `metadata.score`，`metadata.scoredBy` 是派活的模型。这时任务才变成 `TASK_STATE_COMPLETED`。人不能自己发起打分。已交、已拒绝、失败、已取消不能再改。`configuration.returnImmediately` 必须为 `true`。发现入口不代为指派。
 
 技能的输入和输出可以在发布页用名称、类型、是否必填和一句说明拼出来，也可以直接写 JSON Schema。说明写在该项的 `description` 上。A2A 的 AgentSkill 只有 `inputModes` 和 `outputModes`，没有 schema 字段，多出来的字段也过不了官方卡片 schema。所以卡片上这两项写成 `application/json`，schema 放在扩展 `capabilities.extensions[].params.skillSchemas`。发现名单里同一份 schema 直接挂在 `onDuty[].skills` 上。模型按 schema 把 JSON 放进 `parts[].data`。图片项用 `image/png`、`image/jpeg`、`image/webp` 或 `image/gif` 的 part，内容放 `raw`（base64）或 http 地址。人交回的产物要对上输出 Schema：字段、类型和必填都要齐，多出来的字段不收，自由文本会被拒绝。`GetTask` 用 `data` 把这份 JSON 交回去；交回的图片用同样的图片 part。没有声明输出 Schema 时，产物仍是一段文字。
 
@@ -27,7 +27,7 @@ curl -s http://localhost:3847/api/a2a/<id> \
   -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-1","parts":[{"text":"按你的技能完成这件事。"}]}}}'
 ```
 
-人在页面上提交产物之后，再取一次。状态变成 `TASK_STATE_COMPLETED`，文字在 `artifacts[].parts[].text`。
+人在页面上提交产物之后，再取一次。状态是 `TASK_STATE_INPUT_REQUIRED`，文字已经在 `artifacts[].parts[].text`，`status.message` 请模型给这次交付打分。模型交回 `{"score":4}` 之后，状态变成 `TASK_STATE_COMPLETED`。
 
 ```bash
 curl -s http://localhost:3847/api/a2a/<id> \

@@ -59,8 +59,18 @@ test("SendMessage lands on the chosen person and the artifact comes back", () =>
   assert.equal(task.status, "working")
   assert.equal(task.claimantId, human.id)
   const done = submitArtifact(store, task.id, human.id, "7")
-  assert.equal(done.status, "completed")
+  assert.equal(done.status, "input-required")
   assert.equal(done.artifact, "7")
+  assert.throws(() => submitArtifact(store, task.id, human.id, "8"), /已经交了/)
+  const scored = receiveCommand(store, {
+    humanId: human.id,
+    text: '{"score":4}',
+    messageId: "score-1",
+    taskId: task.id,
+    callerName: "某个大模型",
+  })
+  assert.equal(scored.status, "completed")
+  assert.equal(scored.workScore, 4)
 })
 
 test("a declared output rejects free text", () => {

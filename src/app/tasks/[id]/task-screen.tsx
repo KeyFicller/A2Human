@@ -83,10 +83,11 @@ export default function TaskScreen() {
       ? claimant.skills[0]
       : undefined
   const needsImage = schemaRequiresImage(skill?.outputSchema)
-  const answering = task.status === "working" || task.status === "input-required"
   const stance = [...messages].reverse().find((item) =>
     item.kind === "task.input" || item.kind === "task.scoreRequest" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
   )
+  const waitingForScore = task.status === "input-required" && stance?.kind === "task.scoreRequest"
+  const answering = (task.status === "working" || task.status === "input-required") && !waitingForScore
 
   function handIn(nextText: string, nextImage: TaskImage | null) {
     if (!agent) return
@@ -96,7 +97,7 @@ export default function TaskScreen() {
       .then(() => {
         setText("")
         setImage(null)
-        setNotice("已交。模型用 GetTask 可以取回。")
+        setNotice("已交。等模型打分。")
         load()
       })
       .catch((caught: unknown) => {
@@ -122,26 +123,11 @@ export default function TaskScreen() {
       .finally(() => setPending(false))
   }
 
-  function requestModelScore() {
-    if (!agent) return
-    setPending(true)
-    setNotice(null)
-    api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id })
-      .then(() => {
-        setNotice(`已请${task.posterName}打分。分数会回到这张任务上。`)
-        load()
-      })
-      .catch((caught: unknown) => {
-        setNotice(caught instanceof ApiError ? caught.message : "没请到打分")
-      })
-      .finally(() => setPending(false))
-  }
-
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <section className="sheet p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{STATUS_LABEL[task.status]}</p>
-        {stance && task.status !== "working" && task.status !== "completed" ? (
+        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{waitingForScore ? "等打分" : STATUS_LABEL[task.status]}</p>
+        {stance && !waitingForScore && task.status !== "working" && task.status !== "completed" ? (
           <p className="mt-3 leading-7">{stance.text}</p>
         ) : null}
         <h1 className="mt-3 font-serif text-4xl">{task.title}</h1>
@@ -247,20 +233,15 @@ export default function TaskScreen() {
         ) : null}
         {mine && taskOpen(task.status) ? (
           <div className="mt-6 space-y-3">
-            <div>
-              <p className="text-sm text-muted-foreground">请派活的模型给这次工作打 1 到 5 分</p>
-              <Button className="mt-2" type="button" variant="outline" disabled={pending} onClick={requestModelScore}>
-                请 {task.posterName} 打分
-              </Button>
-            </div>
             <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["input", "要补充"],
-                  ["reject", "拒绝"],
-                  ["fail", "失败"],
-                  ["cancel", "取消"],
-                ] as const
+              {(waitingForScore
+                ? ([["cancel", "取消"]] as const)
+                : ([
+                    ["input", "要补充"],
+                    ["reject", "拒绝"],
+                    ["fail", "失败"],
+                    ["cancel", "取消"],
+                  ] as const)
               ).map(([action, label]) => (
                 <Button key={action} type="button" variant={decision === action ? "default" : "outline"} onClick={() => setDecision(action)}>
                   {label}
@@ -293,7 +274,7 @@ export default function TaskScreen() {
         {notice ? <p className="mt-3 text-sm">{notice}</p> : null}
       </section>
       <section className="space-y-3">
-        {messages.map((message) => (
+        {messages.filter((message) => message.kind !== "task.scoreRequest").map((message) => (
           <article key={message.id} className="sheet p-4">
             <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">
               {KIND_LABEL[message.kind]} · {message.fromName} · {formatWhen(message.createdAt)}

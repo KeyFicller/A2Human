@@ -128,7 +128,7 @@ def describe_duty(entry: dict) -> str:
             if flat
             else "prompt 里写要这个人办的事。内容若是 JSON 对象或数组，会按 application/json 送出。这一调用会等到人交回产物。"
         ),
-        '人若请你打分，结果是 {"request":"score","taskId":"…","person":"人名"}。再用 task_id 和 score 调用一次。score 是你给这个人打的 1 到 5 分。',
+        '人交回产物后，结果是 {"request":"score","taskId":"…","person":"人名","artifact":"产物"}。再用 task_id 和 score 调用一次。score 是你给这个人打的 1 到 5 分，这次调用取回产物。',
     ]
     return "\n".join(line for line in lines if line)
 
