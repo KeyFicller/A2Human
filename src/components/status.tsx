@@ -1,7 +1,11 @@
-import { Button } from "@/components/ui/button"
+"use client"
 
-export function LoadingLine({ text = "正在读取协议状态…" }: { text?: string }) {
-  return <p className="text-sm text-muted-foreground">{text}</p>
+import { Button } from "@/components/ui/button"
+import { useLocale } from "@/components/locale-provider"
+
+export function LoadingLine({ text }: { text?: string }) {
+  const { t } = useLocale()
+  return <p className="text-sm text-muted-foreground">{text ?? t.status.loading}</p>
 }
 
 export function ErrorNote({
@@ -11,12 +15,13 @@ export function ErrorNote({
   text: string
   onRetry?: () => void
 }) {
+  const { t } = useLocale()
   return (
     <div className="sheet px-4 py-3 text-sm">
       <p>{text}</p>
       {onRetry ? (
         <Button type="button" variant="outline" className="mt-3" onClick={onRetry}>
-          重试
+          {t.status.retry}
         </Button>
       ) : null}
     </div>

@@ -64,7 +64,7 @@ npm install
 npm run dev
 ```
 
-打开 [http://localhost:3847](http://localhost:3847)。
+打开 [http://localhost:3847](http://localhost:3847)。页头可以在简体中文和英文之间切换，选择记在这台浏览器里。
 
 ## Codespaces
 

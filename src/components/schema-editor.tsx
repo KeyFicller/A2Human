@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -44,6 +45,7 @@ function FieldList({
   draft: SchemaDraft
   onChange: (next: SchemaDraft) => void
 }) {
+  const { locale, t } = useLocale()
   function updateField(index: number, patch: Partial<SchemaField>) {
     onChange({
       ...draft,
@@ -60,36 +62,36 @@ function FieldList({
           className="text-sm text-stamp"
           onClick={() => onChange({ ...draft, fields: [...draft.fields, { name: "", type: "string", required: true }] })}
         >
-          加一项
+          {t.schema.addField}
         </button>
       </div>
       <div className="ml-1 space-y-3 border-l border-[#d9d0c0] pl-4">
-        {draft.fields.length === 0 ? <p className="text-sm text-muted-foreground">还没加。不写的话，模型只看上面的说明。</p> : null}
+        {draft.fields.length === 0 ? <p className="text-sm text-muted-foreground">{t.schema.emptyFields}</p> : null}
         {draft.fields.map((field, index) => (
           <div key={index} className="space-y-2">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto_auto] sm:items-end">
               <label className="block text-xs text-muted-foreground">
-                名称
+                {t.schema.name}
                 <Input
                   className="mt-1"
                   value={field.name}
                   maxLength={40}
-                  placeholder="例如 scene"
-                  aria-label={`${label}名称`}
+                  placeholder={t.schema.namePlaceholder}
+                  aria-label={t.schema.ariaName(label)}
                   onChange={(event) => updateField(index, { name: event.target.value })}
                 />
               </label>
               <label className="block text-xs text-muted-foreground">
-                类型
+                {t.schema.type}
                 <select
                   className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm text-foreground"
                   value={field.type}
-                  aria-label={`${label}类型`}
+                  aria-label={t.schema.ariaType(label)}
                   onChange={(event) => updateField(index, { type: event.target.value as SchemaField["type"] })}
                 >
                   {FIELD_TYPES.map((type) => (
                     <option key={type} value={type}>
-                      {fieldTypeLabel(type)}
+                      {fieldTypeLabel(type, locale)}
                     </option>
                   ))}
                 </select>
@@ -100,24 +102,24 @@ function FieldList({
                   checked={field.required}
                   onChange={(event) => updateField(index, { required: event.target.checked })}
                 />
-                必填
+                {t.schema.required}
               </label>
               <button
                 type="button"
                 className="h-8 text-left text-sm text-stamp"
                 onClick={() => onChange({ ...draft, fields: draft.fields.filter((_, item) => item !== index) })}
               >
-                去掉
+                {t.schema.remove}
               </button>
             </div>
             <label className="ml-4 block border-l border-[#e4dccb] pl-3 text-xs text-muted-foreground">
-              说明
+              {t.schema.note}
               <Input
                 className="mt-1"
                 value={field.description ?? ""}
                 maxLength={120}
-                placeholder="可以不写"
-                aria-label={`${label}说明`}
+                placeholder={t.schema.notePlaceholder}
+                aria-label={t.schema.ariaNote(label)}
                 onChange={(event) => updateField(index, { description: event.target.value })}
               />
             </label>
@@ -137,6 +139,7 @@ export function SchemaEditor({
   output: SchemaDraft
   onChange: (next: { input: SchemaDraft; output: SchemaDraft }) => void
 }) {
+  const { t } = useLocale()
   const [note, setNote] = useState<string | null>(null)
   const jsonMode = input.mode === "json" || output.mode === "json"
 
@@ -145,7 +148,7 @@ export function SchemaEditor({
       {jsonMode ? (
         <>
           <label className="block text-sm">
-            输入 JSON Schema
+            {t.schema.inputJson}
             <Textarea
               className="mt-1.5 font-mono text-xs"
               value={input.json}
@@ -154,7 +157,7 @@ export function SchemaEditor({
             />
           </label>
           <label className="block text-sm">
-            输出 JSON Schema
+            {t.schema.outputJson}
             <Textarea
               className="mt-1.5 font-mono text-xs"
               value={output.json}
@@ -165,9 +168,9 @@ export function SchemaEditor({
         </>
       ) : (
         <>
-          <p className="text-xs leading-5 text-muted-foreground">名称写成英文标识符时，模型按这一项单独填写。</p>
-          <FieldList label="输入" draft={input} onChange={(next) => onChange({ input: next, output })} />
-          <FieldList label="输出" draft={output} onChange={(next) => onChange({ input, output: next })} />
+          <p className="text-xs leading-5 text-muted-foreground">{t.schema.identifierHint}</p>
+          <FieldList label={t.schema.input} draft={input} onChange={(next) => onChange({ input: next, output })} />
+          <FieldList label={t.schema.output} draft={output} onChange={(next) => onChange({ input, output: next })} />
         </>
       )}
       <button
@@ -182,14 +185,14 @@ export function SchemaEditor({
           const nextInput = toFields(input)
           const nextOutput = toFields(output)
           if (!nextInput || !nextOutput) {
-            setNote("这份 Schema 拆不成单项，继续用 JSON 写。")
+            setNote(t.schema.cannotSplit)
             return
           }
           setNote(null)
           onChange({ input: nextInput, output: nextOutput })
         }}
       >
-        {jsonMode ? "改用表单填写" : "改用 JSON Schema"}
+        {jsonMode ? t.schema.useForm : t.schema.useJson}
       </button>
       {note ? <p className="text-sm text-stamp">{note}</p> : null}
     </div>

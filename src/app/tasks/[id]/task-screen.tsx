@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { useAgent } from "@/components/agent-provider"
+import { useText } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
-import { KIND_LABEL, STATUS_LABEL, formatWhen, taskOpen } from "@/lib/format"
+import { formatWhen, kindLabel, statusLabel, taskOpen } from "@/lib/format"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
@@ -41,15 +42,22 @@ function Picture({ image, alt, className }: { image: TaskImage; alt: string; cla
   )
 }
 
+export function TaskFallback() {
+  const { t } = useText()
+  return <LoadingLine text={t.task.opening} />
+}
+
 export default function TaskScreen() {
   const params = useParams<{ id: string }>()
   const { agent, ready } = useAgent()
+  const { locale, t, error: showError } = useText()
   const [detail, setDetail] = useState<Detail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [text, setText] = useState("")
   const [image, setImage] = useState<TaskImage | null>(null)
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [handed, setHanded] = useState(false)
   const [decision, setDecision] = useState<"reject" | "cancel" | "fail" | "input" | null>(null)
   const [reason, setReason] = useState("")
 
@@ -58,14 +66,12 @@ export default function TaskScreen() {
       .then((next) => {
         setDetail(next)
         setError(null)
-        if (next.task.status === "completed") {
-          setNotice((current) => (current === "已交。等模型打分。" ? null : current))
-        }
+        if (next.task.status === "completed") setHanded(false)
       })
       .catch((caught: unknown) => {
-        setError(caught instanceof Error ? caught.message : "这张任务读不出来")
+        setError(showError(caught, t.task.loadError))
       })
-  }, [params.id])
+  }, [params.id, showError, t.task.loadError])
 
   useEffect(() => {
     load()
@@ -73,7 +79,7 @@ export default function TaskScreen() {
     return () => window.clearInterval(timer)
   }, [load])
 
-  if (!ready || (!detail && !error)) return <LoadingLine text="正在打开这张任务…" />
+  if (!ready || (!detail && !error)) return <LoadingLine text={t.task.opening} />
   if (error && !detail) return <ErrorNote text={error} onRetry={load} />
   if (!detail) return null
 
@@ -91,20 +97,29 @@ export default function TaskScreen() {
   )
   const waitingForScore = task.status === "input-required" && stance?.kind === "task.scoreRequest"
   const answering = (task.status === "working" || task.status === "input-required") && !waitingForScore
+  const decisions = waitingForScore
+    ? ([["cancel", t.task.cancel]] as const)
+    : ([
+        ["input", t.task.needInput],
+        ["reject", t.task.reject],
+        ["fail", t.task.fail],
+        ["cancel", t.task.cancel],
+      ] as const)
 
   function handIn(nextText: string, nextImage: TaskImage | null) {
     if (!agent) return
     setPending(true)
     setNotice(null)
+    setHanded(false)
     api<Task>(`/api/tasks/${task.id}`, { action: "artifact", agentId: agent.id, text: nextText, image: nextImage })
       .then(() => {
         setText("")
         setImage(null)
-        setNotice("已交。等模型打分。")
+        setHanded(true)
         load()
       })
       .catch((caught: unknown) => {
-        setNotice(caught instanceof ApiError ? caught.message : "没有交上去")
+        setNotice(caught instanceof ApiError ? showError(caught, t.task.submitError) : t.task.submitError)
       })
       .finally(() => setPending(false))
   }
@@ -113,15 +128,16 @@ export default function TaskScreen() {
     if (!agent || !decision) return
     setPending(true)
     setNotice(null)
+    setHanded(false)
     api<Task>(`/api/tasks/${task.id}`, { action: decision, agentId: agent.id, text: reason })
       .then(() => {
         setReason("")
         setDecision(null)
-        setNotice("状态已改。模型用 GetTask 可以读到。")
+        setNotice(t.task.statusUpdated)
         load()
       })
       .catch((caught: unknown) => {
-        setNotice(caught instanceof ApiError ? caught.message : "状态没改成")
+        setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError)
       })
       .finally(() => setPending(false))
   }
@@ -129,7 +145,9 @@ export default function TaskScreen() {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <section className="sheet p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{waitingForScore ? "等打分" : STATUS_LABEL[task.status]}</p>
+        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">
+          {waitingForScore ? t.task.awaitingScore : statusLabel(task.status, locale)}
+        </p>
         {stance && !waitingForScore && task.status !== "working" && task.status !== "completed" ? (
           <p className="mt-3 leading-7">{stance.text}</p>
         ) : null}
@@ -148,34 +166,27 @@ export default function TaskScreen() {
               <Picture
                 key={`${item.filename ?? "image"}-${index}`}
                 image={item}
-                alt={item.filename || "派来的图片"}
+                alt={item.filename || t.task.incomingAlt}
                 className="max-h-80 rounded-2xl border border-[#d9d0c0] object-contain"
               />
             ))}
           </div>
         ) : null}
-        <p className="mt-4 text-sm text-muted-foreground">来自 {task.posterName}</p>
-        {typeof task.workScore === "number" ? (
-          <p className="mt-2 text-sm">{task.posterName} 给这次工作打了 {task.workScore} 分</p>
-        ) : null}
+        <p className="mt-4 text-sm text-muted-foreground">{t.task.from(task.posterName)}</p>
+        {typeof task.workScore === "number" ? <p className="mt-2 text-sm">{t.task.scoredBy(task.posterName, task.workScore)}</p> : null}
         {task.artifact || task.artifactImage ? (
           <div className="mt-6 rounded-2xl bg-[#f7f1e4] p-4">
-            <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">产物</p>
+            <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.task.artifact}</p>
             {task.artifact ? <p className="mt-2 whitespace-pre-wrap font-mono text-sm leading-7">{shownArtifact(task.artifact)}</p> : null}
             {task.artifactImage ? (
-              <Picture image={task.artifactImage} alt={task.artifactImage.filename || "交回的图片"} className="mt-3 max-h-80 rounded-2xl object-contain" />
+              <Picture image={task.artifactImage} alt={task.artifactImage.filename || t.task.returnedAlt} className="mt-3 max-h-80 rounded-2xl object-contain" />
             ) : null}
           </div>
         ) : null}
         {mine && answering && skill?.outputSchema ? (
           <div className="mt-6 space-y-3">
-            <p className="text-sm leading-6 text-muted-foreground">按这个输出交回：{describeSchema(skill.outputSchema)}</p>
-            <OutputForm
-              schema={skill.outputSchema}
-              pending={pending}
-              onError={(message) => setNotice(message || null)}
-              onSubmit={handIn}
-            />
+            <p className="text-sm leading-6 text-muted-foreground">{t.task.handBack(describeSchema(skill.outputSchema, locale))}</p>
+            <OutputForm schema={skill.outputSchema} pending={pending} onError={(message) => setNotice(message || null)} onSubmit={handIn} />
           </div>
         ) : null}
         {mine && answering && !skill?.outputSchema ? (
@@ -184,7 +195,7 @@ export default function TaskScreen() {
             onSubmit={(event) => {
               event.preventDefault()
               if (needsImage && !image) {
-                setNotice("要交一张图片")
+                setNotice(t.task.needImage)
                 return
               }
               handIn(text, image)
@@ -193,10 +204,10 @@ export default function TaskScreen() {
             <Textarea
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder={needsImage ? "文字可以不写。这单要交一张图片。" : "把完成的内容写在这里。也可以附一张图。"}
+              placeholder={needsImage ? t.task.textOptional : t.task.writeHere}
             />
             <label className="block text-sm">
-              图片
+              {t.task.image}
               <input
                 className="mt-1.5 block text-sm"
                 type="file"
@@ -209,7 +220,7 @@ export default function TaskScreen() {
                   }
                   if (file.size > 1_000_000) {
                     setImage(null)
-                    setNotice("图片要在 1MB 以内")
+                    setNotice(t.task.imageTooBig)
                     return
                   }
                   const reader = new FileReader()
@@ -218,7 +229,7 @@ export default function TaskScreen() {
                     const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(result)
                     if (!matched) {
                       setImage(null)
-                      setNotice("只接受 png、jpeg、webp、gif")
+                      setNotice(t.task.imageType)
                       return
                     }
                     setImage({ mediaType: matched[1] as TaskImage["mediaType"], raw: matched[2].replace(/\s/g, ""), filename: file.name })
@@ -228,24 +239,16 @@ export default function TaskScreen() {
                 }}
               />
             </label>
-            {image?.raw ? <Picture image={image} alt={image.filename || "待提交的图片"} className="max-h-48 rounded-2xl object-contain" /> : null}
+            {image?.raw ? <Picture image={image} alt={image.filename || t.task.pendingAlt} className="max-h-48 rounded-2xl object-contain" /> : null}
             <Button type="submit" disabled={pending}>
-              {pending ? "正在提交…" : "提交产物"}
+              {pending ? t.task.submitting : t.task.submit}
             </Button>
           </form>
         ) : null}
         {mine && taskOpen(task.status) ? (
           <div className="mt-6 space-y-3">
             <div className="flex flex-wrap gap-2">
-              {(waitingForScore
-                ? ([["cancel", "取消"]] as const)
-                : ([
-                    ["input", "要补充"],
-                    ["reject", "拒绝"],
-                    ["fail", "失败"],
-                    ["cancel", "取消"],
-                  ] as const)
-              ).map(([action, label]) => (
+              {decisions.map(([action, label]) => (
                 <Button key={action} type="button" variant={decision === action ? "default" : "outline"} onClick={() => setDecision(action)}>
                   {label}
                 </Button>
@@ -259,28 +262,28 @@ export default function TaskScreen() {
                   onChange={(event) => setReason(event.target.value)}
                   placeholder={
                     decision === "input"
-                      ? "还缺什么。模型补上之后，这单回到进行中。"
+                      ? t.task.inputPlaceholder
                       : decision === "reject"
-                        ? "为什么不接。"
+                        ? t.task.rejectPlaceholder
                         : decision === "fail"
-                          ? "卡在哪里。"
-                          : "为什么取消。"
+                          ? t.task.failPlaceholder
+                          : t.task.cancelPlaceholder
                   }
                 />
                 <Button type="button" disabled={pending} onClick={sendDecision}>
-                  {pending ? "正在提交…" : "确认"}
+                  {pending ? t.task.submitting : t.task.confirm}
                 </Button>
               </>
             ) : null}
           </div>
         ) : null}
-        {notice ? <p className="mt-3 text-sm">{notice}</p> : null}
+        {handed || notice ? <p className="mt-3 text-sm">{handed ? t.task.handedWaiting : notice}</p> : null}
       </section>
       <section className="space-y-3">
         {messages.filter((message) => message.kind !== "task.scoreRequest").map((message) => (
           <article key={message.id} className="sheet p-4">
             <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">
-              {KIND_LABEL[message.kind]} · {message.fromName} · {formatWhen(message.createdAt)}
+              {kindLabel(message.kind, locale)} · {message.fromName} · {formatWhen(message.createdAt, locale)}
             </p>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.text}</p>
           </article>

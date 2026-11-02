@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
+import { useLocale } from "@/components/locale-provider"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { api } from "@/lib/client"
 import { taskOpen } from "@/lib/format"
@@ -31,6 +32,7 @@ function toNotice(task: Task): Notice {
 
 export function WorkNotice() {
   const { agent, ready } = useAgent()
+  const { t } = useLocale()
   const pathname = usePathname()
   const [notices, setNotices] = useState<Notice[]>([])
   const seen = useRef<Set<string> | null>(null)
@@ -97,12 +99,12 @@ export function WorkNotice() {
     >
       {notices.map((notice) => (
         <article key={notice.id} role="status" className="sheet px-4 py-3">
-          <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">有新的活</p>
+          <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{t.notice.title}</p>
           <h2 className="mt-1 font-serif text-xl leading-snug break-words">{notice.title}</h2>
           {notice.brief ? (
             <p className="mt-1 line-clamp-2 text-sm leading-6 break-words text-muted-foreground">{notice.brief}</p>
           ) : null}
-          <p className="mt-2 text-xs text-muted-foreground">来自 {notice.posterName}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{t.notice.from(notice.posterName)}</p>
           <div className="mt-3 flex items-center justify-end gap-2">
             <Button
               type="button"
@@ -110,14 +112,14 @@ export function WorkNotice() {
               size="sm"
               onClick={() => setNotices((current) => current.filter((item) => item.id !== notice.id))}
             >
-              知道了
+              {t.notice.dismiss}
             </Button>
             <Link
               href={`/tasks/${notice.id}`}
               className={cn(buttonVariants({ size: "sm" }))}
               onClick={() => setNotices((current) => current.filter((item) => item.id !== notice.id))}
             >
-              去看
+              {t.notice.open}
             </Link>
           </div>
         </article>

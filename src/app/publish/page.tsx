@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAgent } from "@/components/agent-provider"
+import { useText } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -28,6 +29,7 @@ function draftFrom(skill: Skill): SkillDraft {
 export default function PublishPage() {
   const router = useRouter()
   const { agent, ready, signIn, refresh } = useAgent()
+  const { t, error: showError } = useText()
   const [name, setName] = useState<string | null>(null)
   const [bio, setBio] = useState<string | null>(null)
   const [skills, setSkills] = useState<SkillDraft[] | null>(null)
@@ -58,7 +60,7 @@ export default function PublishPage() {
               (skill.output.mode === "fields" && duplicateFieldName(skill.output.fields)),
           )
         ) {
-          setError("同一边的项目名称不能重复")
+          setError(t.publish.duplicate)
           setPending(false)
           return
         }
@@ -86,19 +88,17 @@ export default function PublishPage() {
             router.push("/me")
           })
           .catch((caught: unknown) => {
-            setError(caught instanceof ApiError ? caught.message : "这张卡没有写上")
+            setError(caught instanceof ApiError ? showError(caught, t.publish.saveError) : t.publish.saveError)
             setPending(false)
           })
       }}
     >
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">AGENT CARD</p>
-      <h1 className="mt-2 font-serif text-4xl md:text-5xl">{agent ? "改我的卡" : "发布我的卡"}</h1>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        名字、简介和技能都是你自己写的。每项技能写明你能完成什么。输入和输出用下面的项拼，熟悉 JSON Schema 时也可以直接写。
-      </p>
+      <h1 className="mt-2 font-serif text-4xl md:text-5xl">{agent ? t.publish.edit : t.publish.create}</h1>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{t.publish.lead}</p>
       <div className="sheet mt-6 space-y-4 p-5">
         <label className="block text-sm">
-          名字
+          {t.publish.name}
           <Input
             className="mt-1.5 h-10"
             value={nameValue}
@@ -107,36 +107,36 @@ export default function PublishPage() {
           />
         </label>
         <label className="block text-sm">
-          简介
+          {t.publish.bio}
           <Textarea
             className="mt-1.5 min-h-24"
             value={bioValue}
             maxLength={80}
             onChange={(event) => setBio(event.target.value)}
-            placeholder="你接什么，不接什么。"
+            placeholder={t.publish.bioPlaceholder}
           />
         </label>
         <fieldset className="space-y-3">
-          <legend className="text-sm">技能，1 到 6 项。名称、能完成的内容，以及要收到什么、交回什么。</legend>
+          <legend className="text-sm">{t.publish.legend}</legend>
           {skillValue.map((skill, index) => (
             <div key={index} className="grid gap-3 rounded-2xl border border-[#d9d0c0] p-3">
               <label className="block text-xs text-muted-foreground">
-                技能名
+                {t.publish.skillName}
                 <Input
                   className="mt-1"
                   value={skill.name}
                   maxLength={24}
-                  placeholder="例如 计数"
+                  placeholder={t.publish.skillPlaceholder}
                   onChange={(event) => updateSkill(index, { name: event.target.value })}
                 />
               </label>
               <label className="block text-xs text-muted-foreground">
-                能完成什么
+                {t.publish.canDo}
                 <Textarea
                   className="mt-1"
                   value={skill.description}
                   maxLength={120}
-                  placeholder="例如：数清画面里的东西，只交回数字。"
+                  placeholder={t.publish.canDoPlaceholder}
                   onChange={(event) => updateSkill(index, { description: event.target.value })}
                 />
               </label>
@@ -153,20 +153,20 @@ export default function PublishPage() {
                   className="text-left text-sm text-stamp"
                   onClick={() => setSkills(skillValue.filter((_, item) => item !== index))}
                 >
-                  去掉这项
+                  {t.publish.removeSkill}
                 </button>
               ) : null}
             </div>
           ))}
           {skillValue.length < 6 ? (
             <button type="button" className="text-sm text-stamp" onClick={() => setSkills([...skillValue, emptySkill()])}>
-              再加一项
+              {t.publish.addSkill}
             </button>
           ) : null}
         </fieldset>
         {error ? <ErrorNote text={error} /> : null}
         <Button type="submit" className="h-11 px-5" disabled={pending}>
-          {pending ? "正在写入…" : agent ? "保存" : "发布"}
+          {pending ? t.publish.writing : agent ? t.publish.save : t.publish.publish}
         </Button>
       </div>
     </form>

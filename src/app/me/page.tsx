@@ -4,17 +4,20 @@ import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
 import { CopyField } from "@/components/copy-field"
+import { useText } from "@/components/locale-provider"
 import { SchemaSummary } from "@/components/schema-summary"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
 import { recordLine } from "@/lib/format"
+import { localizeError } from "@/lib/messages"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
 export default function MePage() {
   const { agent, ready, error, refresh } = useAgent()
+  const { locale, t, error: showError } = useText()
   const [tasks, setTasks] = useState<Task[] | null>(null)
   const [taskError, setTaskError] = useState<string | null>(null)
   const [dutyError, setDutyError] = useState<string | null>(null)
@@ -29,9 +32,9 @@ export default function MePage() {
         setTaskError(null)
       })
       .catch((caught: unknown) => {
-        setTaskError(caught instanceof Error ? caught.message : "任务列表读不出来")
+        setTaskError(showError(caught, t.me.tasksError))
       })
-  }, [agent])
+  }, [agent, showError, t.me.tasksError])
 
   useEffect(() => {
     load()
@@ -44,14 +47,14 @@ export default function MePage() {
   }, [])
 
   if (!ready) return <LoadingLine />
-  if (error) return <ErrorNote text={error} />
+  if (error) return <ErrorNote text={localizeError(error, locale)} />
   if (!agent) {
     return (
       <div className="sheet max-w-xl p-6">
-        <h1 className="font-serif text-4xl">还没有你的卡</h1>
-        <p className="mt-3 leading-7">这台浏览器还没有记住你的卡。换一台机器，需要重新发布。</p>
+        <h1 className="font-serif text-4xl">{t.me.noneTitle}</h1>
+        <p className="mt-3 leading-7">{t.me.noneBody}</p>
         <Link href="/publish" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
-          发布我的卡
+          {t.home.publish}
         </Link>
       </div>
     )
@@ -64,16 +67,10 @@ export default function MePage() {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[0.8fr_1.2fr]">
       <section className="sheet p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">
-          {agent.available ? "上工中" : "没上工"}
-        </p>
+        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{agent.available ? t.duty.working : t.duty.clockedOff}</p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore, agent.averageDuration)}</p>
-        <p className="mt-4 leading-7">
-          {agent.available
-            ? "模型可以在发现名单里看到你，并把任务派到你的地址。"
-            : "还没上工。上工之后，模型才发现得到你。"}
-        </p>
+        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore, agent.averageDuration, locale)}</p>
+        <p className="mt-4 leading-7">{agent.available ? t.me.onBody : t.me.offBody}</p>
         <Button
           type="button"
           className="mt-4"
@@ -84,12 +81,12 @@ export default function MePage() {
               .then(() => refresh())
               .then(() => setDutyError(null))
               .catch((caught: unknown) => {
-                setDutyError(caught instanceof Error ? caught.message : "在岗状态没改成")
+                setDutyError(showError(caught, t.me.dutyError))
               })
               .finally(() => setDutyPending(false))
           }}
         >
-          {agent.available ? "收工" : "上工"}
+          {agent.available ? t.duty.clockOut : t.duty.clockIn}
         </Button>
         {dutyError ? <p className="mt-3 text-sm text-stamp">{dutyError}</p> : null}
         <p className="mt-4 leading-7">{agent.bio}</p>
@@ -104,35 +101,25 @@ export default function MePage() {
         </ul>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
           <Link href="/publish" className="text-stamp">
-            改我的卡
+            {t.me.edit}
           </Link>
           <Link href={`/agents/${agent.id}`} className="text-stamp">
-            看公开卡
+            {t.me.publicCard}
           </Link>
         </div>
         <div className="mt-6 border-t border-[#d9d0c0] pt-4">
-          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">给模型</p>
-          <CopyField
-            hint="LangGraph 读发现入口，一次接上所有在岗的人。你自己的地址只接收派给你的任务。"
-            label="复制发现入口"
-            value={directory}
-          />
-          <CopyField label="复制我的地址" value={endpoint} />
-          <CopyField
-            hint="只会 MCP 的客户端用这个备用入口。会 A2A 的仍读发现入口，再把任务派到你自己的地址。"
-            label="复制 MCP 备用入口"
-            value={origin ? `${origin}/api/mcp` : ""}
-          />
+          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>
+          <CopyField hint={t.me.discoveryHint} label={t.copy.discovery} value={directory} />
+          <CopyField label={t.copy.mine} value={endpoint} />
+          <CopyField hint={t.me.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
         </div>
       </section>
       <section>
-        <h2 className="font-serif text-2xl">派来的任务</h2>
+        <h2 className="font-serif text-2xl">{t.me.tasks}</h2>
         {taskError ? <ErrorNote text={taskError} /> : null}
-        {!tasks && !taskError ? <LoadingLine text="正在整理你的任务…" /> : null}
+        {!tasks && !taskError ? <LoadingLine text={t.me.loading} /> : null}
         <div className="mt-3 grid gap-3">
-          {assigned.length === 0 && tasks ? (
-            <p className="text-sm text-muted-foreground">还没有。上工之后，模型会把对得上的任务派到这里。</p>
-          ) : null}
+          {assigned.length === 0 && tasks ? <p className="text-sm text-muted-foreground">{t.me.empty}</p> : null}
           {assigned.map((task) => (
             <TaskRow key={task.id} task={task} />
           ))}

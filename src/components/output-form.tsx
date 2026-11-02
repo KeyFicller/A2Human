@@ -1,16 +1,23 @@
 "use client"
 
 import { useState } from "react"
+import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { fieldTypeLabel, outputShape } from "@/lib/schema-fields"
 import type { JsonSchema, TaskImage } from "@/lib/types"
 
-function readFile(file: File, onImage: (image: TaskImage | null) => void, onError: (message: string) => void) {
+function readFile(
+  file: File,
+  onImage: (image: TaskImage | null) => void,
+  onError: (message: string) => void,
+  tooBig: string,
+  wrongType: string,
+) {
   if (file.size > 1_000_000) {
     onImage(null)
-    onError("图片要在 1MB 以内")
+    onError(tooBig)
     return
   }
   const reader = new FileReader()
@@ -19,7 +26,7 @@ function readFile(file: File, onImage: (image: TaskImage | null) => void, onErro
     const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(result)
     if (!matched) {
       onImage(null)
-      onError("只接受 png、jpeg、webp、gif")
+      onError(wrongType)
       return
     }
     onImage({ mediaType: matched[1] as TaskImage["mediaType"], raw: matched[2].replace(/\s/g, ""), filename: file.name })
@@ -40,6 +47,7 @@ export function OutputForm({
   onError: (message: string) => void
 }) {
   const shape = outputShape(schema)
+  const { locale, t } = useLocale()
   const [values, setValues] = useState<Record<string, string>>({})
   const [json, setJson] = useState("")
   const [image, setImage] = useState<TaskImage | null>(null)
@@ -58,7 +66,7 @@ export function OutputForm({
               setImage(null)
               return
             }
-            readFile(file, setImage, onError)
+            readFile(file, setImage, onError, t.task.imageTooBig, t.task.imageType)
           }}
         />
       </label>
@@ -73,16 +81,16 @@ export function OutputForm({
   if (shape.kind === "image") {
     return (
       <div className="space-y-3">
-        {fileInput("图片")}
+        {fileInput(t.output.image)}
         <Button type="button" disabled={pending} onClick={() => submit("")}>
-          {pending ? "正在提交…" : "提交产物"}
+          {pending ? t.output.submitting : t.output.submit}
         </Button>
       </div>
     )
   }
 
   if (shape.kind === "value") {
-    const label = fieldTypeLabel(shape.type)
+    const label = fieldTypeLabel(shape.type, locale)
     return (
       <div className="space-y-3">
         <label className="block text-sm">
@@ -93,9 +101,9 @@ export function OutputForm({
               value={values.value ?? ""}
               onChange={(event) => setValues({ value: event.target.value })}
             >
-              <option value="">请选择</option>
-              <option value="true">是</option>
-              <option value="false">否</option>
+              <option value="">{t.output.choose}</option>
+              <option value="true">{t.output.yes}</option>
+              <option value="false">{t.output.no}</option>
             </select>
           ) : (
             <Input
@@ -112,7 +120,7 @@ export function OutputForm({
           onClick={() => {
             const raw = (values.value ?? "").trim()
             if (!raw) {
-              onError(`${label}要填`)
+              onError(t.output.mustFill(label))
               return
             }
             if (shape.type === "boolean") {
@@ -122,7 +130,7 @@ export function OutputForm({
             if (shape.type === "integer" || shape.type === "number") {
               const number = Number(raw)
               if (!Number.isFinite(number) || (shape.type === "integer" && !Number.isInteger(number))) {
-                onError(`要是${label}`)
+                onError(t.output.mustBe(label))
                 return
               }
               submit(JSON.stringify(number))
@@ -131,7 +139,7 @@ export function OutputForm({
             submit(JSON.stringify(raw))
           }}
         >
-          {pending ? "正在提交…" : "提交产物"}
+          {pending ? t.output.submitting : t.output.submit}
         </Button>
       </div>
     )
@@ -140,9 +148,9 @@ export function OutputForm({
   if (shape.kind === "json") {
     return (
       <div className="space-y-3">
-        <Textarea value={json} onChange={(event) => setJson(event.target.value)} placeholder="按输出 Schema 写 JSON。" />
+        <Textarea value={json} onChange={(event) => setJson(event.target.value)} placeholder={t.output.jsonPlaceholder} />
         <Button type="button" disabled={pending} onClick={() => submit(json)}>
-          {pending ? "正在提交…" : "提交产物"}
+          {pending ? t.output.submitting : t.output.submit}
         </Button>
       </div>
     )
@@ -153,14 +161,14 @@ export function OutputForm({
 
   return (
     <div className="space-y-3">
-      {images.length > 1 ? <p className="text-sm text-stamp">输出里一次只能有一张图片。</p> : null}
+      {images.length > 1 ? <p className="text-sm text-stamp">{t.output.oneImage}</p> : null}
       {dataFields.map((field) => (
         <label key={field.name} className="block text-sm">
           {field.name}
           <span className="ml-2 text-xs text-muted-foreground">
-            {fieldTypeLabel(field.type)}
-            {field.required ? "，必填" : ""}
-            {field.description ? `：${field.description}` : ""}
+            {fieldTypeLabel(field.type, locale)}
+            {field.required ? t.output.requiredSuffix : ""}
+            {field.description ? `${t.output.noteColon}${field.description}` : ""}
           </span>
           {field.type === "boolean" ? (
             <select
@@ -168,9 +176,9 @@ export function OutputForm({
               value={values[field.name] ?? ""}
               onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
             >
-              <option value="">{field.required ? "请选择" : "不填"}</option>
-              <option value="true">是</option>
-              <option value="false">否</option>
+              <option value="">{field.required ? t.output.choose : t.output.skip}</option>
+              <option value="true">{t.output.yes}</option>
+              <option value="false">{t.output.no}</option>
             </select>
           ) : (
             <Input
@@ -198,7 +206,7 @@ export function OutputForm({
             if (field.type === "integer" || field.type === "number") {
               const number = Number(raw)
               if (!Number.isFinite(number) || (field.type === "integer" && !Number.isInteger(number))) {
-                onError(`${field.name} 要是${fieldTypeLabel(field.type)}`)
+                onError(t.output.fieldMustBe(field.name, fieldTypeLabel(field.type, locale)))
                 return
               }
               data[field.name] = number
@@ -209,7 +217,7 @@ export function OutputForm({
           submit(JSON.stringify(data))
         }}
       >
-        {pending ? "正在提交…" : "提交产物"}
+        {pending ? t.output.submitting : t.output.submit}
       </Button>
     </div>
   )

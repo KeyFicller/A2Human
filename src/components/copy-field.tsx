@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useLocale } from "@/components/locale-provider"
 
 export function CopyField({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const { t } = useLocale()
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -14,7 +16,7 @@ export function CopyField({ label, value, hint }: { label: string; value: string
   return (
     <div className="mt-3">
       {hint ? <p className="text-sm leading-6 text-muted-foreground">{hint}</p> : null}
-      <p className="mt-1 break-all font-mono text-xs">{value || "加载中"}</p>
+      <p className="mt-1 break-all font-mono text-xs">{value || t.copy.loading}</p>
       <button
         type="button"
         className="mt-2 text-sm text-stamp"
@@ -26,7 +28,7 @@ export function CopyField({ label, value, hint }: { label: string; value: string
           )
         }}
       >
-        {copied ? "已复制" : label}
+        {copied ? t.copy.copied : label}
       </button>
     </div>
   )

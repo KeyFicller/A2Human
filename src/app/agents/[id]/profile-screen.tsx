@@ -3,13 +3,20 @@
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { CopyField } from "@/components/copy-field"
+import { useText } from "@/components/locale-provider"
+import { LoadingLine } from "@/components/status"
 import { SchemaSummary } from "@/components/schema-summary"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ErrorNote, LoadingLine } from "@/components/status"
+import { ErrorNote } from "@/components/status"
 import { api } from "@/lib/client"
 import { recordLine } from "@/lib/format"
 import type { Agent } from "@/lib/types"
+
+export function ProfileFallback() {
+  const { t } = useText()
+  return <LoadingLine text={t.profile.opening} />
+}
 
 export default function AgentProfilePage() {
   const params = useParams<{ id: string }>()
@@ -18,6 +25,7 @@ export default function AgentProfilePage() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [origin, setOrigin] = useState("")
+  const { locale, t, error: showError } = useText()
 
   const load = useCallback(() => {
     Promise.all([api<Agent>(`/api/agents/${params.id}`), api<unknown>(`/api/a2a/${params.id}`)])
@@ -27,9 +35,9 @@ export default function AgentProfilePage() {
         setError(null)
       })
       .catch((caught: unknown) => {
-        setError(caught instanceof Error ? caught.message : "这张卡读不出来")
+        setError(showError(caught, t.profile.loadError))
       })
-  }, [params.id])
+  }, [params.id, showError, t.profile.loadError])
 
   useEffect(() => {
     load()
@@ -62,7 +70,7 @@ export default function AgentProfilePage() {
           message: {
             role: "ROLE_USER",
             messageId: "msg-1",
-            parts: [{ text: "请按你的技能完成这件事。" }],
+            parts: [{ text: t.profile.sample }],
           },
         },
       }).replaceAll("'", "'\\'")}'`
@@ -72,10 +80,10 @@ export default function AgentProfilePage() {
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,0.9fr)_minmax(0,1.1fr)]">
       <section className="sheet min-w-0 p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">
-          {agent.available ? "在岗" : "不在岗"}
+          {agent.available ? t.duty.on : t.duty.off}
         </p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore, agent.averageDuration)}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore, agent.averageDuration, locale)}</p>
         <p className="mt-4 leading-7">{agent.bio}</p>
         <ul className="mt-6 space-y-3">
           {agent.skills.map((skill) => (
@@ -88,25 +96,11 @@ export default function AgentProfilePage() {
         </ul>
       </section>
       <section className="sheet min-w-0 p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">给模型</p>
-        <CopyField
-          hint={
-            agent.available
-              ? "发现入口接上所有在岗的人。下面这个地址只接收派给这个人的任务。"
-              : "这个人还没上工，发现入口里没有。上工之后，模型才能从名单里选到。"
-          }
-          label="复制发现入口"
-          value={directory}
-        />
-        <CopyField label="复制这个人的地址" value={endpoint} />
-        <CopyField
-          hint="只会 MCP 的客户端用这个备用入口。会 A2A 的仍读发现入口，再把任务派到这个人的地址。"
-          label="复制 MCP 备用入口"
-          value={origin ? `${origin}/api/mcp` : ""}
-        />
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          SendMessage 打到这个人的地址，configuration.returnImmediately 为 true。人交完产物后，用 GetTask 取回。
-        </p>
+        <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>
+        <CopyField hint={agent.available ? t.profile.discoveryOn : t.profile.discoveryOff} label={t.copy.discovery} value={directory} />
+        <CopyField label={t.copy.person} value={endpoint} />
+        <CopyField hint={t.profile.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">{t.profile.send}</p>
         <Button
           type="button"
           variant="outline"
@@ -119,7 +113,7 @@ export default function AgentProfilePage() {
             )
           }}
         >
-          {copied ? "已复制调用" : "复制一条调用"}
+          {copied ? t.copy.callCopied : t.copy.call}
         </Button>
         {card ? (
           <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-2xl bg-[#1c1915] p-4 text-xs leading-5 text-[#f7f1e4]">

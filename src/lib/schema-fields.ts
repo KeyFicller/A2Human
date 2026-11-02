@@ -1,3 +1,4 @@
+import type { Locale } from "./messages"
 import type { JsonSchema } from "./types"
 
 export const FIELD_TYPES = ["string", "integer", "number", "boolean", "image"] as const
@@ -19,20 +20,29 @@ export type SchemaDraft = {
   json: string
 }
 
-const TYPE_LABEL: Record<FieldType, string> = {
-  string: "文字",
-  integer: "整数",
-  number: "数字",
-  boolean: "是或否",
-  image: "图片",
+const TYPE_LABEL: Record<Locale, Record<FieldType, string>> = {
+  zh: {
+    string: "文字",
+    integer: "整数",
+    number: "数字",
+    boolean: "是或否",
+    image: "图片",
+  },
+  en: {
+    string: "text",
+    integer: "integer",
+    number: "number",
+    boolean: "yes or no",
+    image: "image",
+  },
 }
 
 export function emptySchemaDraft(): SchemaDraft {
   return { mode: "fields", fields: [], json: "" }
 }
 
-export function fieldTypeLabel(type: FieldType) {
-  return TYPE_LABEL[type]
+export function fieldTypeLabel(type: FieldType, locale: Locale = "zh") {
+  return TYPE_LABEL[locale][type]
 }
 
 function isFieldType(value: unknown): value is FieldType {
@@ -142,15 +152,19 @@ export function contractModes(schema: JsonSchema | undefined) {
   return modes.length ? modes : ["application/json"]
 }
 
-export function describeSchema(schema: JsonSchema) {
+export function describeSchema(schema: JsonSchema, locale: Locale = "zh") {
   const fields = schemaToFields(schema)
   if (!fields) return JSON.stringify(schema)
+  const labels = TYPE_LABEL[locale]
+  const required = locale === "en" ? ", required" : "，必填"
+  const joiner = locale === "en" ? "; " : "；"
+  const colon = locale === "en" ? ": " : "："
   return fields
     .map((field) => {
-      const head = `${field.name} ${TYPE_LABEL[field.type]}${field.required ? "，必填" : ""}`
-      return field.description ? `${head}：${field.description}` : head
+      const head = `${field.name} ${labels[field.type]}${field.required ? required : ""}`
+      return field.description ? `${head}${colon}${field.description}` : head
     })
-    .join("；")
+    .join(joiner)
 }
 
 const SCHEMA_KEYS = new Set([

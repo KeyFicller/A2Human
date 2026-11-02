@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { AgentCard } from "@/components/agent-card"
 import { CopyField } from "@/components/copy-field"
+import { useText } from "@/components/locale-provider"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
 import type { Agent } from "@/lib/types"
@@ -11,6 +12,7 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [origin, setOrigin] = useState("")
+  const { t, error: showError } = useText()
 
   useEffect(() => {
     let alive = true
@@ -23,7 +25,7 @@ export default function AgentsPage() {
         })
         .catch((caught: unknown) => {
           if (!alive) return
-          setError(caught instanceof Error ? caught.message : "在岗名单读不出来")
+          setError(showError(caught, t.agents.rosterError))
         })
     }
     load()
@@ -32,7 +34,7 @@ export default function AgentsPage() {
       alive = false
       window.clearInterval(timer)
     }
-  }, [])
+  }, [showError, t.agents.rosterError])
 
   useEffect(() => {
     Promise.resolve().then(() => setOrigin(window.location.origin))
@@ -43,19 +45,13 @@ export default function AgentsPage() {
   return (
     <div>
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">ON DUTY</p>
-      <h1 className="mt-2 font-serif text-4xl md:text-5xl">在岗</h1>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        模型读的是同一份名单：在岗的人、他们自己写的技能，以及各自的调用地址。没上工的人不在这里。
-      </p>
-      <CopyField hint="把发现入口交给会 A2A 的客户端，一次接上这里所有人。" label="复制发现入口" value={directory} />
-      <CopyField
-        hint="只会 MCP 的客户端用这个备用入口。工具调用仍走每个人自己的 A2A 地址。"
-        label="复制 MCP 备用入口"
-        value={origin ? `${origin}/api/mcp` : ""}
-      />
+      <h1 className="mt-2 font-serif text-4xl md:text-5xl">{t.agents.title}</h1>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{t.agents.lead}</p>
+      <CopyField hint={t.agents.discoveryHint} label={t.copy.discovery} value={directory} />
+      <CopyField hint={t.agents.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
       {error ? <ErrorNote text={error} /> : null}
-      {!agents && !error ? <LoadingLine text="正在读取在岗名单…" /> : null}
-      {agents && agents.length === 0 ? <p className="mt-8 text-sm text-muted-foreground">现在没有人上工。</p> : null}
+      {!agents && !error ? <LoadingLine text={t.agents.loading} /> : null}
+      {agents && agents.length === 0 ? <p className="mt-8 text-sm text-muted-foreground">{t.agents.empty}</p> : null}
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         {agents?.map((agent) => (
           <AgentCard key={agent.id} agent={agent} />

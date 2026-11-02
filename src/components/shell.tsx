@@ -4,18 +4,40 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { AgentProvider, useAgent } from "@/components/agent-provider"
+import { LocaleProvider, useLocale } from "@/components/locale-provider"
 import { WorkNotice } from "@/components/work-notice"
+import type { Locale } from "@/lib/messages"
 import { cn } from "cn"
 
-const links = [
-  { href: "/publish", label: "发布" },
-  { href: "/agents", label: "在岗" },
-  { href: "/me", label: "我的卡" },
-] as const
+function LocaleSwitch() {
+  const { locale, setLocale } = useLocale()
+  const item = (value: Locale, label: string) => (
+    <button
+      type="button"
+      className={cn("shrink-0 rounded-full px-2.5 py-1.5", locale === value ? "bg-ink text-[#f7f1e4]" : "text-muted-foreground")}
+      aria-pressed={locale === value}
+      onClick={() => setLocale(value)}
+    >
+      {label}
+    </button>
+  )
+  return (
+    <div className="flex shrink-0 gap-1 font-mono text-[11px]">
+      {item("zh", "中文")}
+      {item("en", "English")}
+    </div>
+  )
+}
 
 function Header() {
   const pathname = usePathname()
   const { agent, ready } = useAgent()
+  const { t } = useLocale()
+  const links = [
+    { href: "/publish", label: t.nav.publish },
+    { href: "/agents", label: t.nav.duty },
+    { href: "/me", label: t.nav.mine },
+  ]
 
   return (
     <header className="sticky top-0 z-20 border-b border-[#d9d0c0] bg-[#efe8d8]/90 backdrop-blur-md">
@@ -23,31 +45,24 @@ function Header() {
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="group flex items-baseline gap-2">
             <span className="font-serif text-2xl tracking-tight text-stamp">A2Human</span>
-            <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
-              AGENT CARD
-            </span>
+            <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">AGENT CARD</span>
           </Link>
           {ready && agent ? (
-            <Link
-              href="/me"
-              className="font-mono text-xs text-ink md:hidden"
-            >
+            <Link href="/me" className="font-mono text-xs text-ink md:hidden">
               {agent.name}
-              {agent.human ? ` · ${agent.available ? "在岗" : "不在岗"}` : ""}
+              {agent.human ? ` · ${agent.available ? t.duty.on : t.duty.off}` : ""}
             </Link>
           ) : null}
         </div>
-        <nav className="flex gap-1 overflow-x-auto">
+        <nav className="flex items-center gap-1 overflow-x-auto">
+          <LocaleSwitch />
           {links.map((link) => {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={cn(
-                  "shrink-0 rounded-full px-3 py-1.5 text-sm",
-                  active ? "bg-ink text-[#f7f1e4]" : "text-ink hover:bg-secondary",
-                )}
+                className={cn("shrink-0 rounded-full px-3 py-1.5 text-sm", active ? "bg-ink text-[#f7f1e4]" : "text-ink hover:bg-secondary")}
               >
                 {link.label}
               </Link>
@@ -59,12 +74,12 @@ function Header() {
             <Link href="/me" className="text-sm">
               <span className="font-serif text-lg">{agent.name}</span>
               <span className="ml-2 font-mono text-xs text-muted-foreground">
-                {agent.human ? (agent.available ? "在岗" : "不在岗") : "模型方"}
+                {agent.human ? (agent.available ? t.duty.on : t.duty.off) : t.duty.model}
               </span>
             </Link>
           ) : (
             <Link href="/publish" className="text-sm text-stamp">
-              尚未发布
+              {t.duty.unpublished}
             </Link>
           )}
         </div>
@@ -83,19 +98,28 @@ function HeaderFallback() {
   )
 }
 
-export function Shell({ children }: { children: React.ReactNode }) {
+function Frame({ children }: { children: React.ReactNode }) {
+  const { t } = useLocale()
   return (
-    <AgentProvider>
+    <>
       <Suspense fallback={<HeaderFallback />}>
         <Header />
       </Suspense>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:py-12">{children}</main>
-      <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs leading-5 text-muted-foreground">
-        人发布自己的卡。上工之后，模型按技能把任务派过来。
-      </footer>
+      <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs leading-5 text-muted-foreground">{t.footer}</footer>
       <Suspense fallback={null}>
         <WorkNotice />
       </Suspense>
-    </AgentProvider>
+    </>
+  )
+}
+
+export function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <LocaleProvider>
+      <AgentProvider>
+        <Frame>{children}</Frame>
+      </AgentProvider>
+    </LocaleProvider>
   )
 }
