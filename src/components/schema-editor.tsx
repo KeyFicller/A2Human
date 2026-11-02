@@ -56,7 +56,8 @@ function FieldList({
       <p className="text-sm">{label}</p>
       {draft.fields.length === 0 ? <p className="text-sm text-muted-foreground">还没加。不写的话，模型只看上面的说明。</p> : null}
       {draft.fields.map((field, index) => (
-        <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_7.5rem_auto_auto] sm:items-center">
+        <div key={index} className="grid gap-2">
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_7.5rem_auto_auto] sm:items-center">
           <Input
             value={field.name}
             maxLength={40}
@@ -91,6 +92,14 @@ function FieldList({
           >
             去掉
           </button>
+        </div>
+          <Input
+            value={field.description ?? ""}
+            maxLength={120}
+            placeholder="这项说明什么，可以不写"
+            aria-label={`${label}说明`}
+            onChange={(event) => updateField(index, { description: event.target.value })}
+          />
         </div>
       ))}
       <button

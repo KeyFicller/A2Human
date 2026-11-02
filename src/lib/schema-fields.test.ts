@@ -19,6 +19,14 @@ test("plain fields become an object schema and read back", () => {
   assert.equal(describeSchema(schema!), "scene 文字，必填；count 整数")
 })
 
+test("a field can carry a description", () => {
+  const schema = fieldsToSchema([{ name: "画面", type: "string", required: true, description: " 画面里有什么 " }])
+  assert.deepEqual(schema?.properties, { 画面: { type: "string", description: "画面里有什么" } })
+  assert.equal(schemaToFields(schema!)?.[0].description, "画面里有什么")
+  assert.equal(describeSchema(schema!), "画面 文字，必填：画面里有什么")
+  assert.equal(schemaToFields({ type: "object", properties: { n: { type: "string", description: "x".repeat(121) } } }), null)
+})
+
 test("an image field is a string with an image media type", () => {
   const schema = fieldsToSchema([{ name: "照片", type: "image", required: true }])
   assert.deepEqual(schema, {

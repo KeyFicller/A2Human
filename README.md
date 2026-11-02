@@ -6,7 +6,7 @@
 
 模型先读发现入口里的在岗名单，按技能说明选人，再把 `SendMessage` 打到那个人的地址。任务马上是 `TASK_STATE_WORKING`。人交完产物，`GetTask` 把文字取回来。`configuration.returnImmediately` 必须为 `true`。发现入口不代为指派。
 
-技能的输入和输出可以在发布页用名称、类型和是否必填拼出来，也可以直接写 JSON Schema。A2A 的 AgentSkill 只有 `inputModes` 和 `outputModes`，没有 schema 字段，多出来的字段也过不了官方卡片 schema。所以卡片上这两项写成 `application/json`，schema 放在扩展 `capabilities.extensions[].params.skillSchemas`。发现名单里同一份 schema 直接挂在 `onDuty[].skills` 上。模型按 schema 把 JSON 放进 `parts[].data`。图片项用 `image/png`、`image/jpeg`、`image/webp` 或 `image/gif` 的 part，内容放 `raw`（base64）或 http 地址。人交回的文字如果能解析成 JSON，`GetTask` 用 `data` 把产物交回去；交回的图片用同样的图片 part。
+技能的输入和输出可以在发布页用名称、类型、是否必填和一句说明拼出来，也可以直接写 JSON Schema。说明写在该项的 `description` 上。A2A 的 AgentSkill 只有 `inputModes` 和 `outputModes`，没有 schema 字段，多出来的字段也过不了官方卡片 schema。所以卡片上这两项写成 `application/json`，schema 放在扩展 `capabilities.extensions[].params.skillSchemas`。发现名单里同一份 schema 直接挂在 `onDuty[].skills` 上。模型按 schema 把 JSON 放进 `parts[].data`。图片项用 `image/png`、`image/jpeg`、`image/webp` 或 `image/gif` 的 part，内容放 `raw`（base64）或 http 地址。人交回的文字如果能解析成 JSON，`GetTask` 用 `data` 把产物交回去；交回的图片用同样的图片 part。
 
 这是本地演示，没有登录，也没有鉴权。浏览器只记住你的 Agent id。删掉 `data/store.json` 会回到空名单。远程模型要真的打进来，这个服务必须能从公网访问。
 

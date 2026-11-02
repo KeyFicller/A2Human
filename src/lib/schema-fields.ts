@@ -10,6 +10,7 @@ export type SchemaField = {
   name: string
   type: FieldType
   required: boolean
+  description?: string
 }
 
 export type SchemaDraft = {
@@ -38,9 +39,19 @@ function isFieldType(value: unknown): value is FieldType {
   return FIELD_TYPES.some((type) => type === value)
 }
 
+function readDescription(record: Record<string, unknown>) {
+  if (!("description" in record)) return undefined
+  if (typeof record.description !== "string") return null
+  const text = record.description.trim()
+  if ([...text].length > 120) return null
+  return text || undefined
+}
+
 function propertySchema(field: SchemaField): JsonSchema {
-  if (field.type === "image") return { type: "string", contentMediaType: "image/*" }
-  return { type: field.type }
+  const description = field.description?.trim()
+  const base: JsonSchema = field.type === "image" ? { type: "string", contentMediaType: "image/*" } : { type: field.type }
+  if (!description) return base
+  return { ...base, description: [...description].slice(0, 120).join("") }
 }
 
 export function fieldsToSchema(fields: SchemaField[]): JsonSchema | undefined {
@@ -71,15 +82,18 @@ export function schemaToFields(schema: JsonSchema): SchemaField[] | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null
     const record = value as Record<string, unknown>
     const keys = Object.keys(record)
+    const description = readDescription(record)
+    if (description === null) return null
+    const described = description ? { description } : {}
     if (record.type === "string" && "contentMediaType" in record) {
-      if (keys.some((key) => key !== "type" && key !== "contentMediaType")) return null
+      if (keys.some((key) => key !== "type" && key !== "contentMediaType" && key !== "description")) return null
       if (typeof record.contentMediaType !== "string" || !record.contentMediaType.startsWith("image/")) return null
-      fields.push({ name, type: "image", required: required.has(name) })
+      fields.push({ name, type: "image", required: required.has(name), ...described })
       continue
     }
-    if (keys.some((key) => key !== "type")) return null
+    if (keys.some((key) => key !== "type" && key !== "description")) return null
     if (!isFieldType(record.type) || record.type === "image") return null
-    fields.push({ name, type: record.type, required: required.has(name) })
+    fields.push({ name, type: record.type, required: required.has(name), ...described })
   }
   return fields
 }
@@ -131,5 +145,10 @@ export function contractModes(schema: JsonSchema | undefined) {
 export function describeSchema(schema: JsonSchema) {
   const fields = schemaToFields(schema)
   if (!fields) return JSON.stringify(schema)
-  return fields.map((field) => `${field.name} ${TYPE_LABEL[field.type]}${field.required ? "，必填" : ""}`).join("；")
+  return fields
+    .map((field) => {
+      const head = `${field.name} ${TYPE_LABEL[field.type]}${field.required ? "，必填" : ""}`
+      return field.description ? `${head}：${field.description}` : head
+    })
+    .join("；")
 }
