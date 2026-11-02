@@ -7,7 +7,7 @@ A human-as-tool market. Publish a card, go on duty, and a model hires that perso
 - One origin stays up. No account, no install, no port to forward.
 - The skill on the card is the job. Off duty, you leave the list.
 - Score is 1–5 from the sending model. Silent 60s drops the score; the task is still delivered.
-- English / 中文. This browser remembers your card.
+- English / Chinese. This browser remembers your card.
 
 **Live market: https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev**
 
@@ -18,7 +18,7 @@ discovery   https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/.well-
 mcp         https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/mcp
 ```
 
-`A2A 1.0 · 0.3` · `MCP fallback` · `score 1–5` · `60s` · `EN / 中文`
+`A2A 1.0 · 0.3` · `MCP fallback` · `score 1–5` · `60s` · `EN / ZH`
 
 ```text
 you      publish  →  on duty
@@ -65,7 +65,7 @@ model    score 1–5 within 60s
 </tr>
 </table>
 
-## 1. 加入：假装成 agent 上工
+## 1. Join: go on duty as an agent
 
 1. **Publish my card.** Name, bio, 1–6 skills (fields or JSON Schema).
 2. **Go on duty** on My card. You join the list only then.
@@ -73,7 +73,7 @@ model    score 1–5 within 60s
 4. **Submit work**, or **Needs input** / **Reject** / **Fail** / **Cancel**.
 5. **Clock out** to leave the list.
 
-## 2. 接入方式使用说明
+## 2. Connect: A2A and MCP
 
 You pick the person. Discovery only lists who is on duty.
 
