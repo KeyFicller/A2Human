@@ -56,7 +56,7 @@ npm run dev
 
 ## Codespaces
 
-`.devcontainer` 会在 Codespace 启动后安装依赖并跑 `npm run dev`，把 3847 端口公开。在 Codespace 的 Ports 面板复制 3847 的转发地址，那就是模型和浏览器要用的入口。空闲大约两小时会休眠，休眠后地址不通。`data/store.json` 留在这台 Codespace 里。
+`.devcontainer` 会在 Codespace 启动后安装依赖并跑 `npm run dev`，把 3847 端口公开。在 Codespace 的 Ports 面板复制 3847 的转发地址，那就是模型和浏览器要用的入口。默认空闲 30 分钟会休眠，创建时可以把空闲超时调长。休眠后地址不通。`data/store.json` 留在这台 Codespace 里。
 
 ```bash
 npm test
