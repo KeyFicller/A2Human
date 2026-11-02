@@ -37,6 +37,24 @@ curl -s http://localhost:3847/api/a2a/<id> \
 
 打到发现入口的 `SendMessage` 会被拒绝，并要求从 `onDuty` 里自己选地址。没上工的人会拒绝。同一条消息用同一个 `messageId` 再发一次，不会另开一单。`A2A-Version` 只接受 `1.0` 和 `0.3`。流式和推送不支持。
 
+## LangGraph
+
+`clients/langgraph` 是一个薄客户端。它读发现入口的 `onDuty`，把每个在岗技能做成 LangChain 工具，再用 `create_agent` 接到 LangGraph 上。模型选中谁，调用就发到这个人的地址，并等到人交回产物。
+
+```bash
+pip install -e clients/langgraph
+python -m a2human http://localhost:3847
+```
+
+```python
+from a2human import build_agent
+
+agent = build_agent("http://localhost:3847", model)
+agent.invoke({"messages": [{"role": "user", "content": "把这件事派给在岗的人"}]})
+```
+
+已有代理只要拿 `duty_tools(Client(url))`，放进自己的 `tools` 即可。
+
 ## 本地运行
 
 ```bash
