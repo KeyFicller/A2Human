@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { dispatchA2a } from "./a2a"
 import { dispatcherCard, toAgentCard } from "./card"
-import { publishAgent, setAvailability, submitArtifact } from "./rules"
+import { decideTask, publishAgent, setAvailability, submitArtifact } from "./rules"
 import { createSeed } from "./seed"
 
 const counting = { name: "计数", description: "数清画面或文字里的东西，只交回数字。" }
@@ -167,6 +167,77 @@ test("SendMessage assigns the chosen person and GetTask returns the artifact", (
   const loaded = got.result as { status: { state: string }; artifacts?: { parts: { text: string }[] }[] }
   assert.equal(loaded.status.state, "TASK_STATE_COMPLETED")
   assert.equal(loaded.artifacts?.[0].parts[0].text, "7")
+})
+
+test("a task can be refused, ask for input, fail, or be canceled", () => {
+  const { store, on } = world()
+  const opened = dispatchA2a(store, { kind: "human", agentId: on.id }, send("数一下。", "state-1", { skill: "计数" }))
+  const task = resultOf(opened).task
+  assert.ok(task)
+
+  decideTask(store, task.id, on.id, "input", "画面里是几个圆？")
+  const asked = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "get-input",
+    method: "GetTask",
+    params: { id: task.id },
+  })
+  assert.ok(!("error" in asked))
+  const asking = asked.result as { status: { state: string; message?: { parts: { text: string }[] } } }
+  assert.equal(asking.status.state, "TASK_STATE_INPUT_REQUIRED")
+  assert.equal(asking.status.message?.parts[0].text, "画面里是几个圆？")
+
+  const resumed = dispatchA2a(store, { kind: "human", agentId: on.id }, send("三个圆。", "state-2", { taskId: task.id }))
+  assert.equal(resultOf(resumed).task?.status.state, "TASK_STATE_WORKING")
+
+  decideTask(store, task.id, on.id, "fail", "数不清。")
+  const failed = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "get-fail",
+    method: "GetTask",
+    params: { id: task.id },
+  })
+  assert.ok(!("error" in failed))
+  const failure = failed.result as { status: { state: string; message?: { parts: { text: string }[] } } }
+  assert.equal(failure.status.state, "TASK_STATE_FAILED")
+  assert.equal(failure.status.message?.parts[0].text, "数不清。")
+
+  const refused = dispatchA2a(store, { kind: "human", agentId: on.id }, send("再数一次。", "state-3", { skill: "计数" }))
+  const second = resultOf(refused).task
+  assert.ok(second)
+  decideTask(store, second.id, on.id, "reject", "这单不接。")
+  const rejected = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "get-reject",
+    method: "GetTask",
+    params: { id: second.id },
+  })
+  assert.ok(!("error" in rejected))
+  assert.equal((rejected.result as { status: { state: string } }).status.state, "TASK_STATE_REJECTED")
+
+  const blocked = dispatchA2a(store, { kind: "human", agentId: on.id }, send("补一句。", "state-4", { taskId: second.id }))
+  assert.ok("error" in blocked)
+  assert.equal(blocked.error.code, -32004)
+
+  const third = resultOf(dispatchA2a(store, { kind: "human", agentId: on.id }, send("最后一单。", "state-5", { skill: "计数" }))).task
+  assert.ok(third)
+  const canceled = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "cancel-1",
+    method: "CancelTask",
+    params: { id: third.id },
+  })
+  assert.ok(!("error" in canceled))
+  const cancelBody = canceled.result as { status?: { state: string }; task?: { status: { state: string } } }
+  assert.equal(cancelBody.status?.state ?? cancelBody.task?.status.state, "TASK_STATE_CANCELED")
+  const again = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "cancel-2",
+    method: "CancelTask",
+    params: { id: third.id },
+  })
+  assert.ok("error" in again)
+  assert.equal(again.error.code, -32002)
 })
 
 test("application/json input is kept for the person and returned as data", () => {

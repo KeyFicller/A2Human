@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
-import { KIND_LABEL, STATUS_LABEL, formatWhen } from "@/lib/format"
+import { KIND_LABEL, STATUS_LABEL, formatWhen, taskOpen } from "@/lib/format"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
@@ -50,6 +50,8 @@ export default function TaskScreen() {
   const [image, setImage] = useState<TaskImage | null>(null)
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [decision, setDecision] = useState<"reject" | "cancel" | "fail" | "input" | null>(null)
+  const [reason, setReason] = useState("")
 
   const load = useCallback(() => {
     api<Detail>(`/api/tasks/${params.id}`)
@@ -81,6 +83,10 @@ export default function TaskScreen() {
       ? claimant.skills[0]
       : undefined
   const needsImage = schemaRequiresImage(skill?.outputSchema)
+  const answering = task.status === "working" || task.status === "input-required"
+  const stance = [...messages].reverse().find((item) =>
+    item.kind === "task.input" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
+  )
 
   function handIn(nextText: string, nextImage: TaskImage | null) {
     if (!agent) return
@@ -99,10 +105,30 @@ export default function TaskScreen() {
       .finally(() => setPending(false))
   }
 
+  function sendDecision() {
+    if (!agent || !decision) return
+    setPending(true)
+    setNotice(null)
+    api<Task>(`/api/tasks/${task.id}`, { action: decision, agentId: agent.id, text: reason })
+      .then(() => {
+        setReason("")
+        setDecision(null)
+        setNotice("状态已改。模型用 GetTask 可以读到。")
+        load()
+      })
+      .catch((caught: unknown) => {
+        setNotice(caught instanceof ApiError ? caught.message : "状态没改成")
+      })
+      .finally(() => setPending(false))
+  }
+
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <section className="sheet p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{STATUS_LABEL[task.status]}</p>
+        {stance && task.status !== "working" && task.status !== "completed" ? (
+          <p className="mt-3 leading-7">{stance.text}</p>
+        ) : null}
         <h1 className="mt-3 font-serif text-4xl">{task.title}</h1>
         {skill ? (
           <div className="mt-4">
@@ -134,7 +160,7 @@ export default function TaskScreen() {
             ) : null}
           </div>
         ) : null}
-        {mine && task.status === "working" && skill?.outputSchema ? (
+        {mine && answering && skill?.outputSchema ? (
           <div className="mt-6 space-y-3">
             <p className="text-sm leading-6 text-muted-foreground">按这个输出交回：{describeSchema(skill.outputSchema)}</p>
             <OutputForm
@@ -145,7 +171,7 @@ export default function TaskScreen() {
             />
           </div>
         ) : null}
-        {mine && task.status === "working" && !skill?.outputSchema ? (
+        {mine && answering && !skill?.outputSchema ? (
           <form
             className="mt-6 space-y-3"
             onSubmit={(event) => {
@@ -200,6 +226,45 @@ export default function TaskScreen() {
               {pending ? "正在提交…" : "提交产物"}
             </Button>
           </form>
+        ) : null}
+        {mine && taskOpen(task.status) ? (
+          <div className="mt-6 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["input", "要补充"],
+                  ["reject", "拒绝"],
+                  ["fail", "失败"],
+                  ["cancel", "取消"],
+                ] as const
+              ).map(([action, label]) => (
+                <Button key={action} type="button" variant={decision === action ? "default" : "outline"} onClick={() => setDecision(action)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {decision ? (
+              <>
+                <Textarea
+                  value={reason}
+                  maxLength={200}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder={
+                    decision === "input"
+                      ? "还缺什么。模型补上之后，这单回到进行中。"
+                      : decision === "reject"
+                        ? "为什么不接。"
+                        : decision === "fail"
+                          ? "卡在哪里。"
+                          : "为什么取消。"
+                  }
+                />
+                <Button type="button" disabled={pending} onClick={sendDecision}>
+                  {pending ? "正在提交…" : "确认"}
+                </Button>
+              </>
+            ) : null}
+          </div>
         ) : null}
         {notice ? <p className="mt-3 text-sm">{notice}</p> : null}
       </section>

@@ -168,7 +168,8 @@ function outputSkill(store: Store, task: Task): Skill | undefined {
 export function submitArtifact(store: Store, taskId: string, agentId: string, text: unknown, image?: unknown): Task {
   const task = requireTask(store, taskId)
   const agent = requireAgent(store, agentId)
-  if (task.status !== "working" || task.claimantId !== agent.id) {
+  const answering = task.status === "working" || task.status === "input-required"
+  if (!answering || task.claimantId !== agent.id) {
     fail("只有被派到这单的人能提交产物")
   }
   if (text != null && typeof text !== "string") fail("产物要是一段文字")
@@ -274,7 +275,7 @@ export function receiveCommand(
     if (!task) fail("找不到这张任务", -32001)
     const mine = task.targetId === input.humanId || task.claimantId === input.humanId
     if (!mine) fail("找不到这张任务", -32001)
-    if (task.status === "completed" || task.status === "canceled") {
+    if (!taskOpenStatus(task.status)) {
       fail("任务已经结束，不能再补消息", -32004)
     }
     const actualContext = task.contextId ?? task.id
@@ -295,6 +296,7 @@ export function receiveCommand(
       text: text || "又附了图片",
       a2aMessageId: input.messageId,
     })
+    task.status = "working"
     task.updatedAt = now()
     return task
   }
@@ -340,10 +342,44 @@ export function receiveCommand(
   return task
 }
 
+const DECISIONS = {
+  reject: { status: "rejected", kind: "task.reject" },
+  cancel: { status: "canceled", kind: "task.cancel" },
+  fail: { status: "failed", kind: "task.fail" },
+  input: { status: "input-required", kind: "task.input" },
+} as const
+
+export type TaskDecision = keyof typeof DECISIONS
+
+function taskOpenStatus(status: Task["status"]) {
+  return status === "submitted" || status === "working" || status === "input-required"
+}
+
+export function decideTask(store: Store, taskId: string, agentId: string, action: unknown, text: unknown): Task {
+  const task = requireTask(store, taskId)
+  const agent = requireAgent(store, agentId)
+  if (task.claimantId !== agent.id) fail("只有被派到这单的人能改状态")
+  if (!taskOpenStatus(task.status)) fail("任务已经结束")
+  if (typeof action !== "string" || !(action in DECISIONS)) fail("未知动作")
+  const decision = DECISIONS[action as TaskDecision]
+  const reason = typeof text === "string" ? text.trim() : ""
+  if (textLength(reason) < 1 || textLength(reason) > 200) fail("用 1 到 200 个字说明")
+  task.status = decision.status
+  task.updatedAt = now()
+  addMessage(store, {
+    taskId: task.id,
+    fromId: agent.id,
+    fromName: agent.name,
+    kind: decision.kind,
+    text: reason,
+  })
+  return task
+}
+
 export function cancelCommandedTask(store: Store, taskId: string): Task {
   const task = requireTask(store, taskId)
   if (task.posterId !== CALLER_ID) fail("只有协议派来的任务能从这里取消", -32002)
-  if (task.status === "completed" || task.status === "canceled") fail("任务已经结束，不能取消", -32002)
+  if (!taskOpenStatus(task.status)) fail("任务已经结束，不能取消", -32002)
   const caller = ensureCaller(store)
   task.status = "canceled"
   task.updatedAt = now()

@@ -9,6 +9,9 @@ const tone: Record<Task["status"], string> = {
   working: "text-[#8a5a12]",
   completed: "text-moss",
   canceled: "text-muted-foreground",
+  failed: "text-stamp",
+  rejected: "text-stamp",
+  "input-required": "text-[#8a5a12]",
 }
 
 export function TaskRow({ task }: { task: Task }) {

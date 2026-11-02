@@ -2,9 +2,24 @@ import type { TaskImage } from "./images"
 
 export type { TaskImage }
 
-export type TaskStatus = "submitted" | "working" | "completed" | "canceled"
+export type TaskStatus =
+  | "submitted"
+  | "working"
+  | "completed"
+  | "canceled"
+  | "failed"
+  | "rejected"
+  | "input-required"
 
-export type MessageKind = "task.submit" | "task.artifact" | "task.complete" | "task.cancel" | "task.note"
+export type MessageKind =
+  | "task.submit"
+  | "task.artifact"
+  | "task.complete"
+  | "task.cancel"
+  | "task.note"
+  | "task.reject"
+  | "task.fail"
+  | "task.input"
 
 export type JsonSchema = Record<string, unknown>
 

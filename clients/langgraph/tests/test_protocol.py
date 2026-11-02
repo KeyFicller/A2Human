@@ -104,6 +104,35 @@ class ProtocolTest(unittest.TestCase):
             client.dispatch("https://example.test/api/a2a/person", "计数", "数一下")
         self.assertIn("没上工", str(caught.exception))
 
+    def test_input_required_returns_the_question_and_rejected_raises(self):
+        def asking(method, url, payload, headers, timeout):
+            return {
+                "result": {
+                    "task": {
+                        "id": "task-ask",
+                        "status": {"state": "TASK_STATE_INPUT_REQUIRED", "message": {"parts": [{"text": "几个圆？"}]}},
+                    }
+                }
+            }
+
+        client = Client("https://example.test", transport=asking, interval=0)
+        self.assertEqual(client.dispatch("https://example.test/api/a2a/person", "计数", "数一下"), "几个圆？")
+
+        def refusing(method, url, payload, headers, timeout):
+            return {
+                "result": {
+                    "task": {
+                        "id": "task-no",
+                        "status": {"state": "TASK_STATE_REJECTED", "message": {"parts": [{"text": "这单不接。"}]}},
+                    }
+                }
+            }
+
+        client = Client("https://example.test", transport=refusing, interval=0)
+        with self.assertRaises(A2HumanError) as caught:
+            client.dispatch("https://example.test/api/a2a/person", "计数", "数一下")
+        self.assertIn("这单不接", str(caught.exception))
+
 
 class StructuredDispatchTest(unittest.TestCase):
     def test_flat_schema_becomes_fields_and_an_image_part(self):

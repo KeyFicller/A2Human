@@ -23,6 +23,9 @@ const STATES: Record<TaskStatus, string> = {
   working: "TASK_STATE_WORKING",
   completed: "TASK_STATE_COMPLETED",
   canceled: "TASK_STATE_CANCELED",
+  failed: "TASK_STATE_FAILED",
+  rejected: "TASK_STATE_REJECTED",
+  "input-required": "TASK_STATE_INPUT_REQUIRED",
 }
 
 const STATE_NAMES = new Map(Object.entries(STATES).map(([status, name]) => [name, status as TaskStatus]))
@@ -97,7 +100,7 @@ export function projectTask(
     status: {
       state: STATES[task.status],
       timestamp: task.updatedAt,
-      ...statusMessage(task, contextId),
+      ...statusMessage(store, task, contextId),
     },
     metadata: {
       title: task.title,
@@ -106,7 +109,7 @@ export function projectTask(
   }
   if (options.historyLength !== 0) {
     const history = options.historyLength != null ? related.slice(-options.historyLength) : related
-    body.history = history.map((message) => projectMessage(message, contextId))
+    body.history = history.map((message) => projectMessage(message, contextId, task.claimantId))
   }
   if (options.includeArtifacts !== false) {
     const parts = artifactParts(store, task)
@@ -123,13 +126,21 @@ export function projectTask(
   return body
 }
 
-function statusMessage(task: Task, contextId: string) {
-  if (task.status !== "working" && task.status !== "submitted") return {}
+const DECISION_KINDS = new Set(["task.input", "task.reject", "task.fail", "task.cancel"])
+
+function statusMessage(store: Store, task: Task, contextId: string) {
+  if (task.status === "completed") return {}
+  const decision = [...store.messages].reverse().find((item) => item.taskId === task.id && DECISION_KINDS.has(item.kind))
   const waiting =
-    task.status === "working" ? "人还在做。请用 GetTask 轮询产物。" : "任务还没派到人。请用 GetTask 轮询。"
+    task.status === "working"
+      ? "人还在做。请用 GetTask 轮询产物。"
+      : task.status === "submitted"
+        ? "任务还没派到人。请用 GetTask 轮询。"
+        : decision?.text
+  if (!waiting) return {}
   return {
     message: {
-      messageId: `${task.id}:awaiting-human`,
+      messageId: decision && task.status !== "working" && task.status !== "submitted" ? decision.id : `${task.id}:awaiting-human`,
       contextId,
       taskId: task.id,
       role: "ROLE_AGENT",
@@ -138,8 +149,13 @@ function statusMessage(task: Task, contextId: string) {
   }
 }
 
-function projectMessage(message: ProtocolMessage, contextId: string) {
-  const fromHuman = message.kind === "task.artifact"
+function projectMessage(message: ProtocolMessage, contextId: string, claimantId: string | null) {
+  const fromHuman =
+    message.kind === "task.artifact" ||
+    message.kind === "task.reject" ||
+    message.kind === "task.fail" ||
+    message.kind === "task.input" ||
+    (message.kind === "task.cancel" && message.fromId === claimantId)
   return {
     messageId: message.a2aMessageId ?? message.id,
     contextId,
