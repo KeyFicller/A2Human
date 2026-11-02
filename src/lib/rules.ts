@@ -283,6 +283,22 @@ export function receiveCommand(
       fail("contextId 和这张任务对不上", -32602)
     }
     const caller = ensureCaller(store)
+    if (awaitingScore(store, task)) {
+      if (images.length) fail("打分不用附图片", -32602)
+      const score = requireWorkScore(text)
+      task.workScore = score
+      addMessage(store, {
+        taskId: task.id,
+        fromId: caller.id,
+        fromName: input.callerName,
+        kind: "task.score",
+        text: `${input.callerName}给${task.claimantName ?? "这个人"}打了 ${score} 分`,
+        a2aMessageId: input.messageId,
+      })
+      task.status = "working"
+      task.updatedAt = now()
+      return task
+    }
     if (images.length) {
       const next = [...(task.images ?? []), ...images]
       if (next.length > 4) fail("最多 4 张图片", -32602)
@@ -376,21 +392,42 @@ export function decideTask(store: Store, taskId: string, agentId: string, action
   return task
 }
 
-export function scoreDispatch(store: Store, taskId: string, agentId: string, score: unknown): Task {
+const SCORE_DECISIONS = new Set<ProtocolMessage["kind"]>(["task.input", "task.scoreRequest", "task.reject", "task.fail", "task.cancel"])
+
+function awaitingScore(store: Store, task: Task) {
+  if (task.status !== "input-required") return false
+  const decision = [...store.messages].reverse().find((item) => item.taskId === task.id && SCORE_DECISIONS.has(item.kind))
+  return decision?.kind === "task.scoreRequest"
+}
+
+function requireWorkScore(text: string) {
+  let data: unknown
+  try {
+    data = JSON.parse(text)
+  } catch {
+    fail('分数要写成 {"score":4}', -32602)
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) fail('分数要写成 {"score":4}', -32602)
+  const record = data as Record<string, unknown>
+  if (Object.keys(record).length !== 1 || !("score" in record)) fail('分数要写成 {"score":4}', -32602)
+  const score = record.score
+  if (typeof score !== "number" || !Number.isInteger(score) || score < 1 || score > 5) fail("分数要是 1 到 5 的整数", -32602)
+  return score
+}
+
+export function requestScore(store: Store, taskId: string, agentId: string): Task {
   const task = requireTask(store, taskId)
   const agent = requireAgent(store, agentId)
-  if (task.claimantId !== agent.id) fail("只有被派到这单的人能打分")
+  if (task.claimantId !== agent.id) fail("只有被派到这单的人能请模型打分")
   if (!taskOpenStatus(task.status)) fail("任务已经结束")
-  if (typeof score !== "number" || !Number.isInteger(score) || score < 1 || score > 5) fail("分数要是 1 到 5 的整数")
-  task.dispatchScore = score
   task.status = "input-required"
   task.updatedAt = now()
   addMessage(store, {
     taskId: task.id,
     fromId: agent.id,
     fromName: agent.name,
-    kind: "task.score",
-    text: `给${task.posterName}打了 ${score} 分`,
+    kind: "task.scoreRequest",
+    text: `请${task.posterName}给这次工作打分`,
   })
   return task
 }

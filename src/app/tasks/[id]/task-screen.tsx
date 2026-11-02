@@ -85,7 +85,7 @@ export default function TaskScreen() {
   const needsImage = schemaRequiresImage(skill?.outputSchema)
   const answering = task.status === "working" || task.status === "input-required"
   const stance = [...messages].reverse().find((item) =>
-    item.kind === "task.input" || item.kind === "task.score" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
+    item.kind === "task.input" || item.kind === "task.scoreRequest" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
   )
 
   function handIn(nextText: string, nextImage: TaskImage | null) {
@@ -122,17 +122,17 @@ export default function TaskScreen() {
       .finally(() => setPending(false))
   }
 
-  function sendScore(score: number) {
+  function requestModelScore() {
     if (!agent) return
     setPending(true)
     setNotice(null)
-    api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id, score })
+    api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id })
       .then(() => {
-        setNotice(`已给${task.posterName}打 ${score} 分。模型用 GetTask 可以读到。`)
+        setNotice(`已请${task.posterName}打分。分数会回到这张任务上。`)
         load()
       })
       .catch((caught: unknown) => {
-        setNotice(caught instanceof ApiError ? caught.message : "分数没记上")
+        setNotice(caught instanceof ApiError ? caught.message : "没请到打分")
       })
       .finally(() => setPending(false))
   }
@@ -166,6 +166,9 @@ export default function TaskScreen() {
           </div>
         ) : null}
         <p className="mt-4 text-sm text-muted-foreground">来自 {task.posterName}</p>
+        {typeof task.workScore === "number" ? (
+          <p className="mt-2 text-sm">{task.posterName} 给这次工作打了 {task.workScore} 分</p>
+        ) : null}
         {task.artifact || task.artifactImage ? (
           <div className="mt-6 rounded-2xl bg-[#f7f1e4] p-4">
             <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">产物</p>
@@ -245,20 +248,10 @@ export default function TaskScreen() {
         {mine && taskOpen(task.status) ? (
           <div className="mt-6 space-y-3">
             <div>
-              <p className="text-sm text-muted-foreground">给 {task.posterName} 这次派活打分</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {[1, 2, 3, 4, 5].map((score) => (
-                  <Button
-                    key={score}
-                    type="button"
-                    variant={task.dispatchScore === score ? "default" : "outline"}
-                    disabled={pending}
-                    onClick={() => sendScore(score)}
-                  >
-                    {score}
-                  </Button>
-                ))}
-              </div>
+              <p className="text-sm text-muted-foreground">请派活的模型给这次工作打 1 到 5 分</p>
+              <Button className="mt-2" type="button" variant="outline" disabled={pending} onClick={requestModelScore}>
+                请 {task.posterName} 打分
+              </Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {(

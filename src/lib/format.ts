@@ -33,5 +33,6 @@ export const KIND_LABEL: Record<MessageKind, string> = {
   "task.reject": "拒绝",
   "task.fail": "失败",
   "task.input": "要补充",
+  "task.scoreRequest": "请打分",
   "task.score": "打分",
 }

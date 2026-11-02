@@ -128,6 +128,7 @@ def describe_duty(entry: dict) -> str:
             if flat
             else "prompt 里写要这个人办的事。内容若是 JSON 对象或数组，会按 application/json 送出。这一调用会等到人交回产物。"
         ),
+        '人若请你打分，结果是 {"request":"score","taskId":"…","person":"人名"}。再用 task_id 和 score 调用一次。score 是你给这个人打的 1 到 5 分。',
     ]
     return "\n".join(line for line in lines if line)
 
@@ -229,6 +230,24 @@ def send_body(message_id: str, skill: str, prompt=None, *, fields=None, images=N
                 "role": "ROLE_USER",
                 "messageId": message_id,
                 "parts": message_parts(prompt, fields=fields, images=images),
+            },
+        },
+    }
+
+
+def score_body(message_id: str, skill: str, task_id: str, score: int) -> dict:
+    return {
+        "jsonrpc": "2.0",
+        "id": message_id,
+        "method": "SendMessage",
+        "params": {
+            "configuration": {"returnImmediately": True},
+            "metadata": {"skill": skill, "caller": "LangGraph"},
+            "message": {
+                "role": "ROLE_USER",
+                "messageId": message_id,
+                "taskId": task_id,
+                "parts": [{"mediaType": "application/json", "data": {"score": score}}],
             },
         },
     }
@@ -339,8 +358,26 @@ class Client:
     def roster(self) -> list[dict]:
         return read_roster(self.card())
 
-    def dispatch(self, url: str, skill: str, prompt=None, *, fields=None, images=None, message_id: str | None = None) -> str:
-        sent = self._request("POST", url, send_body(message_id or str(uuid.uuid4()), skill, prompt, fields=fields, images=images))
+    def dispatch(
+        self,
+        url: str,
+        skill: str,
+        prompt=None,
+        *,
+        fields=None,
+        images=None,
+        message_id: str | None = None,
+        task_id: str | None = None,
+        score: int | None = None,
+    ) -> str:
+        if task_id is not None or score is not None:
+            if not isinstance(task_id, str) or not task_id.strip():
+                raise A2HumanError("打分要带上任务 id")
+            if type(score) is not int or score < 1 or score > 5:
+                raise A2HumanError("分数要是 1 到 5 的整数")
+            sent = self._request("POST", url, score_body(message_id or str(uuid.uuid4()), skill, task_id.strip(), score))
+        else:
+            sent = self._request("POST", url, send_body(message_id or str(uuid.uuid4()), skill, prompt, fields=fields, images=images))
         task = task_of(sent)
         if not task or not isinstance(task.get("id"), str):
             raise A2HumanError("没有返回任务")

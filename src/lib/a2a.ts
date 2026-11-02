@@ -105,7 +105,7 @@ export function projectTask(
     metadata: {
       title: task.title,
       claimantName: task.claimantName,
-      ...(typeof task.dispatchScore === "number" ? { dispatchScore: task.dispatchScore, dispatchCaller: task.posterName } : {}),
+      ...(typeof task.workScore === "number" ? { score: task.workScore, scoredBy: task.posterName, person: task.claimantName } : {}),
     },
   }
   if (options.historyLength !== 0) {
@@ -127,7 +127,7 @@ export function projectTask(
   return body
 }
 
-const DECISION_KINDS = new Set(["task.input", "task.score", "task.reject", "task.fail", "task.cancel"])
+const DECISION_KINDS = new Set(["task.input", "task.scoreRequest", "task.reject", "task.fail", "task.cancel"])
 
 function statusMessage(store: Store, task: Task, contextId: string) {
   if (task.status === "completed") return {}
@@ -137,8 +137,8 @@ function statusMessage(store: Store, task: Task, contextId: string) {
       ? "人还在做。请用 GetTask 轮询产物。"
       : task.status === "submitted"
         ? "任务还没派到人。请用 GetTask 轮询。"
-        : decision?.kind === "task.score" && typeof task.dispatchScore === "number"
-          ? JSON.stringify({ score: task.dispatchScore, caller: task.posterName })
+        : decision?.kind === "task.scoreRequest"
+          ? JSON.stringify({ request: "score", taskId: task.id, person: task.claimantName ?? "" })
           : decision?.text
   if (!waiting) return {}
   return {
@@ -158,7 +158,7 @@ function projectMessage(message: ProtocolMessage, contextId: string, claimantId:
     message.kind === "task.reject" ||
     message.kind === "task.fail" ||
     message.kind === "task.input" ||
-    message.kind === "task.score" ||
+    message.kind === "task.scoreRequest" ||
     (message.kind === "task.cancel" && message.fromId === claimantId)
   return {
     messageId: message.a2aMessageId ?? message.id,

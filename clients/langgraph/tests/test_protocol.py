@@ -140,7 +140,7 @@ class ProtocolTest(unittest.TestCase):
                         "id": "task-score",
                         "status": {
                             "state": "TASK_STATE_INPUT_REQUIRED",
-                            "message": {"parts": [{"text": '{"score":4,"caller":"LangGraph"}'}]},
+                            "message": {"parts": [{"text": '{"request":"score","taskId":"task-score","person":"米粒"}'}]},
                         },
                     }
                 }
@@ -149,8 +149,31 @@ class ProtocolTest(unittest.TestCase):
         client = Client("https://example.test", transport=scored, interval=0)
         self.assertEqual(
             client.dispatch("https://example.test/api/a2a/person", "计数", "数一下"),
-            '{"score":4,"caller":"LangGraph"}',
+            '{"request":"score","taskId":"task-score","person":"米粒"}',
         )
+
+    def test_a_score_goes_back_on_the_same_task(self):
+        seen = []
+
+        def transport(method, url, payload, headers, timeout):
+            if payload and payload.get("method") == "SendMessage":
+                seen.append(payload)
+                return {"result": {"task": {"id": "task-score", "status": {"state": "TASK_STATE_WORKING"}}}}
+            return {
+                "result": {
+                    "id": "task-score",
+                    "status": {"state": "TASK_STATE_COMPLETED"},
+                    "artifacts": [{"parts": [{"text": "3"}]}],
+                }
+            }
+
+        client = Client("https://example.test", transport=transport, interval=0)
+        with self.assertRaises(A2HumanError):
+            client.dispatch("https://example.test/api/a2a/person", "计数", task_id="task-score", score=6)
+        self.assertEqual(client.dispatch("https://example.test/api/a2a/person", "计数", task_id="task-score", score=4), "3")
+        message = seen[0]["params"]["message"]
+        self.assertEqual(message["taskId"], "task-score")
+        self.assertEqual(message["parts"][0]["data"], {"score": 4})
 
 
 class StructuredDispatchTest(unittest.TestCase):

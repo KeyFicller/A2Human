@@ -5,7 +5,9 @@ def system_prompt(entries: list[dict]) -> str:
     roster = summarize_roster(entries)
     return (
         "需要人完成的步骤，调用对应的在岗技能，不要自己编造只有人才能看到的结果。"
-        "每次调用都会等到对方交回产物。\n"
+        "每次调用都会等到对方交回产物。"
+        '如果工具结果是 {"request":"score","taskId":"…","person":"人名"}，'
+        "用同一技能再调用一次，填 task_id 和 score。score 是你给做这单的人打的 1 到 5 分。\n"
         f"{roster}"
     )
 
@@ -25,9 +27,17 @@ def _structured_tool(client: Client, entry: dict, name: str, fields: list[dict])
             model_fields[field["name"]] = (annotation, Field(description=description))
         else:
             model_fields[field["name"]] = (annotation | None, Field(default=None, description=description))
+    if "task_id" not in model_fields:
+        model_fields["task_id"] = (str | None, Field(default=None, description="请你打分时带上的任务 id。平时留空。"))
+    if "score" not in model_fields:
+        model_fields["score"] = (int | None, Field(default=None, description="给做这单的人打的 1 到 5 分。只有上一轮要求打分时才填。"))
     args_model = create_model(f"Duty_{name}", **model_fields)
 
     def run(**kwargs) -> str:
+        score = kwargs.pop("score", None)
+        task_id = kwargs.pop("task_id", None)
+        if score is not None or task_id:
+            return client.dispatch(entry["url"], entry["skill_name"], task_id=task_id, score=score)
         data = {}
         images = []
         for field in fields:
@@ -55,8 +65,10 @@ def duty_tools(client: Client, entries: list[dict] | None = None):
             tools.append(_structured_tool(client, entry, item["name"], fields))
             continue
 
-        def run(prompt: str, entry=entry) -> str:
-            """把这件事派给在岗的人，并等待产物。"""
+        def run(prompt: str = "", task_id: str | None = None, score: int | None = None, entry=entry) -> str:
+            """把这件事派给在岗的人，并等待产物。人请打分时，填 task_id 和 score。"""
+            if task_id is not None or score is not None:
+                return client.dispatch(entry["url"], entry["skill_name"], task_id=task_id, score=score)
             return client.dispatch(entry["url"], entry["skill_name"], prompt)
 
         tools.append(StructuredTool.from_function(func=run, name=item["name"], description=describe_duty(entry)))
