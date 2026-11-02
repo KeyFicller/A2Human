@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AgentCard } from "@/components/agent-card"
+import { CopyField } from "@/components/copy-field"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
 import type { Agent } from "@/lib/types"
@@ -9,17 +10,35 @@ import type { Agent } from "@/lib/types"
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [origin, setOrigin] = useState("")
 
   useEffect(() => {
-    api<Agent[]>("/api/agents")
-      .then((next) => {
-        setAgents(next.filter((agent) => agent.available))
-        setError(null)
-      })
-      .catch((caught: unknown) => {
-        setError(caught instanceof Error ? caught.message : "在岗名单读不出来")
-      })
+    let alive = true
+    const load = () => {
+      api<Agent[]>("/api/agents")
+        .then((next) => {
+          if (!alive) return
+          setAgents(next.filter((agent) => agent.available))
+          setError(null)
+        })
+        .catch((caught: unknown) => {
+          if (!alive) return
+          setError(caught instanceof Error ? caught.message : "在岗名单读不出来")
+        })
+    }
+    load()
+    const timer = window.setInterval(load, 4000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
   }, [])
+
+  useEffect(() => {
+    Promise.resolve().then(() => setOrigin(window.location.origin))
+  }, [])
+
+  const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
 
   return (
     <div>
@@ -28,6 +47,7 @@ export default function AgentsPage() {
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
         模型读的是同一份名单：在岗的人、他们自己写的技能，以及各自的调用地址。没上工的人不在这里。
       </p>
+      <CopyField hint="把发现入口交给 LangGraph，一次接上这里所有人。" label="复制发现入口" value={directory} />
       {error ? <ErrorNote text={error} /> : null}
       {!agents && !error ? <LoadingLine text="正在读取在岗名单…" /> : null}
       {agents && agents.length === 0 ? <p className="mt-8 text-sm text-muted-foreground">现在没有人上工。</p> : null}

@@ -74,7 +74,7 @@ function FieldList({
                   className="mt-1"
                   value={field.name}
                   maxLength={40}
-                  placeholder="例如 画面"
+                  placeholder="例如 scene"
                   aria-label={`${label}名称`}
                   onChange={(event) => updateField(index, { name: event.target.value })}
                 />
@@ -165,6 +165,7 @@ export function SchemaEditor({
         </>
       ) : (
         <>
+          <p className="text-xs leading-5 text-muted-foreground">名称写成英文标识符时，模型按这一项单独填写。</p>
           <FieldList label="输入" draft={input} onChange={(next) => onChange({ input: next, output })} />
           <FieldList label="输出" draft={output} onChange={(next) => onChange({ input, output: next })} />
         </>

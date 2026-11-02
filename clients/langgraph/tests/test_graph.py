@@ -37,6 +37,46 @@ class Scripted(BaseChatModel):
         return "scripted"
 
 
+class StructuredToolTest(unittest.TestCase):
+    def test_a_flat_schema_is_the_tool_arguments(self):
+        card = {
+            "a2human": {
+                "onDuty": [
+                    {
+                        "name": "米粒",
+                        "url": "https://example.test/api/a2a/person",
+                        "skills": [
+                            {
+                                "name": "计数",
+                                "description": "数清画面里的东西。",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "required": ["scene"],
+                                    "properties": {"scene": {"type": "string", "description": "画面"}},
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        seen = {}
+
+        def transport(method, url, payload, headers, timeout):
+            if payload is None:
+                return card
+            seen["data"] = payload["params"]["message"]["parts"][0]["data"]
+            return {"result": {"task": {"id": "task-9", "status": {"state": "TASK_STATE_COMPLETED"}, "artifacts": [{"parts": [{"text": "3"}]}]}}}
+
+        from a2human.graph import duty_tools
+        from a2human.protocol import Client
+
+        tool = duty_tools(Client("https://example.test", transport=transport, interval=0))[0]
+        self.assertIn("scene", tool.args_schema.model_fields)
+        self.assertEqual(tool.invoke({"scene": "三个圆"}), "3")
+        self.assertEqual(seen["data"], {"scene": "三个圆"})
+
+
 class GraphTest(unittest.TestCase):
     def test_agent_calls_the_person_and_returns_the_artifact(self):
         calls = []

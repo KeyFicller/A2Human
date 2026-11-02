@@ -1,6 +1,16 @@
 import unittest
 
-from a2human.protocol import A2HumanError, Client, directory_url, message_parts, read_roster, send_body
+from a2human.protocol import (
+    A2HumanError,
+    Client,
+    describe_duty,
+    directory_url,
+    flat_fields,
+    image_part,
+    message_parts,
+    read_roster,
+    send_body,
+)
 
 
 CARD = {
@@ -93,6 +103,49 @@ class ProtocolTest(unittest.TestCase):
         with self.assertRaises(A2HumanError) as caught:
             client.dispatch("https://example.test/api/a2a/person", "计数", "数一下")
         self.assertIn("没上工", str(caught.exception))
+
+
+class StructuredDispatchTest(unittest.TestCase):
+    def test_flat_schema_becomes_fields_and_an_image_part(self):
+        schema = {
+            "type": "object",
+            "required": ["scene"],
+            "properties": {
+                "scene": {"type": "string", "description": "画面"},
+                "shot": {"type": "string", "contentMediaType": "image/*"},
+            },
+        }
+        self.assertEqual([field["name"] for field in flat_fields(schema)], ["scene", "shot"])
+        self.assertIsNone(flat_fields({"type": "object", "properties": {"画面": {"type": "string"}}}))
+        part = image_part("data:image/png;base64,aaaa")
+        self.assertEqual(part["mediaType"], "image/png")
+        self.assertEqual(image_part("https://example.test/shot.jpeg?size=1")["mediaType"], "image/jpeg")
+        self.assertEqual(image_part("https://example.test/shot")["mediaType"], "image/png")
+        duty = describe_duty(
+            {
+                "person_name": "阿梨",
+                "skill_name": "计数",
+                "description": "数清。",
+                "input_schema": schema,
+                "output_schema": {"type": "object", "properties": {"count": {"type": "integer"}}},
+            }
+        )
+        self.assertIn("按参数填写", duty)
+        self.assertNotIn("输入：", duty)
+        self.assertIn("输出：", duty)
+        body = send_body("m1", "计数", fields={"scene": "三个圆"}, images=[part])
+        self.assertEqual(body["params"]["message"]["parts"][0]["data"], {"scene": "三个圆"})
+        self.assertEqual(body["params"]["message"]["parts"][1]["raw"], "aaaa")
+
+        def transport(method, url, payload, headers, timeout):
+            self.assertEqual(payload["params"]["message"]["parts"][0]["data"]["scene"], "三个圆")
+            return {"result": {"task": {"id": "task-3", "status": {"state": "TASK_STATE_COMPLETED"}, "artifacts": [{"parts": [{"text": "3"}]}]}}}
+
+        client = Client("https://example.test", transport=transport, interval=0)
+        self.assertEqual(
+            client.dispatch("https://example.test/api/a2a/person", "计数", fields={"scene": "三个圆"}, images=[part]),
+            "3",
+        )
 
 
 if __name__ == "__main__":

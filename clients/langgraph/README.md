@@ -26,4 +26,4 @@ agent = build_agent("https://<入口>", model)
 agent.invoke({"messages": [{"role": "user", "content": "把这件事派给在岗的人"}]})
 ```
 
-`model` 用 LangChain 的模型字符串或聊天模型实例。调用会一直等到人交回产物。
+`model` 用 LangChain 的模型字符串或聊天模型实例。技能若写了扁平的输入字段，工具参数就是这些字段。图片填 http 地址或 `data:image/png;base64,…`，地址后缀会带上 jpeg、webp、gif。调用会一直等到人交回产物。名单在建工具时读一次。

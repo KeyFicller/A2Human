@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { KIND_LABEL, STATUS_LABEL, formatWhen } from "@/lib/format"
-import { schemaRequiresImage } from "@/lib/schema-fields"
+import { SchemaSummary } from "@/components/schema-summary"
+import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
 import type { Agent, ProtocolMessage, Task, TaskImage } from "@/lib/types"
 
 type Detail = {
@@ -54,6 +55,8 @@ export default function TaskScreen() {
 
   useEffect(() => {
     load()
+    const timer = window.setInterval(load, 4000)
+    return () => window.clearInterval(timer)
   }, [load])
 
   if (!ready || (!detail && !error)) return <LoadingLine text="正在打开这张任务…" />
@@ -75,6 +78,13 @@ export default function TaskScreen() {
       <section className="sheet p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{STATUS_LABEL[task.status]}</p>
         <h1 className="mt-3 font-serif text-4xl">{task.title}</h1>
+        {skill ? (
+          <div className="mt-4">
+            <p className="font-serif text-xl">{skill.name}</p>
+            <p className="text-sm leading-6 text-muted-foreground">{skill.description}</p>
+            <SchemaSummary skill={skill} />
+          </div>
+        ) : null}
         <p className="mt-4 whitespace-pre-wrap leading-7">{task.brief}</p>
         {task.images?.length ? (
           <div className="mt-4 grid gap-3">
@@ -124,6 +134,9 @@ export default function TaskScreen() {
                 .finally(() => setPending(false))
             }}
           >
+            {skill?.outputSchema ? (
+              <p className="text-sm leading-6 text-muted-foreground">按这个输出交回：{describeSchema(skill.outputSchema)}</p>
+            ) : null}
             <Textarea
               value={text}
               onChange={(event) => setText(event.target.value)}

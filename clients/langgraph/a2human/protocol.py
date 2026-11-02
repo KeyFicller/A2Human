@@ -1,4 +1,5 @@
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -116,12 +117,17 @@ def _schema_line(label: str, schema) -> str:
 
 
 def describe_duty(entry: dict) -> str:
+    flat = flat_fields(entry.get("input_schema"))
     lines = [
         f"在岗的人：{entry['person_name']}。技能：{entry['skill_name']}。",
         entry["description"],
-        _schema_line("输入", entry["input_schema"]),
+        None if flat else _schema_line("输入", entry["input_schema"]),
         _schema_line("输出", entry["output_schema"]),
-        "prompt 里写要这个人办的事。内容若是 JSON 对象或数组，会按 application/json 送出。这一调用会等到人交回产物。",
+        (
+            "按参数填写。图片填 http 地址或 data:image/png;base64,…。这一调用会等到人交回产物。"
+            if flat
+            else "prompt 里写要这个人办的事。内容若是 JSON 对象或数组，会按 application/json 送出。这一调用会等到人交回产物。"
+        ),
     ]
     return "\n".join(line for line in lines if line)
 
@@ -136,7 +142,66 @@ def summarize_roster(entries: list[dict]) -> str:
     return f"已接上 {len(entries)} 项在岗技能：\n" + "\n".join(lines)
 
 
-def message_parts(prompt) -> list[dict]:
+def flat_fields(schema) -> list[dict] | None:
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        return None
+    properties = schema.get("properties")
+    if not isinstance(properties, dict) or not properties:
+        return None
+    required = schema.get("required") or []
+    if required and not isinstance(required, list):
+        return None
+    required_names = {item for item in required if isinstance(item, str)}
+    fields = []
+    for name, value in properties.items():
+        if not isinstance(name, str) or not name.isascii() or not name.isidentifier() or not isinstance(value, dict):
+            return None
+        description = value.get("description") if isinstance(value.get("description"), str) else ""
+        media = value.get("contentMediaType")
+        if value.get("type") == "string" and isinstance(media, str) and media.startswith("image/"):
+            kind = "image"
+        elif value.get("type") in {"string", "integer", "number", "boolean"} and "contentMediaType" not in value:
+            kind = value["type"]
+        else:
+            return None
+        fields.append({"name": name, "kind": kind, "required": name in required_names, "description": description.strip()})
+    return fields
+
+
+def _image_media_from_url(url: str) -> str:
+    path = urlparse(url).path.lower()
+    if path.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if path.endswith(".webp"):
+        return "image/webp"
+    if path.endswith(".gif"):
+        return "image/gif"
+    return "image/png"
+
+
+def image_part(value: str) -> dict:
+    text = str(value or "").strip()
+    if text.startswith(("http://", "https://")):
+        return {"mediaType": _image_media_from_url(text), "url": text}
+    matched = re.fullmatch(r"data:(image/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)", text)
+    if not matched:
+        raise A2HumanError("图片要是 http 地址，或 data:image/png;base64,…")
+    return {"mediaType": matched.group(1), "raw": re.sub(r"\s", "", matched.group(2))}
+
+
+def message_parts(prompt=None, *, fields=None, images=None) -> list[dict]:
+    parts = []
+    if isinstance(fields, dict) and fields:
+        parts.append({"mediaType": "application/json", "data": fields})
+    elif prompt is not None:
+        parts.extend(_prompt_parts(prompt))
+    parts.extend(images or [])
+    if not parts:
+        raise A2HumanError("prompt 不能是空的")
+    return parts
+
+
+def _prompt_parts(prompt) -> list[dict]:
     if isinstance(prompt, (dict, list)):
         return [{"mediaType": "application/json", "data": prompt}]
     text = str(prompt or "").strip()
@@ -152,7 +217,7 @@ def message_parts(prompt) -> list[dict]:
     return [{"mediaType": "text/plain", "text": text}]
 
 
-def send_body(message_id: str, skill: str, prompt) -> dict:
+def send_body(message_id: str, skill: str, prompt=None, *, fields=None, images=None) -> dict:
     return {
         "jsonrpc": "2.0",
         "id": message_id,
@@ -163,7 +228,7 @@ def send_body(message_id: str, skill: str, prompt) -> dict:
             "message": {
                 "role": "ROLE_USER",
                 "messageId": message_id,
-                "parts": message_parts(prompt),
+                "parts": message_parts(prompt, fields=fields, images=images),
             },
         },
     }
@@ -274,8 +339,8 @@ class Client:
     def roster(self) -> list[dict]:
         return read_roster(self.card())
 
-    def dispatch(self, url: str, skill: str, prompt, *, message_id: str | None = None) -> str:
-        sent = self._request("POST", url, send_body(message_id or str(uuid.uuid4()), skill, prompt))
+    def dispatch(self, url: str, skill: str, prompt=None, *, fields=None, images=None, message_id: str | None = None) -> str:
+        sent = self._request("POST", url, send_body(message_id or str(uuid.uuid4()), skill, prompt, fields=fields, images=images))
         task = task_of(sent)
         if not task or not isinstance(task.get("id"), str):
             raise A2HumanError("没有返回任务")

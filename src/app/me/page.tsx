@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
+import { CopyField } from "@/components/copy-field"
 import { SchemaSummary } from "@/components/schema-summary"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
@@ -17,6 +18,7 @@ export default function MePage() {
   const [taskError, setTaskError] = useState<string | null>(null)
   const [dutyError, setDutyError] = useState<string | null>(null)
   const [dutyPending, setDutyPending] = useState(false)
+  const [origin, setOrigin] = useState("")
 
   const load = useCallback(() => {
     if (!agent) return
@@ -36,6 +38,10 @@ export default function MePage() {
     return () => window.clearInterval(timer)
   }, [load])
 
+  useEffect(() => {
+    Promise.resolve().then(() => setOrigin(window.location.origin))
+  }, [])
+
   if (!ready) return <LoadingLine />
   if (error) return <ErrorNote text={error} />
   if (!agent) {
@@ -51,6 +57,8 @@ export default function MePage() {
   }
 
   const assigned = (tasks ?? []).filter((task) => task.claimantId === agent.id)
+  const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
+  const endpoint = origin ? `${origin}/api/a2a/${agent.id}` : ""
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[0.8fr_1.2fr]">
@@ -99,6 +107,15 @@ export default function MePage() {
           <Link href={`/agents/${agent.id}`} className="text-stamp">
             看公开卡
           </Link>
+        </div>
+        <div className="mt-6 border-t border-[#d9d0c0] pt-4">
+          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">给模型</p>
+          <CopyField
+            hint="LangGraph 读发现入口，一次接上所有在岗的人。你自己的地址只接收派给你的任务。"
+            label="复制发现入口"
+            value={directory}
+          />
+          <CopyField label="复制我的地址" value={endpoint} />
         </div>
       </section>
       <section>

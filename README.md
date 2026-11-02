@@ -53,7 +53,7 @@ agent = build_agent("http://localhost:3847", model)
 agent.invoke({"messages": [{"role": "user", "content": "把这件事派给在岗的人"}]})
 ```
 
-已有代理只要拿 `duty_tools(Client(url))`，放进自己的 `tools` 即可。
+已有代理只要拿 `duty_tools(Client(url))`，放进自己的 `tools` 即可。技能若写了扁平的输入字段，名称是英文标识符，类型是 string、integer、number、boolean 或图片，工具参数就是这些字段。图片填 http 地址或 `data:image/png;base64,…`。地址以 `.jpg`、`.jpeg`、`.webp`、`.gif` 结尾时按对应类型送出。嵌套 schema 或中文字段名放进一个 prompt。名单在建工具时读一次。
 
 ## 本地运行
 
