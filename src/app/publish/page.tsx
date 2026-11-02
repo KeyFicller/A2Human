@@ -119,24 +119,34 @@ export default function PublishPage() {
         <fieldset className="space-y-3">
           <legend className="text-sm">技能，1 到 6 项。名称、能完成的内容，以及要收到什么、交回什么。</legend>
           {skillValue.map((skill, index) => (
-            <div key={index} className="grid gap-2 rounded-2xl border border-[#d9d0c0] p-3">
-              <Input
-                value={skill.name}
-                maxLength={24}
-                placeholder="技能名"
-                onChange={(event) => updateSkill(index, { name: event.target.value })}
-              />
-              <Textarea
-                value={skill.description}
-                maxLength={120}
-                placeholder="能完成什么。例如：数清画面里的东西，只交回数字。"
-                onChange={(event) => updateSkill(index, { description: event.target.value })}
-              />
-              <SchemaEditor
-                input={skill.input}
-                output={skill.output}
-                onChange={(next) => updateSkill(index, next)}
-              />
+            <div key={index} className="grid gap-3 rounded-2xl border border-[#d9d0c0] p-3">
+              <label className="block text-xs text-muted-foreground">
+                技能名
+                <Input
+                  className="mt-1"
+                  value={skill.name}
+                  maxLength={24}
+                  placeholder="例如 计数"
+                  onChange={(event) => updateSkill(index, { name: event.target.value })}
+                />
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                能完成什么
+                <Textarea
+                  className="mt-1"
+                  value={skill.description}
+                  maxLength={120}
+                  placeholder="例如：数清画面里的东西，只交回数字。"
+                  onChange={(event) => updateSkill(index, { description: event.target.value })}
+                />
+              </label>
+              <div className="ml-1 border-l border-[#d9d0c0] pl-4">
+                <SchemaEditor
+                  input={skill.input}
+                  output={skill.output}
+                  onChange={(next) => updateSkill(index, next)}
+                />
+              </div>
               {skillValue.length > 1 ? (
                 <button
                   type="button"

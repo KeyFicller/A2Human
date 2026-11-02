@@ -52,64 +52,79 @@ function FieldList({
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm">{label}</p>
-      {draft.fields.length === 0 ? <p className="text-sm text-muted-foreground">还没加。不写的话，模型只看上面的说明。</p> : null}
-      {draft.fields.map((field, index) => (
-        <div key={index} className="grid gap-2">
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_7.5rem_auto_auto] sm:items-center">
-          <Input
-            value={field.name}
-            maxLength={40}
-            placeholder="这项叫什么"
-            aria-label={`${label}名称`}
-            onChange={(event) => updateField(index, { name: event.target.value })}
-          />
-          <select
-            className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
-            value={field.type}
-            aria-label={`${label}类型`}
-            onChange={(event) => updateField(index, { type: event.target.value as SchemaField["type"] })}
-          >
-            {FIELD_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {fieldTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-          <label className="flex items-center gap-1.5 text-sm">
-            <input
-              type="checkbox"
-              checked={field.required}
-              onChange={(event) => updateField(index, { required: event.target.checked })}
-            />
-            必填
-          </label>
-          <button
-            type="button"
-            className="text-left text-sm text-stamp"
-            onClick={() => onChange({ ...draft, fields: draft.fields.filter((_, item) => item !== index) })}
-          >
-            去掉
-          </button>
-        </div>
-          <Input
-            value={field.description ?? ""}
-            maxLength={120}
-            placeholder="这项说明什么，可以不写"
-            aria-label={`${label}说明`}
-            onChange={(event) => updateField(index, { description: event.target.value })}
-          />
-        </div>
-      ))}
-      <button
-        type="button"
-        className="text-sm text-stamp"
-        onClick={() => onChange({ ...draft, fields: [...draft.fields, { name: "", type: "string", required: true }] })}
-      >
-        加一项
-      </button>
-    </div>
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm">{label}</h3>
+        <button
+          type="button"
+          className="text-sm text-stamp"
+          onClick={() => onChange({ ...draft, fields: [...draft.fields, { name: "", type: "string", required: true }] })}
+        >
+          加一项
+        </button>
+      </div>
+      <div className="ml-1 space-y-3 border-l border-[#d9d0c0] pl-4">
+        {draft.fields.length === 0 ? <p className="text-sm text-muted-foreground">还没加。不写的话，模型只看上面的说明。</p> : null}
+        {draft.fields.map((field, index) => (
+          <div key={index} className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto_auto] sm:items-end">
+              <label className="block text-xs text-muted-foreground">
+                名称
+                <Input
+                  className="mt-1"
+                  value={field.name}
+                  maxLength={40}
+                  placeholder="例如 画面"
+                  aria-label={`${label}名称`}
+                  onChange={(event) => updateField(index, { name: event.target.value })}
+                />
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                类型
+                <select
+                  className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm text-foreground"
+                  value={field.type}
+                  aria-label={`${label}类型`}
+                  onChange={(event) => updateField(index, { type: event.target.value as SchemaField["type"] })}
+                >
+                  {FIELD_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {fieldTypeLabel(type)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex h-8 items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={field.required}
+                  onChange={(event) => updateField(index, { required: event.target.checked })}
+                />
+                必填
+              </label>
+              <button
+                type="button"
+                className="h-8 text-left text-sm text-stamp"
+                onClick={() => onChange({ ...draft, fields: draft.fields.filter((_, item) => item !== index) })}
+              >
+                去掉
+              </button>
+            </div>
+            <label className="ml-4 block border-l border-[#e4dccb] pl-3 text-xs text-muted-foreground">
+              说明
+              <Input
+                className="mt-1"
+                value={field.description ?? ""}
+                maxLength={120}
+                placeholder="可以不写"
+                aria-label={`${label}说明`}
+                onChange={(event) => updateField(index, { description: event.target.value })}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -126,7 +141,7 @@ export function SchemaEditor({
   const jsonMode = input.mode === "json" || output.mode === "json"
 
   return (
-    <div className="grid gap-3 rounded-xl bg-[#f7f1e4] p-3">
+    <div className="grid gap-5 rounded-xl bg-[#f7f1e4] p-3">
       {jsonMode ? (
         <>
           <label className="block text-sm">
