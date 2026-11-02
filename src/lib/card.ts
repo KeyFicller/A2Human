@@ -19,9 +19,9 @@ const takeOrders = {
   tags: ["human"],
 }
 
-function jibExtension(origin: string, roster?: { name: string; skills: string[]; url: string }[]) {
+function dangbanExtension(origin: string, roster?: { name: string; skills: string[]; url: string }[]) {
   return {
-    uri: `${origin}/extensions/jib/v1`,
+    uri: `${origin}/extensions/dangban/v1`,
     description:
       "公开完成率、延迟率、好评率，以及谁正在岗。广场卡片的 onDuty 按技能列出可派的人。SendMessage 的 metadata 可带 skill、caller、dueHours、review。指派要设 configuration.returnImmediately 为 true。",
     required: false,
@@ -59,19 +59,19 @@ export function toAgentCard(agent: Agent, origin: string) {
       },
     ],
     provider: {
-      organization: "几B协议",
+      organization: "当班",
       url: origin,
     },
     capabilities: {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
-      extensions: [jibExtension(origin)],
+      extensions: [dangbanExtension(origin)],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
     skills,
-    jib: {
+    dangban: {
       ...publicRates(agent),
       points: agent.points,
       humanInTheLoop: agent.human,
@@ -99,7 +99,7 @@ export function dispatcherCard(origin: string, agents: Agent[]) {
     ...publicRates(agent),
   }))
   return {
-    name: "几B协议",
+    name: "当班",
     description: "发现在岗的人，并按技能立刻指派。同一技能有多人在岗时，按好评率、再按完成单数挑选。",
     version: "1.0.0",
     supportedInterfaces: [
@@ -110,14 +110,14 @@ export function dispatcherCard(origin: string, agents: Agent[]) {
       },
     ],
     provider: {
-      organization: "几B协议",
+      organization: "当班",
       url: origin,
     },
     capabilities: {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
-      extensions: [jibExtension(origin, roster)],
+      extensions: [dangbanExtension(origin, roster)],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
@@ -130,7 +130,7 @@ export function dispatcherCard(origin: string, agents: Agent[]) {
         tags: ["human", "dispatch"],
       },
     ],
-    jib: {
+    dangban: {
       humanInTheLoop: true,
       onDuty: roster,
     },

@@ -3,7 +3,7 @@ import { Shell } from "@/components/shell"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "几B协议",
+  title: "当班",
   description: "有空就挂上岗。模型按技能发现在岗的人，并用 A2A 把任务立刻派过来。",
 }
 
