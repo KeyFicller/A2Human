@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from a2human.copy import wire
+from a2human.dispatch import route_dispatch
 from a2human.images import read_image
 from a2human.jsonutil import dumps, loads
 from a2human.rules import (
@@ -174,6 +175,7 @@ def project_task(store: dict[str, Any], task: dict[str, Any], options: dict[str,
         "metadata": {
             "title": task["title"],
             "claimantName": task.get("claimantName"),
+            "claimantId": task.get("claimantId"),
             **(
                 {"score": task["workScore"], "scoredBy": task["posterName"], "person": task.get("claimantName")}
                 if isinstance(task.get("workScore"), (int, float)) and not isinstance(task.get("workScore"), bool)
@@ -196,6 +198,8 @@ def project_task(store: dict[str, Any], task: dict[str, Any], options: dict[str,
 def _visible(task: dict[str, Any], scope: dict[str, Any]) -> bool:
     if scope["kind"] == "pool":
         return False
+    if scope["kind"] == "dispatch":
+        return task.get("source") == "dispatch"
     return task.get("claimantId") == scope["agentId"] or task.get("targetId") == scope["agentId"]
 
 
@@ -267,6 +271,15 @@ def _read_skill(params: dict[str, Any], message: dict[str, Any]) -> str | None:
         return None
     if not isinstance(value, str) or not value.strip():
         raise DomainError(wire("skill.type"), -32602)
+    return value.strip()
+
+
+def _read_agent_id(params: dict[str, Any], message: dict[str, Any]) -> str | None:
+    value = _metadata_value(params, message, "agentId")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise DomainError(wire("dispatch.agent"), -32602)
     return value.strip()
 
 
@@ -372,21 +385,32 @@ def _send_message(store: dict[str, Any], scope: dict[str, Any], params: dict[str
     replay = command_for_message(store, message_id)
     if not replay and not _wants_immediate(config):
         raise DomainError(wire("returnImmediately"), -32004)
+    caller_name = _caller_name(params, message)
+    source = "direct"
+    human_id = scope["agentId"] if scope["kind"] == "human" else ""
     if not replay and scope["kind"] == "pool":
         raise DomainError(wire("directory.assign"), -32004)
+    if not replay and scope["kind"] == "dispatch":
+        if task_id:
+            existing = next((item for item in store["tasks"] if item["id"] == task_id), None)
+            human_id = (existing or {}).get("claimantId") or (existing or {}).get("targetId") or ""
+        else:
+            human_id = route_dispatch(store, skill, caller_name, _read_agent_id(params, message))["id"]
+        source = "dispatch"
     if not replay and scope["kind"] == "human":
         human = next((agent for agent in store["agents"] if agent["id"] == scope["agentId"]), None)
         if skill and human and not any(item["name"] == skill for item in human["skills"]):
             raise DomainError(wire("skill.missing"), -32602)
     task = receive_command(store, {
-        "humanId": scope["agentId"] if scope["kind"] == "human" else "",
+        "humanId": human_id,
         "text": parts["text"],
         "images": parts["images"],
         "messageId": message_id,
         "taskId": task_id,
         "contextId": context_id,
         "skill": skill,
-        "callerName": _caller_name(params, message),
+        "callerName": caller_name,
+        "source": source,
     })
     return {"task": project_task(store, task, {"historyLength": _history_length(config.get("historyLength", config.get("history_length"))), "includeArtifacts": True})}
 

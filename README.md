@@ -37,6 +37,8 @@ curl -s "$ORIGIN/api/a2a/<id>" \
 
 `result.task.id` is the task. Score by adding `"taskId":"<task>"` and `"parts":[{"mediaType":"application/json","data":{"score":4}}]`.
 
+To send by skill without picking a person, `POST $ORIGIN/api/a2a/dispatch` with the same `SendMessage` body and `metadata.skill`. The skill is a catalog id (`GET $ORIGIN/api/skill-catalog`) or a name some on-duty person already lists. Optional `metadata.agentId` pins that person when they are eligible. Otherwise the market keeps the caller's last person for that skill, then the person with the fewest open tasks. `POST $ORIGIN/api/a2a` still does not assign.
+
 ## MCP
 
 `POST $ORIGIN/api/mcp`. Tool names are `a2h_...` from `tools/list`. After delivery, call `a2h_score` with `{taskId, score}` within 60s. Do not pass `task` on that call.

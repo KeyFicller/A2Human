@@ -27,7 +27,8 @@
     "duplicate": "技能名不能重复",
     "type": "skill 要是技能名",
     "missing": "这个人没挂这项技能",
-    "absent": "没有这项在岗技能"
+    "absent": "没有这项在岗技能",
+    "reserved": "这个名字是预置技能，不能改大小写来占用。"
   },
   "card": {
     "locked": "这张卡不能改",
@@ -141,6 +142,11 @@
   "role": { "user": "role 需要是 ROLE_USER" },
   "returnImmediately": "请把 configuration.returnImmediately 设为 true。人在岗时任务会立刻派出去，再用 GetTask 取产物。",
   "directory": { "assign": "从 onDuty 里选一个人，把 SendMessage 打到那个人的 url。广场不代为指派。" },
+  "dispatch": {
+    "skill": "派活要在 metadata.skill 里写技能名。",
+    "none": "没有在岗的人接这项技能。",
+    "agent": "指定的人没上工，或者没有这项技能。"
+  },
   "page": { "size": "pageSize 要是 1 到 100 的整数", "token": "pageToken 无效" },
   "protocolStatus": { "unknown": "status 不在协议状态里" },
   "rpc": { "not": "请求不是 JSON-RPC", "version": "请求不是 JSON-RPC 2.0" },
