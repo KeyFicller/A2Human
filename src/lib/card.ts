@@ -82,6 +82,7 @@ export function toAgentCard(agent: Agent, origin: string, tasks: Task[] = []) {
       available: agent.human ? agent.available : false,
       completed: record.completed,
       averageScore: record.averageScore,
+      averageDuration: record.averageDuration,
     },
   }
 }

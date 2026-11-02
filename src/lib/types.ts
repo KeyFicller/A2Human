@@ -42,6 +42,7 @@ export type Agent = {
   createdAt: string
   completed?: number
   averageScore?: number | null
+  averageDuration?: number | null
 }
 
 export type Task = {

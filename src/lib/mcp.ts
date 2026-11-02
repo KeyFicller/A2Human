@@ -127,7 +127,7 @@ function catalog(store: Store): DutyTool[] {
         name,
         description: [
           `在岗的人：${agent.name}。技能：${skill.name}。`,
-          `${recordLine(record.completed, record.averageScore)}。`,
+          `${recordLine(record.completed, record.averageScore, record.averageDuration)}。`,
           skill.description,
           "会 A2A 的客户端应直接把 SendMessage 打到这个人的地址。这里的调用仍走那个人的 A2A。人还在做时，只填 task_id 再调一次。结果若是打分请求，用 task_id 和 score 再调一次。",
         ].join("\n"),

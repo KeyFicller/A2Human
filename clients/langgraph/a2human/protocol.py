@@ -71,6 +71,7 @@ def read_roster(card: dict) -> list[dict]:
                     "output_schema": skill.get("outputSchema") if isinstance(skill.get("outputSchema"), dict) else None,
                     "completed": completed if type(completed) is int and completed >= 0 else None,
                     "average_score": average if type(average) in {int, float} else None,
+                    "average_duration": person.get("averageDuration") if type(person.get("averageDuration")) is int and person.get("averageDuration") >= 0 else None,
                 }
             )
     return sorted(entries, key=lambda item: (item["person_name"], item["skill_name"], item["url"]))
@@ -120,14 +121,32 @@ def _schema_line(label: str, schema) -> str:
     return f"{label}：{text}"
 
 
+def duration_phrase(seconds: int) -> str:
+    whole = max(0, int(round(seconds)))
+    if whole < 60:
+        return f"平均 {whole} 秒"
+    minutes = int(round(whole / 60))
+    if minutes < 60:
+        return f"平均 {minutes} 分钟"
+    hours = whole / 3600
+    if hours < 24:
+        shown = round(hours * 10) / 10
+        text = str(int(shown)) if shown == int(shown) else f"{shown:.1f}"
+        return f"平均 {text} 小时"
+    days = round(whole / 86400 * 10) / 10
+    text = str(int(days)) if days == int(days) else f"{days:.1f}"
+    return f"平均 {text} 天"
+
+
 def record_line(entry: dict) -> str:
     completed = entry.get("completed")
     if type(completed) is not int:
         return ""
     average = entry.get("average_score")
-    if type(average) in {int, float}:
-        return f"完成 {completed} 单，平均 {average:g} 分。"
-    return f"完成 {completed} 单，还没有得分。"
+    score = f"平均 {average:g} 分" if type(average) in {int, float} else "还没有得分"
+    duration = entry.get("average_duration")
+    spent = duration_phrase(duration) if type(duration) is int and duration >= 0 else "还没有耗时"
+    return f"完成 {completed} 单，{score}，{spent}。"
 
 
 def describe_duty(entry: dict) -> str:

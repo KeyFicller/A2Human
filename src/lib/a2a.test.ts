@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { dispatchA2a } from "./a2a"
 import { dispatcherCard, toAgentCard } from "./card"
+import { recordLine } from "./format"
 import { SCORE_WAIT_MS, decideTask, expireScores, publishAgent, setAvailability, submitArtifact, workRecord } from "./rules"
 import { createSeed } from "./seed"
 
@@ -57,6 +58,8 @@ test("human card advertises the skills the person wrote", () => {
   assert.equal(card.a2human.available, true)
   assert.equal(card.a2human.completed, 0)
   assert.equal(card.a2human.averageScore, null)
+  assert.equal(card.a2human.averageDuration, null)
+  assert.equal(recordLine(0, null, null), "完成 0 单 · 还没有得分 · 还没有耗时")
   assert.equal(card.skills[0].name, "计数")
   assert.equal(card.skills[0].description, counting.description)
   assert.equal("inputModes" in card.skills[0], false)
@@ -72,6 +75,7 @@ test("human card advertises the skills the person wrote", () => {
   assert.equal(dispatcher.a2human.onDuty[0].skills[0].name, "计数")
   assert.equal(dispatcher.a2human.onDuty[0].completed, 0)
   assert.equal(dispatcher.a2human.onDuty[0].averageScore, null)
+  assert.equal(dispatcher.a2human.onDuty[0].averageDuration, null)
 })
 
 test("a skill schema stays beside the official modes, not inside AgentSkill", () => {
@@ -325,14 +329,28 @@ test("a card shows completed tasks and the average score", () => {
   const request = store.messages.find((item) => item.taskId === third.id && item.kind === "task.scoreRequest")
   assert.ok(request)
   expireScores(store, Date.parse(request.createdAt) + SCORE_WAIT_MS)
+  const started = "2026-11-02T06:00:00.000Z"
+  for (const [task, seconds] of [
+    [store.tasks.find((item) => item.id === first.id), 120],
+    [store.tasks.find((item) => item.id === second.id), 60],
+    [store.tasks.find((item) => item.id === third.id), 180],
+  ] as const) {
+    assert.ok(task)
+    task.createdAt = started
+    task.updatedAt = new Date(Date.parse(started) + seconds * 1000).toISOString()
+  }
   const record = workRecord(store.tasks, on.id)
-  assert.deepEqual(record, { completed: 3, averageScore: 4.5 })
+  assert.deepEqual(record, { completed: 3, averageScore: 4.5, averageDuration: 120 })
+  assert.equal(recordLine(record.completed, record.averageScore, record.averageDuration), "完成 3 单 · 平均 4.5 分 · 平均 2 分钟")
+  assert.equal(recordLine(2, null, 45), "完成 2 单 · 还没有得分 · 平均 45 秒")
   const card = toAgentCard(on, "http://localhost:3847", store.tasks)
   assert.equal(card.a2human.completed, 3)
   assert.equal(card.a2human.averageScore, 4.5)
+  assert.equal(card.a2human.averageDuration, 120)
   const roster = dispatcherCard("http://localhost:3847", store.agents, store.tasks)
   assert.equal(roster.a2human.onDuty[0].completed, 3)
   assert.equal(roster.a2human.onDuty[0].averageScore, 4.5)
+  assert.equal(roster.a2human.onDuty[0].averageDuration, 120)
 })
 
 test("a score request is dropped when the model does not reply in time", () => {

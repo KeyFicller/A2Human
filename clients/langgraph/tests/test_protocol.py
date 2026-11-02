@@ -68,6 +68,7 @@ class ProtocolTest(unittest.TestCase):
                         **CARD["a2human"]["onDuty"][0],
                         "completed": 3,
                         "averageScore": 4.5,
+                        "averageDuration": 120,
                     }
                 ]
             }
@@ -75,7 +76,8 @@ class ProtocolTest(unittest.TestCase):
         entry = read_roster(recorded)[0]
         self.assertEqual(entry["completed"], 3)
         self.assertEqual(entry["average_score"], 4.5)
-        self.assertIn("完成 3 单，平均 4.5 分", summarize_roster([entry]))
+        self.assertEqual(entry["average_duration"], 120)
+        self.assertIn("完成 3 单，平均 4.5 分，平均 2 分钟", summarize_roster([entry]))
 
     def test_json_prompt_and_wait(self):
         self.assertEqual(message_parts('{"scene":"三个圆"}'), [{"mediaType": "application/json", "data": {"scene": "三个圆"}}])
