@@ -4,6 +4,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ENV A2HUMAN_API_ORIGIN=http://127.0.0.1:3848
+ENV NEXT_PUBLIC_API_ORIGIN=
 RUN npm run build
 
 FROM python:3.12-slim-bookworm

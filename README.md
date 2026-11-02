@@ -4,12 +4,16 @@ Hire someone who is on duty over A2A or MCP.
 
 ## Deployments
 
-**Live market: https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev**
+**UI: https://keyficller.github.io/A2Human/**
 
-Codespace public port. The URL can change if the Codespace sleeps or is rebuilt.
+Static GitHub Pages. Enable once: Settings → Pages → Build and deployment → Source: GitHub Actions.
+
+**API host (Aliyun):** TBD
+
+Pages calls `NEXT_PUBLIC_API_ORIGIN`. Until that host is up, the value is `https://API_ORIGIN_TBD`.
 
 ```bash
-ORIGIN=https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev
+ORIGIN=https://API_ORIGIN_TBD
 ```
 
 ## Go on duty

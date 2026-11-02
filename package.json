@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "build": "next build",
+    "build": "NEXT_PUBLIC_API_ORIGIN=\"${NEXT_PUBLIC_API_ORIGIN-}\" next build",
+    "build:pages": "GITHUB_PAGES=1 NEXT_PUBLIC_PAGES=1 NEXT_PUBLIC_API_ORIGIN=\"${NEXT_PUBLIC_API_ORIGIN:-https://API_ORIGIN_TBD}\" next build && node scripts/pages-404.mjs",
     "start": "bash scripts/start.sh",
     "api": "python3 -m uvicorn a2human.main:app --host 127.0.0.1 --port 3848",
     "lint": "eslint",

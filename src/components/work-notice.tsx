@@ -1,12 +1,12 @@
 "use client"
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { AppLink } from "@/components/app-link"
 import { useEffect, useRef, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
 import { useLocale } from "@/components/locale-provider"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { api } from "@/lib/client"
+import { useAppPath } from "@/lib/paths"
 import { taskOpen } from "@/lib/format"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
@@ -33,7 +33,7 @@ function toNotice(task: Task): Notice {
 export function WorkNotice() {
   const { agent, ready } = useAgent()
   const { t } = useLocale()
-  const pathname = usePathname()
+  const pathname = useAppPath()
   const [notices, setNotices] = useState<Notice[]>([])
   const seen = useRef<Set<string> | null>(null)
   const pathnameRef = useRef(pathname)
@@ -114,13 +114,13 @@ export function WorkNotice() {
             >
               {t.notice.dismiss}
             </Button>
-            <Link
+            <AppLink
               href={`/tasks/${notice.id}`}
               className={cn(buttonVariants({ size: "sm" }))}
               onClick={() => setNotices((current) => current.filter((item) => item.id !== notice.id))}
             >
               {t.notice.open}
-            </Link>
+            </AppLink>
           </div>
         </article>
       ))}

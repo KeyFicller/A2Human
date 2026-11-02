@@ -11,6 +11,7 @@ import json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from sqlalchemy import text
 
@@ -87,7 +88,7 @@ def _client_address(request: Request) -> str:
 @app.middleware("http")
 async def limit_clients(request: Request, call_next):
     path = request.url.path
-    if path in {"/api/health", "/api/ready"} or not path.startswith("/api"):
+    if request.method == "OPTIONS" or path in {"/api/health", "/api/ready"} or not path.startswith("/api"):
         return await call_next(request)
     if not await allow(_client_address(request)):
         return json_response({"error": wire("rate.limited")}, 429)
@@ -293,3 +294,13 @@ async def mcp_post(request: Request) -> Response:
     if response.get("body") is None:
         return Response(status_code=response["status"])
     return json_response(response["body"], response["status"])
+
+
+# Pages calls this API from another origin. A same-origin UI keeps using the Next proxy.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://keyficller.github.io"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)

@@ -5,13 +5,14 @@ import { AgentCard } from "@/components/agent-card"
 import { CopyField } from "@/components/copy-field"
 import { useText } from "@/components/locale-provider"
 import { ErrorNote, LoadingLine } from "@/components/status"
+import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
 import type { Agent } from "@/lib/types"
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [origin, setOrigin] = useState("")
+  const origin = useApiOrigin()
   const { t, error: showError } = useText()
 
   useEffect(() => {
@@ -35,10 +36,6 @@ export default function AgentsPage() {
       window.clearInterval(timer)
     }
   }, [showError, t.agents.rosterError])
-
-  useEffect(() => {
-    Promise.resolve().then(() => setOrigin(window.location.origin))
-  }, [])
 
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
 

@@ -1,14 +1,15 @@
 "use client"
 
-import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
+import { AppLink } from "@/components/app-link"
 import { CopyField } from "@/components/copy-field"
 import { useText } from "@/components/locale-provider"
 import { SchemaSummary } from "@/components/schema-summary"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
+import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
 import { RecordFigures } from "@/components/record-figures"
 import { taskOpen } from "@/lib/format"
@@ -23,7 +24,7 @@ export default function MePage() {
   const [taskError, setTaskError] = useState<string | null>(null)
   const [dutyError, setDutyError] = useState<string | null>(null)
   const [dutyPending, setDutyPending] = useState(false)
-  const [origin, setOrigin] = useState("")
+  const origin = useApiOrigin()
 
   const load = useCallback(() => {
     if (!agent) return
@@ -43,10 +44,6 @@ export default function MePage() {
     return () => window.clearInterval(timer)
   }, [load])
 
-  useEffect(() => {
-    Promise.resolve().then(() => setOrigin(window.location.origin))
-  }, [])
-
   if (!ready) return <LoadingLine />
   if (error) return <ErrorNote text={localizeError(error, locale)} />
   if (!agent) {
@@ -54,9 +51,9 @@ export default function MePage() {
       <div className="sheet max-w-xl p-6">
         <h1 className="font-serif text-4xl">{t.me.noneTitle}</h1>
         <p className="mt-3 leading-7">{t.me.noneBody}</p>
-        <Link href="/publish" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
+        <AppLink href="/publish" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
           {t.home.publish}
-        </Link>
+        </AppLink>
       </div>
     )
   }
@@ -106,12 +103,12 @@ export default function MePage() {
           ))}
         </ul>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
-          <Link href="/publish" className="text-stamp">
+          <AppLink href="/publish" className="text-stamp">
             {t.me.edit}
-          </Link>
-          <Link href={`/agents/${agent.id}`} className="text-stamp">
+          </AppLink>
+          <AppLink href={`/agents/${agent.id}`} className="text-stamp">
             {t.me.publicCard}
-          </Link>
+          </AppLink>
         </div>
         <div className="mt-6 border-t border-[#d9d0c0] pt-4">
           <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>
