@@ -19,6 +19,17 @@ test("plain fields become an object schema and read back", () => {
   assert.equal(describeSchema(schema!), "scene 文字，必填；count 整数")
 })
 
+test("an image field is a string with an image media type", () => {
+  const schema = fieldsToSchema([{ name: "照片", type: "image", required: true }])
+  assert.deepEqual(schema, {
+    type: "object",
+    properties: { 照片: { type: "string", contentMediaType: "image/*" } },
+    required: ["照片"],
+  })
+  assert.deepEqual(schemaToFields(schema!), [{ name: "照片", type: "image", required: true }])
+  assert.equal(describeSchema(schema!), "照片 图片，必填")
+})
+
 test("a schema that is not a list of simple fields stays as JSON", () => {
   const schema = { type: "integer" }
   const draft = draftFromSchema(schema)

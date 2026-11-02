@@ -1,3 +1,7 @@
+import type { TaskImage } from "./images"
+
+export type { TaskImage }
+
 export type TaskStatus = "submitted" | "working" | "completed" | "canceled"
 
 export type MessageKind = "task.submit" | "task.artifact" | "task.complete" | "task.cancel" | "task.note"
@@ -32,6 +36,8 @@ export type Task = {
   claimantId: string | null
   claimantName: string | null
   artifact: string | null
+  images?: TaskImage[]
+  artifactImage?: TaskImage | null
   createdAt: string
   updatedAt: string
   contextId?: string

@@ -1,3 +1,4 @@
+import { contractModes } from "./schema-fields"
 import { onDuty } from "./rules"
 import type { Agent, JsonSchema, Skill } from "./types"
 
@@ -8,7 +9,7 @@ function skillEntry(skill: Skill) {
     description: skill.description,
     tags: ["human"],
     ...(skill.inputSchema && skill.outputSchema
-      ? { inputModes: ["application/json"], outputModes: ["application/json"] }
+      ? { inputModes: contractModes(skill.inputSchema), outputModes: contractModes(skill.outputSchema) }
       : {}),
   }
 }
@@ -31,7 +32,7 @@ function a2humanExtension(
 ) {
   const schemas = skillSchemas(options?.skills ?? [])
   const schemaNote = Object.keys(schemas).length
-    ? " params.skillSchemas 写每项技能要的输入和会交回的输出，都是 JSON Schema。对应 skills 的 inputModes 和 outputModes 是 application/json。"
+    ? " params.skillSchemas 写每项技能要的输入和会交回的输出。文字和数字在 JSON 里。contentMediaType 为 image/* 的项是图片，调用时另附 image/png、image/jpeg、image/webp 或 image/gif 的 part，内容放 raw（base64）或 http 地址。"
     : ""
   return {
     uri: `${origin}/extensions/a2human/v1`,

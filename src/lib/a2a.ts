@@ -1,3 +1,4 @@
+import { readImage, type TaskImage } from "./images"
 import { DomainError, cancelCommandedTask, commandForMessage, receiveCommand } from "./rules"
 import type { ProtocolMessage, Store, Task, TaskStatus } from "./types"
 
@@ -108,12 +109,13 @@ export function projectTask(
     body.history = history.map((message) => projectMessage(message, contextId))
   }
   if (options.includeArtifacts !== false) {
-    body.artifacts = task.artifact
+    const parts = artifactParts(store, task)
+    body.artifacts = parts.length
       ? [
           {
             artifactId: `${task.id}:artifact`,
             name: "产物",
-            parts: [artifactPart(store, task, task.artifact)],
+            parts,
           },
         ]
       : []
@@ -170,12 +172,29 @@ function outputSchemaFor(store: Store, task: Task) {
   return skill?.outputSchema
 }
 
-function artifactPart(store: Store, task: Task, text: string) {
-  if (!outputSchemaFor(store, task)) return { text, mediaType: "text/plain" }
-  try {
-    return { data: JSON.parse(text) as unknown, mediaType: "application/json" }
-  } catch {
-    return { text, mediaType: "text/plain" }
+function artifactParts(store: Store, task: Task) {
+  const parts: Record<string, unknown>[] = []
+  if (task.artifact) {
+    const schema = outputSchemaFor(store, task)
+    if (!schema) parts.push({ text: task.artifact, mediaType: "text/plain" })
+    else {
+      try {
+        parts.push({ data: JSON.parse(task.artifact) as unknown, mediaType: "application/json" })
+      } catch {
+        parts.push({ text: task.artifact, mediaType: "text/plain" })
+      }
+    }
+  }
+  if (task.artifactImage) parts.push(imagePart(task.artifactImage))
+  return parts
+}
+
+function imagePart(image: TaskImage) {
+  return {
+    mediaType: image.mediaType,
+    ...(image.filename ? { filename: image.filename } : {}),
+    ...(image.raw ? { raw: image.raw } : {}),
+    ...(image.url ? { url: image.url } : {}),
   }
 }
 
@@ -188,9 +207,10 @@ function encodeData(data: unknown) {
   }
 }
 
-function textFromParts(parts: unknown) {
-  if (!Array.isArray(parts) || parts.length === 0) throw new DomainError("parts 里需要一段文字", -32602)
+function readParts(parts: unknown) {
+  if (!Array.isArray(parts) || parts.length === 0) throw new DomainError("parts 里需要文字、JSON 或图片", -32602)
   const chunks: string[] = []
+  const images: TaskImage[] = []
   for (const part of parts) {
     if (typeof part === "string") {
       chunks.push(part)
@@ -199,8 +219,14 @@ function textFromParts(parts: unknown) {
     if (!part || typeof part !== "object") throw new DomainError("part 格式不对", -32602)
     const record = part as Record<string, unknown>
     const media = record.mediaType ?? record.media_type
+    if (typeof media === "string" && media.startsWith("image/")) {
+      const read = readImage(record)
+      if ("error" in read) throw new DomainError(read.error, -32602)
+      images.push(read.image)
+      continue
+    }
     if ("raw" in record || "url" in record || "file" in record) {
-      throw new DomainError("只接受 text/plain 或 application/json", -32005)
+      throw new DomainError("只接受文字、JSON 或图片", -32005)
     }
     if ("data" in record && record.data !== undefined) {
       if (typeof media === "string" && media !== "application/json" && media !== "*/*") {
@@ -222,8 +248,9 @@ function textFromParts(parts: unknown) {
     if (typeof record.text === "string") chunks.push(record.text)
   }
   const text = chunks.join("\n").trim()
-  if (!text) throw new DomainError("parts 里需要一段文字", -32602)
-  return text
+  if (!text && images.length === 0) throw new DomainError("parts 里需要文字、JSON 或图片", -32602)
+  if (images.length > 4) throw new DomainError("最多 4 张图片", -32602)
+  return { text, images }
 }
 
 function metadataValue(params: Record<string, unknown>, message: Record<string, unknown>, key: string) {
@@ -282,9 +309,15 @@ function assertSendable(config: Record<string, unknown>) {
     throw new DomainError("acceptedOutputModes 要是字符串数组", -32602)
   }
   const supported = modes.some(
-    (mode) => mode === "text/plain" || mode === "text/*" || mode === "*/*" || mode === "application/json",
+    (mode) =>
+      mode === "text/plain" ||
+      mode === "text/*" ||
+      mode === "*/*" ||
+      mode === "application/json" ||
+      mode === "image/*" ||
+      mode.startsWith("image/"),
   )
-  if (!supported) throw new DomainError("只输出 text/plain 或 application/json", -32005)
+  if (!supported) throw new DomainError("只输出文字、JSON 或图片", -32005)
 }
 
 function readContextId(record: Record<string, unknown>) {
@@ -328,7 +361,7 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
   const role = record.role
   if (role !== "ROLE_USER" && role !== "user") throw new DomainError("role 需要是 ROLE_USER", -32602)
   const messageId = readMessageId(record)
-  const text = textFromParts(record.parts)
+  const { text, images } = readParts(record.parts)
   const taskId = readTaskId(record)
   const contextId = readContextId(record)
   const skill = readSkill(params, record)
@@ -350,6 +383,7 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
   const task = receiveCommand(store, {
     humanId: scope.kind === "human" ? scope.agentId : "",
     text,
+    images,
     messageId,
     taskId,
     contextId,

@@ -24,7 +24,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
     const task = await updateStore((store) => {
       if (body.action !== "artifact") throw new DomainError("未知动作")
-      return submitArtifact(store, id, agentId, body.text)
+      return submitArtifact(store, id, agentId, body.text, body.image)
     })
     return json(task)
   } catch (error) {

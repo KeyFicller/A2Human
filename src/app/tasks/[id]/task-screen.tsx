@@ -8,11 +8,27 @@ import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { KIND_LABEL, STATUS_LABEL, formatWhen } from "@/lib/format"
-import type { ProtocolMessage, Task } from "@/lib/types"
+import { schemaRequiresImage } from "@/lib/schema-fields"
+import type { Agent, ProtocolMessage, Task, TaskImage } from "@/lib/types"
 
 type Detail = {
   task: Task
   messages: ProtocolMessage[]
+  claimant?: Agent | null
+}
+
+function imageSrc(image: TaskImage) {
+  if (image.url) return image.url
+  if (image.raw) return `data:${image.mediaType};base64,${image.raw}`
+  return ""
+}
+
+function Picture({ image, alt, className }: { image: TaskImage; alt: string; className: string }) {
+  return (
+    // Data URLs and caller-supplied addresses are not next/image sources.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={imageSrc(image)} alt={alt} className={className} />
+  )
 }
 
 export default function TaskScreen() {
@@ -21,6 +37,7 @@ export default function TaskScreen() {
   const [detail, setDetail] = useState<Detail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [text, setText] = useState("")
+  const [image, setImage] = useState<TaskImage | null>(null)
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -43,8 +60,15 @@ export default function TaskScreen() {
   if (error && !detail) return <ErrorNote text={error} onRetry={load} />
   if (!detail) return null
 
-  const { task, messages } = detail
+  const { task, messages, claimant } = detail
   const mine = agent?.id === task.claimantId
+  const named = task.skills.length === 1 ? task.skills[0] : undefined
+  const skill = named
+    ? claimant?.skills.find((item) => item.name === named)
+    : claimant?.skills.length === 1
+      ? claimant.skills[0]
+      : undefined
+  const needsImage = schemaRequiresImage(skill?.outputSchema)
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -52,11 +76,26 @@ export default function TaskScreen() {
         <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{STATUS_LABEL[task.status]}</p>
         <h1 className="mt-3 font-serif text-4xl">{task.title}</h1>
         <p className="mt-4 whitespace-pre-wrap leading-7">{task.brief}</p>
+        {task.images?.length ? (
+          <div className="mt-4 grid gap-3">
+            {task.images.map((item, index) => (
+              <Picture
+                key={`${item.filename ?? "image"}-${index}`}
+                image={item}
+                alt={item.filename || "派来的图片"}
+                className="max-h-80 rounded-2xl border border-[#d9d0c0] object-contain"
+              />
+            ))}
+          </div>
+        ) : null}
         <p className="mt-4 text-sm text-muted-foreground">来自 {task.posterName}</p>
-        {task.artifact ? (
+        {task.artifact || task.artifactImage ? (
           <div className="mt-6 rounded-2xl bg-[#f7f1e4] p-4">
             <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">产物</p>
-            <p className="mt-2 whitespace-pre-wrap leading-7">{task.artifact}</p>
+            {task.artifact ? <p className="mt-2 whitespace-pre-wrap leading-7">{task.artifact}</p> : null}
+            {task.artifactImage ? (
+              <Picture image={task.artifactImage} alt={task.artifactImage.filename || "交回的图片"} className="mt-3 max-h-80 rounded-2xl object-contain" />
+            ) : null}
           </div>
         ) : null}
         {mine && task.status === "working" ? (
@@ -67,10 +106,16 @@ export default function TaskScreen() {
               if (!agent) return
               setPending(true)
               setNotice(null)
-              api<Task>(`/api/tasks/${task.id}`, { action: "artifact", agentId: agent.id, text })
+              if (needsImage && !image) {
+                setNotice("要交一张图片")
+                setPending(false)
+                return
+              }
+              api<Task>(`/api/tasks/${task.id}`, { action: "artifact", agentId: agent.id, text, image })
                 .then(() => {
                   setText("")
-                  setNotice("已交。模型用 GetTask 可以取回这段文字。")
+                  setImage(null)
+                  setNotice("已交。模型用 GetTask 可以取回。")
                   load()
                 })
                 .catch((caught: unknown) => {
@@ -82,8 +127,42 @@ export default function TaskScreen() {
             <Textarea
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder="把完成的内容写在这里。"
+              placeholder={needsImage ? "文字可以不写。这单要交一张图片。" : "把完成的内容写在这里。也可以附一张图。"}
             />
+            <label className="block text-sm">
+              图片
+              <input
+                className="mt-1.5 block text-sm"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) {
+                    setImage(null)
+                    return
+                  }
+                  if (file.size > 1_000_000) {
+                    setImage(null)
+                    setNotice("图片要在 1MB 以内")
+                    return
+                  }
+                  const reader = new FileReader()
+                  reader.onload = () => {
+                    const result = typeof reader.result === "string" ? reader.result : ""
+                    const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(result)
+                    if (!matched) {
+                      setImage(null)
+                      setNotice("只接受 png、jpeg、webp、gif")
+                      return
+                    }
+                    setImage({ mediaType: matched[1] as TaskImage["mediaType"], raw: matched[2].replace(/\s/g, ""), filename: file.name })
+                    setNotice(null)
+                  }
+                  reader.readAsDataURL(file)
+                }}
+              />
+            </label>
+            {image?.raw ? <Picture image={image} alt={image.filename || "待提交的图片"} className="max-h-48 rounded-2xl object-contain" /> : null}
             <Button type="submit" disabled={pending}>
               {pending ? "正在提交…" : "提交产物"}
             </Button>

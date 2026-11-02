@@ -1,3 +1,5 @@
+import { readImage, type TaskImage } from "./images"
+import { schemaRequiresImage } from "./schema-fields"
 import type { Agent, ProtocolMessage, Skill, Store, Task } from "./types"
 
 export class DomainError extends Error {
@@ -155,16 +157,33 @@ export function onDuty(agents: Agent[]) {
     .sort((a, b) => a.name.localeCompare(b.name, "zh") || a.id.localeCompare(b.id))
 }
 
-export function submitArtifact(store: Store, taskId: string, agentId: string, text: unknown): Task {
+function outputSkill(store: Store, task: Task): Skill | undefined {
+  const agent = store.agents.find((item) => item.id === task.claimantId)
+  if (!agent) return undefined
+  const named = task.skills.length === 1 ? task.skills[0] : undefined
+  if (named) return agent.skills.find((skill) => skill.name === named)
+  return agent.skills.length === 1 ? agent.skills[0] : undefined
+}
+
+export function submitArtifact(store: Store, taskId: string, agentId: string, text: unknown, image?: unknown): Task {
   const task = requireTask(store, taskId)
   const agent = requireAgent(store, agentId)
   if (task.status !== "working" || task.claimantId !== agent.id) {
     fail("只有被派到这单的人能提交产物")
   }
-  if (typeof text !== "string") fail("产物要是一段文字")
-  const artifact = text.trim()
-  if (textLength(artifact) < 1 || textLength(artifact) > 4000) fail("产物用 1 到 4000 个字")
-  task.artifact = artifact
+  if (text != null && typeof text !== "string") fail("产物要是一段文字")
+  const artifact = typeof text === "string" ? text.trim() : ""
+  if (artifact && textLength(artifact) > 4000) fail("产物用 1 到 4000 个字")
+  let picture: TaskImage | undefined
+  if (image != null && image !== "") {
+    const read = readImage(image)
+    if ("error" in read) fail(read.error)
+    picture = read.image
+  }
+  if (schemaRequiresImage(outputSkill(store, task)?.outputSchema) && !picture) fail("要交一张图片")
+  if (!picture && textLength(artifact) < 1) fail("产物用 1 到 4000 个字")
+  task.artifact = artifact || null
+  task.artifactImage = picture ?? null
   task.status = "completed"
   task.updatedAt = now()
   addMessage(store, {
@@ -172,7 +191,7 @@ export function submitArtifact(store: Store, taskId: string, agentId: string, te
     fromId: agent.id,
     fromName: agent.name,
     kind: "task.artifact",
-    text: artifact,
+    text: artifact || `交了一张图片${picture?.filename ? `：${picture.filename}` : ""}`,
   })
   addMessage(store, {
     taskId: task.id,
@@ -224,6 +243,7 @@ export function receiveCommand(
   input: {
     humanId: string
     text: string
+    images?: TaskImage[]
     messageId: string
     taskId?: string
     contextId?: string
@@ -235,9 +255,10 @@ export function receiveCommand(
   if (replay) return replay
 
   const text = input.text.trim()
-  if (textLength(text) < 1 || textLength(text) > COMMAND_TEXT_MAX) {
-    fail(`指令用 1 到 ${COMMAND_TEXT_MAX} 个字`)
-  }
+  const images = input.images ?? []
+  if (textLength(text) > COMMAND_TEXT_MAX) fail(`指令用 1 到 ${COMMAND_TEXT_MAX} 个字`)
+  if (textLength(text) < 1 && images.length === 0) fail(`指令用 1 到 ${COMMAND_TEXT_MAX} 个字`)
+  if (images.length > 4) fail("最多 4 张图片", -32602)
 
   if (input.taskId) {
     const task = store.tasks.find((item) => item.id === input.taskId)
@@ -252,12 +273,17 @@ export function receiveCommand(
       fail("contextId 和这张任务对不上", -32602)
     }
     const caller = ensureCaller(store)
+    if (images.length) {
+      const next = [...(task.images ?? []), ...images]
+      if (next.length > 4) fail("最多 4 张图片", -32602)
+      task.images = next
+    }
     addMessage(store, {
       taskId: task.id,
       fromId: caller.id,
       fromName: input.callerName,
       kind: "task.note",
-      text,
+      text: text || "又附了图片",
       a2aMessageId: input.messageId,
     })
     task.updatedAt = now()
@@ -273,10 +299,12 @@ export function receiveCommand(
 
   const caller = ensureCaller(store)
   const createdAt = now()
+  const brief = text || images.map((image) => image.filename || "图片").join("、")
   const task: Task = {
     id: crypto.randomUUID(),
-    title: commandTitle(text),
-    brief: text,
+    title: commandTitle(brief),
+    brief,
+    ...(images.length ? { images } : {}),
     posterId: caller.id,
     posterName: input.callerName,
     skills: input.skill ? [input.skill] : [],
@@ -297,7 +325,7 @@ export function receiveCommand(
     fromId: caller.id,
     fromName: input.callerName,
     kind: "task.submit",
-    text,
+    text: text || "附了图片",
     a2aMessageId: input.messageId,
   })
   return task

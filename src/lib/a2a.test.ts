@@ -93,6 +93,62 @@ test("a skill schema stays beside the official modes, not inside AgentSkill", ()
   assert.deepEqual(dispatcher.a2human.onDuty[0].skills[0].outputSchema, outputSchema)
 })
 
+const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+test("an image part stays on the task and comes back as raw", () => {
+  const inputSchema = {
+    type: "object",
+    properties: { 照片: { type: "string", contentMediaType: "image/*" } },
+    required: ["照片"],
+  }
+  const outputSchema = {
+    type: "object",
+    properties: { 结果: { type: "string", contentMediaType: "image/*" } },
+    required: ["结果"],
+  }
+  const store = createSeed()
+  const on = publishAgent(store, {
+    name: "米粒",
+    bio: "会看图。",
+    skills: [{ name: "看图", description: "看一张图，交回另一张。", inputSchema, outputSchema }],
+  })
+  setAvailability(store, on.id, true)
+  const card = toAgentCard(on, "http://localhost:3847")
+  assert.deepEqual(card.skills[0].inputModes, ["image/png", "image/jpeg", "image/webp", "image/gif"])
+  assert.deepEqual(card.skills[0].outputModes, ["image/png", "image/jpeg", "image/webp", "image/gif"])
+  const sent = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "img-1",
+    method: "SendMessage",
+    params: {
+      configuration: { returnImmediately: true, acceptedOutputModes: ["image/png"] },
+      metadata: { skill: "看图" },
+      message: {
+        role: "ROLE_USER",
+        messageId: "img-1",
+        parts: [{ mediaType: "image/png", filename: "dot.png", raw: png }],
+      },
+    },
+  })
+  const task = resultOf(sent).task
+  assert.ok(task)
+  const stored = store.tasks.find((item) => item.id === task.id)
+  assert.equal(stored?.images?.[0].raw, png)
+  assert.equal(stored?.brief.includes(png), false)
+  submitArtifact(store, task.id, on.id, "", { mediaType: "image/png", raw: png, filename: "out.png" })
+  const got = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "get-img",
+    method: "GetTask",
+    params: { id: task.id },
+  })
+  assert.ok(!("error" in got))
+  const loaded = got.result as { artifacts?: { parts: { raw?: string; mediaType?: string; filename?: string }[] }[] }
+  assert.equal(loaded.artifacts?.[0].parts[0].mediaType, "image/png")
+  assert.equal(loaded.artifacts?.[0].parts[0].raw, png)
+  assert.equal(loaded.artifacts?.[0].parts[0].filename, "out.png")
+})
+
 test("SendMessage assigns the chosen person and GetTask returns the artifact", () => {
   const { store, on } = world()
   const sent = dispatchA2a(store, { kind: "human", agentId: on.id }, send("数一下这张纸上的圆。", "msg-1", { skill: "计数" }))

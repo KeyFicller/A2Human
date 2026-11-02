@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { createSeed } from "./seed"
+import { IMAGE_TYPES, type TaskImage } from "./images"
 import type { Skill, Store } from "./types"
 
 const file = path.join(process.cwd(), "data", "store.json")
@@ -34,12 +35,32 @@ function skillOf(value: unknown): Skill | null {
   return inputSchema && outputSchema ? { name, description, inputSchema, outputSchema } : { name, description }
 }
 
+function imageOf(value: unknown): TaskImage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (!IMAGE_TYPES.some((type) => type === record.mediaType)) return null
+  const mediaType = record.mediaType as TaskImage["mediaType"]
+  const raw = typeof record.raw === "string" && record.raw.length <= 1_500_000 ? record.raw : undefined
+  const url = typeof record.url === "string" && /^https?:\/\//.test(record.url) && record.url.length <= 2000 ? record.url : undefined
+  if (!raw && !url) return null
+  const filename = typeof record.filename === "string" ? [...record.filename].slice(0, 80).join("") : undefined
+  return { mediaType, ...(raw ? { raw } : {}), ...(url ? { url } : {}), ...(filename ? { filename } : {}) }
+}
+
 function normalize(store: Store): Store {
   for (const agent of store.agents) {
     agent.available ??= false
     agent.skills = (Array.isArray(agent.skills) ? agent.skills : [])
       .map(skillOf)
       .filter((skill): skill is Skill => skill != null)
+  }
+  for (const task of store.tasks ?? []) {
+    const images = (Array.isArray(task.images) ? task.images : []).map(imageOf).filter((image): image is TaskImage => image != null)
+    if (images.length) task.images = images
+    else delete task.images
+    const artifactImage = imageOf(task.artifactImage)
+    if (artifactImage) task.artifactImage = artifactImage
+    else delete task.artifactImage
   }
   return store
 }
