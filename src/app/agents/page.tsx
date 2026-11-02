@@ -47,15 +47,22 @@ export default function AgentsPage() {
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">ON DUTY</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{t.agents.title}</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{t.agents.lead}</p>
-      <CopyField hint={t.agents.discoveryHint} label={t.copy.discovery} value={directory} />
-      <CopyField hint={t.agents.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
-      {error ? <ErrorNote text={error} /> : null}
-      {!agents && !error ? <LoadingLine text={t.agents.loading} /> : null}
-      {agents && agents.length === 0 ? <p className="mt-8 text-sm text-muted-foreground">{t.agents.empty}</p> : null}
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        {agents?.map((agent) => (
-          <AgentCard key={agent.id} agent={agent} />
-        ))}
+      <div className="mt-8 grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+        <div className="min-w-0">
+          {error ? <ErrorNote text={error} /> : null}
+          {!agents && !error ? <LoadingLine text={t.agents.loading} /> : null}
+          {agents && agents.length === 0 ? <p className="text-sm text-muted-foreground">{t.agents.empty}</p> : null}
+          <div className="grid gap-4">
+            {agents?.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        </div>
+        <aside className="sheet min-w-0 p-5">
+          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>
+          <CopyField hint={t.agents.discoveryHint} label={t.copy.discovery} value={directory} />
+          <CopyField hint={t.agents.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
+        </aside>
       </div>
     </div>
   )

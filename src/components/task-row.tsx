@@ -22,10 +22,10 @@ export function TaskRow({ task }: { task: Task }) {
   const waiting = task.status === "input-required" && (task.artifact || task.artifactImage)
   return (
     <Link href={`/tasks/${task.id}`} className="sheet block px-4 py-4 transition hover:-translate-y-0.5 md:px-5">
-      <p className={cn("font-mono text-[11px] tracking-[0.14em]", tone[task.status])}>
+      <p className={cn("inline-flex rounded-full bg-[#f3e6c8] px-2 py-0.5 font-mono text-[11px] tracking-[0.12em]", tone[task.status])}>
         {waiting ? t.task.awaitingScore : statusLabel(task.status, locale)}
       </p>
-      <h3 className="mt-2 font-serif text-2xl leading-snug">{task.title}</h3>
+      <h3 className="mt-2 break-words font-serif text-2xl leading-snug">{task.title}</h3>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{task.brief}</p>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {task.skills.map((skill) => (

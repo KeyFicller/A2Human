@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorNote } from "@/components/status"
 import { api } from "@/lib/client"
-import { recordLine } from "@/lib/format"
+import { RecordFigures } from "@/components/record-figures"
 import type { Agent } from "@/lib/types"
 
 export function ProfileFallback() {
@@ -25,7 +25,7 @@ export default function AgentProfilePage() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [origin, setOrigin] = useState("")
-  const { locale, t, error: showError } = useText()
+  const { t, error: showError } = useText()
 
   const load = useCallback(() => {
     Promise.all([api<Agent>(`/api/agents/${params.id}`), api<unknown>(`/api/a2a/${params.id}`)])
@@ -79,11 +79,11 @@ export default function AgentProfilePage() {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,0.9fr)_minmax(0,1.1fr)]">
       <section className="sheet min-w-0 p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">
-          {agent.available ? t.duty.on : t.duty.off}
-        </p>
-        <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore, agent.averageDuration, locale)}</p>
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="font-serif text-4xl">{agent.name}</h1>
+          <p className="shrink-0 font-mono text-[11px] tracking-[0.16em] text-stamp">{agent.available ? t.duty.on : t.duty.off}</p>
+        </div>
+        <RecordFigures completed={agent.completed} averageScore={agent.averageScore} averageDuration={agent.averageDuration} />
         <p className="mt-4 leading-7">{agent.bio}</p>
         <ul className="mt-6 space-y-3">
           {agent.skills.map((skill) => (

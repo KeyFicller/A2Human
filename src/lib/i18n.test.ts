@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { durationPhrase, kindLabel, recordLine, statusLabel } from "./format"
+import { durationPhrase, durationValue, kindLabel, recordLine, scoreValue, statusLabel } from "./format"
 import { en, localizeError, zh } from "./messages"
 import { describeSchema, fieldTypeLabel } from "./schema-fields"
 
@@ -27,6 +27,12 @@ test("record line stays chinese unless a locale is asked for", () => {
   assert.equal(durationPhrase(3600, "en"), "avg 1 hr")
   assert.equal(durationPhrase(86400, "en"), "avg 1 day")
   assert.equal(durationPhrase(172800, "en"), "avg 2 days")
+  assert.equal(durationValue(7), "7 秒")
+  assert.equal(durationValue(7, "en"), "7 sec")
+  assert.equal(durationValue(172800, "en"), "2 days")
+  assert.equal(scoreValue(4.5), "4.5")
+  assert.equal(scoreValue(5), "5")
+  assert.equal(scoreValue(null), null)
   assert.equal(statusLabel("working"), "进行中")
   assert.equal(statusLabel("working", "en"), "In progress")
   assert.equal(statusLabel("input-required", "en"), "Needs input")

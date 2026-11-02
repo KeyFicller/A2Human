@@ -13,6 +13,7 @@ export type Messages = {
     clockIn: string
   }
   footer: string
+  record: { completed: string; score: string; time: string; empty: string }
   copy: {
     loading: string
     copied: string
@@ -74,6 +75,7 @@ export type Messages = {
     discoveryHint: string
     mcpHint: string
     tasks: string
+    openTasks: (count: number) => string
     tasksError: string
     loading: string
     empty: string
@@ -193,6 +195,7 @@ export const zh = {
     clockIn: "上工",
   },
   footer: "人发布自己的卡。上工之后，模型按技能把任务派过来。",
+  record: { completed: "完成", score: "平均分", time: "平均耗时", empty: "—" },
   copy: {
     loading: "加载中",
     copied: "已复制",
@@ -254,6 +257,7 @@ export const zh = {
     discoveryHint: "LangGraph 读发现入口，一次接上所有在岗的人。你自己的地址只接收派给你的任务。",
     mcpHint: "只会 MCP 的客户端用这个备用入口。会 A2A 的仍读发现入口，再把任务派到你自己的地址。",
     tasks: "派来的任务",
+    openTasks: (count) => `${count} 张还开着`,
     tasksError: "任务列表读不出来",
     loading: "正在整理你的任务…",
     empty: "还没有。上工之后，模型会把对得上的任务派到这里。",
@@ -373,6 +377,7 @@ export const en = {
     clockIn: "Go on duty",
   },
   footer: "People publish their own card. Once they are on duty, models send tasks that match their skills.",
+  record: { completed: "Done", score: "Score", time: "Time", empty: "—" },
   copy: {
     loading: "Loading",
     copied: "Copied",
@@ -435,6 +440,7 @@ export const en = {
     discoveryHint: "LangGraph reads the discovery URL and connects to everyone on duty. Your own address only receives tasks sent to you.",
     mcpHint: "A client that only speaks MCP uses this fallback. A client that speaks A2A still reads the discovery URL, then sends the task to your address.",
     tasks: "Tasks sent to you",
+    openTasks: (count) => (count === 1 ? "1 still open" : `${count} still open`),
     tasksError: "The task list could not be loaded",
     loading: "Sorting your tasks…",
     empty: "None yet. After you go on duty, matching tasks show up here.",

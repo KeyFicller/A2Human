@@ -58,14 +58,24 @@ function durationParts(seconds: number) {
   return { unit: "day" as const, value: Number.isInteger(days) ? String(days) : days.toFixed(1) }
 }
 
-export function durationPhrase(seconds: number, locale: Locale = "zh") {
+export function durationValue(seconds: number, locale: Locale = "zh") {
   const { unit, value } = durationParts(seconds)
   if (locale === "en") {
     const word = unit === "day" ? (value === "1" ? "day" : "days") : unit
-    return `avg ${value} ${word}`
+    return `${value} ${word}`
   }
   const word = unit === "sec" ? "秒" : unit === "min" ? "分钟" : unit === "hr" ? "小时" : "天"
-  return `平均 ${value} ${word}`
+  return `${value} ${word}`
+}
+
+export function durationPhrase(seconds: number, locale: Locale = "zh") {
+  const value = durationValue(seconds, locale)
+  return locale === "en" ? `avg ${value}` : `平均 ${value}`
+}
+
+export function scoreValue(averageScore: number | null) {
+  if (averageScore == null || !Number.isFinite(averageScore)) return null
+  return Number.isInteger(averageScore) ? String(averageScore) : averageScore.toFixed(1)
 }
 
 export function recordLine(
@@ -74,7 +84,7 @@ export function recordLine(
   averageDuration: number | null = null,
   locale: Locale = "zh",
 ) {
-  const shownScore = averageScore == null ? null : Number.isInteger(averageScore) ? String(averageScore) : averageScore.toFixed(1)
+  const shownScore = scoreValue(averageScore)
   if (locale === "en") {
     const score = shownScore == null ? "no score yet" : `avg score ${shownScore}`
     const duration = averageDuration == null ? "no time yet" : durationPhrase(averageDuration, "en")

@@ -10,7 +10,8 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
-import { recordLine } from "@/lib/format"
+import { RecordFigures } from "@/components/record-figures"
+import { taskOpen } from "@/lib/format"
 import { localizeError } from "@/lib/messages"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
@@ -60,16 +61,21 @@ export default function MePage() {
     )
   }
 
-  const assigned = (tasks ?? []).filter((task) => task.claimantId === agent.id)
+  const assigned = (tasks ?? [])
+    .filter((task) => task.claimantId === agent.id)
+    .sort((left, right) => Number(taskOpen(right.status)) - Number(taskOpen(left.status)) || right.updatedAt.localeCompare(left.updatedAt))
+  const openCount = assigned.filter((task) => taskOpen(task.status)).length
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
   const endpoint = origin ? `${origin}/api/a2a/${agent.id}` : ""
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-      <section className="sheet p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{agent.available ? t.duty.working : t.duty.clockedOff}</p>
-        <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore, agent.averageDuration, locale)}</p>
+    <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+      <section className="sheet order-2 min-w-0 p-6 lg:order-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="font-serif text-4xl">{agent.name}</h1>
+          <p className="shrink-0 font-mono text-[11px] tracking-[0.16em] text-stamp">{agent.available ? t.duty.working : t.duty.clockedOff}</p>
+        </div>
+        <RecordFigures completed={agent.completed} averageScore={agent.averageScore} averageDuration={agent.averageDuration} />
         <p className="mt-4 leading-7">{agent.available ? t.me.onBody : t.me.offBody}</p>
         <Button
           type="button"
@@ -114,8 +120,11 @@ export default function MePage() {
           <CopyField hint={t.me.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
         </div>
       </section>
-      <section>
-        <h2 className="font-serif text-2xl">{t.me.tasks}</h2>
+      <section className="order-1 min-w-0 lg:order-2">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="font-serif text-2xl">{t.me.tasks}</h2>
+          {openCount > 0 ? <p className="font-mono text-xs text-muted-foreground">{t.me.openTasks(openCount)}</p> : null}
+        </div>
         {taskError ? <ErrorNote text={taskError} /> : null}
         {!tasks && !taskError ? <LoadingLine text={t.me.loading} /> : null}
         <div className="mt-3 grid gap-3">

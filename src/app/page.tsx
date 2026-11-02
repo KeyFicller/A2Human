@@ -76,21 +76,26 @@ export default function HomePage() {
           </li>
         ))}
       </ol>
-      <section className="mt-12">
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 className="font-serif text-3xl">{t.home.dutyTitle}</h2>
-          {agents ? <p className="font-mono text-xs text-muted-foreground">{t.home.people(onDuty.length)}</p> : null}
+      <section className="mt-12 grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+        <div className="min-w-0">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="font-serif text-3xl">{t.home.dutyTitle}</h2>
+            {agents ? <p className="font-mono text-xs text-muted-foreground">{t.home.people(onDuty.length)}</p> : null}
+          </div>
+          {error ? <ErrorNote text={error} /> : null}
+          {!agents && !error ? <LoadingLine text={t.home.loading} /> : null}
+          {agents && onDuty.length === 0 ? <p className="mt-4 text-sm leading-6 text-muted-foreground">{t.home.empty}</p> : null}
+          <div className="mt-4 grid gap-4">
+            {onDuty.map((person) => (
+              <AgentCard key={person.id} agent={person} />
+            ))}
+          </div>
         </div>
-        <CopyField hint={t.home.discoveryHint} label={t.copy.discovery} value={directory} />
-        <CopyField hint={t.home.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
-        {error ? <ErrorNote text={error} /> : null}
-        {!agents && !error ? <LoadingLine text={t.home.loading} /> : null}
-        {agents && onDuty.length === 0 ? <p className="mt-4 text-sm leading-6 text-muted-foreground">{t.home.empty}</p> : null}
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {onDuty.map((person) => (
-            <AgentCard key={person.id} agent={person} />
-          ))}
-        </div>
+        <aside className="sheet min-w-0 p-5">
+          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>
+          <CopyField hint={t.home.discoveryHint} label={t.copy.discovery} value={directory} />
+          <CopyField hint={t.home.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
+        </aside>
       </section>
     </div>
   )

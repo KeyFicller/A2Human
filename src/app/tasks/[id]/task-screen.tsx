@@ -145,7 +145,7 @@ export default function TaskScreen() {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <section className="sheet p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">
+        <p className="inline-flex rounded-full bg-[#f3e6c8] px-2 py-0.5 font-mono text-[11px] tracking-[0.14em] text-stamp">
           {waitingForScore ? t.task.awaitingScore : statusLabel(task.status, locale)}
         </p>
         {stance && !waitingForScore && task.status !== "working" && task.status !== "completed" ? (
