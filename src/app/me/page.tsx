@@ -9,6 +9,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
+import { recordLine } from "@/lib/format"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -67,6 +68,7 @@ export default function MePage() {
           {agent.available ? "上工中" : "没上工"}
         </p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore)}</p>
         <p className="mt-4 leading-7">
           {agent.available
             ? "模型可以在发现名单里看到你，并把任务派到你的地址。"

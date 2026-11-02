@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { dispatchA2a } from "./a2a"
 import { dispatcherCard, toAgentCard } from "./card"
-import { SCORE_WAIT_MS, decideTask, expireScores, publishAgent, setAvailability, submitArtifact } from "./rules"
+import { SCORE_WAIT_MS, decideTask, expireScores, publishAgent, setAvailability, submitArtifact, workRecord } from "./rules"
 import { createSeed } from "./seed"
 
 const counting = { name: "计数", description: "数清画面或文字里的东西，只交回数字。" }
@@ -55,6 +55,8 @@ test("human card advertises the skills the person wrote", () => {
   assert.equal(card.supportedInterfaces[0].url, `http://localhost:3847/api/a2a/${on.id}`)
   assert.equal(card.capabilities.streaming, false)
   assert.equal(card.a2human.available, true)
+  assert.equal(card.a2human.completed, 0)
+  assert.equal(card.a2human.averageScore, null)
   assert.equal(card.skills[0].name, "计数")
   assert.equal(card.skills[0].description, counting.description)
   assert.equal("inputModes" in card.skills[0], false)
@@ -68,6 +70,8 @@ test("human card advertises the skills the person wrote", () => {
   assert.equal(dispatcher.a2human.onDuty.length, 1)
   assert.equal(dispatcher.a2human.onDuty[0].url, `http://localhost:3847/api/a2a/${on.id}`)
   assert.equal(dispatcher.a2human.onDuty[0].skills[0].name, "计数")
+  assert.equal(dispatcher.a2human.onDuty[0].completed, 0)
+  assert.equal(dispatcher.a2human.onDuty[0].averageScore, null)
 })
 
 test("a skill schema stays beside the official modes, not inside AgentSkill", () => {
@@ -305,6 +309,30 @@ test("delivery asks the dispatcher to score, and the score completes the task", 
   assert.equal(kept.metadata?.scoredBy, "某个大模型")
   assert.equal(kept.metadata?.person, "米粒")
   assert.equal(kept.artifacts?.[0].parts[0].text, "3")
+})
+
+test("a card shows completed tasks and the average score", () => {
+  const { store, on } = world()
+  const first = resultOf(dispatchA2a(store, { kind: "human", agentId: on.id }, send("第一单。", "record-1", { skill: "计数" }))).task
+  const second = resultOf(dispatchA2a(store, { kind: "human", agentId: on.id }, send("第二单。", "record-2", { skill: "计数" }))).task
+  const third = resultOf(dispatchA2a(store, { kind: "human", agentId: on.id }, send("第三单。", "record-3", { skill: "计数" }))).task
+  assert.ok(first && second && third)
+  submitArtifact(store, first.id, on.id, "1")
+  dispatchA2a(store, { kind: "human", agentId: on.id }, send('{"score":5}', "record-score-1", { taskId: first.id }))
+  submitArtifact(store, second.id, on.id, "2")
+  dispatchA2a(store, { kind: "human", agentId: on.id }, send('{"score":4}', "record-score-2", { taskId: second.id }))
+  submitArtifact(store, third.id, on.id, "3")
+  const request = store.messages.find((item) => item.taskId === third.id && item.kind === "task.scoreRequest")
+  assert.ok(request)
+  expireScores(store, Date.parse(request.createdAt) + SCORE_WAIT_MS)
+  const record = workRecord(store.tasks, on.id)
+  assert.deepEqual(record, { completed: 3, averageScore: 4.5 })
+  const card = toAgentCard(on, "http://localhost:3847", store.tasks)
+  assert.equal(card.a2human.completed, 3)
+  assert.equal(card.a2human.averageScore, 4.5)
+  const roster = dispatcherCard("http://localhost:3847", store.agents, store.tasks)
+  assert.equal(roster.a2human.onDuty[0].completed, 3)
+  assert.equal(roster.a2human.onDuty[0].averageScore, 4.5)
 })
 
 test("a score request is dropped when the model does not reply in time", () => {

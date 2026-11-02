@@ -20,6 +20,11 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   "input-required": "要补充",
 }
 
+export function recordLine(completed = 0, averageScore: number | null = null) {
+  const score = averageScore == null ? "还没有得分" : `平均 ${Number.isInteger(averageScore) ? String(averageScore) : averageScore.toFixed(1)} 分`
+  return `完成 ${completed} 单 · ${score}`
+}
+
 export function taskOpen(status: TaskStatus) {
   return status === "submitted" || status === "working" || status === "input-required"
 }

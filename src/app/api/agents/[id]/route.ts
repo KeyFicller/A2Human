@@ -1,13 +1,13 @@
 import { domainError, json, readBody } from "@/lib/http"
-import { setAvailability, updateAgent } from "@/lib/rules"
-import { readStore, updateStore } from "@/lib/store"
+import { expireScores, presentAgent, setAvailability, updateAgent } from "@/lib/rules"
+import { commitStore, updateStore } from "@/lib/store"
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
-  const store = await readStore()
+  const store = await commitStore((store) => expireScores(store))
   const agent = store.agents.find((item) => item.id === id)
   if (!agent) return json({ error: "找不到这个 Agent" }, 404)
-  return json(agent)
+  return json(presentAgent(store, agent))
 }
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {

@@ -40,6 +40,8 @@ export type Agent = {
   available: boolean
   skills: Skill[]
   createdAt: string
+  completed?: number
+  averageScore?: number | null
 }
 
 export type Task = {

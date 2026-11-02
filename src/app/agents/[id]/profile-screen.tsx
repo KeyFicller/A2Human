@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
+import { recordLine } from "@/lib/format"
 import type { Agent } from "@/lib/types"
 
 export default function AgentProfilePage() {
@@ -74,6 +75,7 @@ export default function AgentProfilePage() {
           {agent.available ? "在岗" : "不在岗"}
         </p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore)}</p>
         <p className="mt-4 leading-7">{agent.bio}</p>
         <ul className="mt-6 space-y-3">
           {agent.skills.map((skill) => (

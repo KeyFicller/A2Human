@@ -151,6 +151,18 @@ export function setAvailability(store: Store, agentId: string, available: unknow
   return agent
 }
 
+export function workRecord(tasks: Task[], agentId: string) {
+  const done = tasks.filter((task) => task.claimantId === agentId && task.status === "completed")
+  const scores = done.flatMap((task) => (typeof task.workScore === "number" ? [task.workScore] : []))
+  if (!scores.length) return { completed: done.length, averageScore: null as number | null }
+  const average = scores.reduce((sum, score) => sum + score, 0) / scores.length
+  return { completed: done.length, averageScore: Math.round(average * 10) / 10 }
+}
+
+export function presentAgent(store: Store, agent: Agent): Agent {
+  return { ...agent, ...workRecord(store.tasks, agent.id) }
+}
+
 export function onDuty(agents: Agent[]) {
   return agents
     .filter((agent) => agent.human && agent.available && agent.skills.length > 0)

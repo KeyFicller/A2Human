@@ -59,6 +59,8 @@ def read_roster(card: dict) -> list[dict]:
             if not isinstance(skill, dict) or not isinstance(skill.get("name"), str) or not skill["name"].strip():
                 continue
             description = skill.get("description")
+            completed = person.get("completed")
+            average = person.get("averageScore")
             entries.append(
                 {
                     "person_name": name,
@@ -67,6 +69,8 @@ def read_roster(card: dict) -> list[dict]:
                     "description": description.strip() if isinstance(description, str) else "",
                     "input_schema": skill.get("inputSchema") if isinstance(skill.get("inputSchema"), dict) else None,
                     "output_schema": skill.get("outputSchema") if isinstance(skill.get("outputSchema"), dict) else None,
+                    "completed": completed if type(completed) is int and completed >= 0 else None,
+                    "average_score": average if type(average) in {int, float} else None,
                 }
             )
     return sorted(entries, key=lambda item: (item["person_name"], item["skill_name"], item["url"]))
@@ -116,10 +120,21 @@ def _schema_line(label: str, schema) -> str:
     return f"{label}：{text}"
 
 
+def record_line(entry: dict) -> str:
+    completed = entry.get("completed")
+    if type(completed) is not int:
+        return ""
+    average = entry.get("average_score")
+    if type(average) in {int, float}:
+        return f"完成 {completed} 单，平均 {average:g} 分。"
+    return f"完成 {completed} 单，还没有得分。"
+
+
 def describe_duty(entry: dict) -> str:
     flat = flat_fields(entry.get("input_schema"))
     lines = [
         f"在岗的人：{entry['person_name']}。技能：{entry['skill_name']}。",
+        record_line(entry),
         entry["description"],
         None if flat else _schema_line("输入", entry["input_schema"]),
         _schema_line("输出", entry["output_schema"]),
@@ -137,7 +152,9 @@ def summarize_roster(entries: list[dict]) -> str:
     if not entries:
         return "这张卡上现在没有在岗的人。"
     lines = [
-        f"- {entry['person_name']} · {entry['skill_name']}" + (f"：{entry['description']}" if entry["description"] else "")
+        f"- {entry['person_name']} · {entry['skill_name']}"
+        + (f"：{entry['description']}" if entry["description"] else "")
+        + (f"（{record_line(entry)[:-1]}）" if record_line(entry) else "")
         for entry in entries
     ]
     return f"已接上 {len(entries)} 项在岗技能：\n" + "\n".join(lines)

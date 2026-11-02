@@ -1,6 +1,6 @@
 import { contractModes } from "./schema-fields"
-import { onDuty } from "./rules"
-import type { Agent, JsonSchema, Skill } from "./types"
+import { onDuty, workRecord } from "./rules"
+import type { Agent, JsonSchema, Skill, Task } from "./types"
 
 function skillEntry(skill: Skill) {
   return {
@@ -48,8 +48,9 @@ function a2humanExtension(
   }
 }
 
-export function toAgentCard(agent: Agent, origin: string) {
+export function toAgentCard(agent: Agent, origin: string, tasks: Task[] = []) {
   const endpoint = `${origin}/api/a2a/${agent.id}`
+  const record = workRecord(tasks, agent.id)
   return {
     name: agent.name,
     description: agent.human
@@ -79,15 +80,18 @@ export function toAgentCard(agent: Agent, origin: string) {
     a2human: {
       humanInTheLoop: agent.human,
       available: agent.human ? agent.available : false,
+      completed: record.completed,
+      averageScore: record.averageScore,
     },
   }
 }
 
-export function dispatcherCard(origin: string, agents: Agent[]) {
+export function dispatcherCard(origin: string, agents: Agent[], tasks: Task[] = []) {
   const roster = onDuty(agents).map((agent) => ({
     name: agent.name,
     skills: agent.skills,
     url: `${origin}/api/a2a/${agent.id}`,
+    ...workRecord(tasks, agent.id),
   }))
   return {
     name: "A2Human",

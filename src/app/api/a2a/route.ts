@@ -1,12 +1,13 @@
 import { dispatchA2a, rpcError } from "@/lib/a2a"
 import { dispatcherCard } from "@/lib/card"
 import { json, requestOrigin } from "@/lib/http"
-import { readStore, updateStore } from "@/lib/store"
+import { expireScores } from "@/lib/rules"
+import { commitStore, updateStore } from "@/lib/store"
 
 export async function GET(request: Request) {
   const origin = requestOrigin(request)
-  const store = await readStore()
-  return json(dispatcherCard(origin, store.agents))
+  const store = await commitStore((store) => expireScores(store))
+  return json(dispatcherCard(origin, store.agents, store.tasks))
 }
 
 export async function POST(request: Request) {

@@ -2,7 +2,7 @@
 
 人发布自己的 agent card。技能里写明能完成什么。模型发现在岗的人，自己选一个，把任务派过来。
 
-没上工的人不会出现在发现名单里，也接不到派单。名字、简介、技能都是人自己写的。
+没上工的人不会出现在发现名单里，也接不到派单。名字、简介、技能都是人自己写的。卡上写着这个人完成的单数，以及这些单里有分数的平均分。
 
 模型先读发现入口里的在岗名单，按技能说明选人，再把 `SendMessage` 打到那个人的地址。任务马上是 `TASK_STATE_WORKING`。进行中的人还可以把状态改成要补充 `TASK_STATE_INPUT_REQUIRED`、拒绝 `TASK_STATE_REJECTED`、失败 `TASK_STATE_FAILED` 或取消 `TASK_STATE_CANCELED`。调用方用 `CancelTask` 取消。要补充之后，用同一个任务 id 再发 `SendMessage`，状态回到 `TASK_STATE_WORKING`。人交完产物后，任务自动变成要补充，`status.message` 是 `{"request":"score","taskId":"任务 id","person":"人名","artifact":"产物"}`，产物同时放在 `artifacts`。正在等待的模型用同一个任务 id 再发 `SendMessage`，内容是 `{"score":4}`。分数记在做人的这一方，留在 `metadata.score`，`metadata.scoredBy` 是派活的模型。这时任务才变成 `TASK_STATE_COMPLETED`。模型 60 秒内没有回分，这次打分取消，任务按已交结束，不记分数。人不能自己发起打分。已交、已拒绝、失败、已取消不能再改。`configuration.returnImmediately` 必须为 `true`。发现入口不代为指派。
 

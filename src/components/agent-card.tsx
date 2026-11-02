@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { SchemaSummary } from "@/components/schema-summary"
 import { Badge } from "@/components/ui/badge"
+import { recordLine } from "@/lib/format"
 import type { Agent } from "@/lib/types"
 
 export function AgentCard({ agent }: { agent: Agent }) {
@@ -10,6 +11,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
         {agent.available ? "在岗" : "不在岗"}
       </p>
       <h3 className="mt-3 font-serif text-2xl">{agent.name}</h3>
+      <p className="mt-2 text-sm text-muted-foreground">{recordLine(agent.completed, agent.averageScore)}</p>
       <p className="mt-3 min-h-12 text-sm leading-6">{agent.bio}</p>
       <ul className="mt-4 space-y-2">
         {agent.skills.map((skill) => (

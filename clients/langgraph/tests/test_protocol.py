@@ -10,6 +10,7 @@ from a2human.protocol import (
     message_parts,
     read_roster,
     send_body,
+    summarize_roster,
 )
 
 
@@ -60,6 +61,21 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual(len(read_roster(mirrored)), 2)
         rejected = {"a2human": {"onDuty": [{"name": "坏", "url": "javascript:alert(1)", "skills": [{"name": "x"}]}]}}
         self.assertEqual(read_roster(rejected), [])
+        recorded = {
+            "a2human": {
+                "onDuty": [
+                    {
+                        **CARD["a2human"]["onDuty"][0],
+                        "completed": 3,
+                        "averageScore": 4.5,
+                    }
+                ]
+            }
+        }
+        entry = read_roster(recorded)[0]
+        self.assertEqual(entry["completed"], 3)
+        self.assertEqual(entry["average_score"], 4.5)
+        self.assertIn("完成 3 单，平均 4.5 分", summarize_roster([entry]))
 
     def test_json_prompt_and_wait(self):
         self.assertEqual(message_parts('{"scene":"三个圆"}'), [{"mediaType": "application/json", "data": {"scene": "三个圆"}}])
