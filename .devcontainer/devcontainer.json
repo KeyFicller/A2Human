@@ -5,9 +5,15 @@
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.12"
     },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/sshd:1": {
       "version": "latest"
     }
+  },
+  "containerEnv": {
+    "DATABASE_URL": "postgresql+asyncpg://a2human:a2human@127.0.0.1:5432/a2human",
+    "REDIS_URL": "redis://127.0.0.1:6379/0",
+    "WEB_CONCURRENCY": "2"
   },
   "forwardPorts": [3847],
   "portsAttributes": {
@@ -18,5 +24,5 @@
     }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "postStartCommand": "bash .devcontainer/start.sh"
+  "postStartCommand": "bash .devcontainer/post-start.sh"
 }

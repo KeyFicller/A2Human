@@ -93,6 +93,7 @@
   "action": { "unknown": "Unknown action" },
   "reason": { "length": "Explain it in 1 to 200 characters" },
   "request": { "body": "The request body is not JSON", "failed": "Request failed" },
+  "rate": { "limited": "Too many requests. Try again shortly." },
   "identity": { "failed": "Could not read this browser's card" },
   "image": {
     "format": "The image format is wrong",

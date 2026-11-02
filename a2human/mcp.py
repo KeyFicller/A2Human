@@ -438,11 +438,17 @@ async def _resolve(value: object) -> object:
     return value
 
 
-async def _pause(io: McpIo, ms: float) -> None:
-    if io.sleep is None:
-        await asyncio.sleep(max(ms, 0) / 1000)
+async def _pause(io: McpIo, ms: float, task_id: str | None = None) -> None:
+    if io.sleep is not None:
+        await _resolve(io.sleep(ms))
         return
-    await _resolve(io.sleep(ms))
+    # Another worker may finish the human's task. Redis wakes this wait; Postgres is re-read after.
+    if task_id:
+        from a2human.bus import wait_for_task
+
+        await wait_for_task(task_id, ms)
+        return
+    await asyncio.sleep(max(ms, 0) / 1000)
 
 
 def _read_task_params(params: dict[str, Any]) -> str | None:
@@ -566,7 +572,7 @@ async def _call_legacy(rpc_id: object, name: str, args: dict[str, Any], io: McpI
     assert isinstance(step, dict)
     deadline = now_ms() + io.max_wait_ms
     while step["kind"] == "pending" and now_ms() < deadline:
-        await _pause(io, min(POLL_MS, deadline - now_ms()))
+        await _pause(io, min(POLL_MS, deadline - now_ms()), step.get("taskId"))
         store = await _resolve(io.read())
         assert isinstance(store, dict)
         step = _with_agent(
@@ -702,7 +708,7 @@ async def _result_mcp_task(rpc_id: object, task_id: str, io: McpIo) -> dict[str,
         remaining = deadline - now_ms()
         if remaining <= 0:
             return _protocol_error(rpc_id, TASK_NOT_READY, wire("mcp.taskNotTerminal", {"status": loaded["view"]["status"]}))
-        await _pause(io, min(MCP_TASK_POLL_MS, remaining))
+        await _pause(io, min(MCP_TASK_POLL_MS, remaining), task_id)
 
 
 def _meta_record(request: dict[str, Any]) -> dict[str, Any] | None:

@@ -93,6 +93,7 @@
   "action": { "unknown": "未知动作" },
   "reason": { "length": "用 1 到 200 个字说明" },
   "request": { "body": "请求体不是 JSON", "failed": "请求失败" },
+  "rate": { "limited": "请求太频繁，请稍后再试" },
   "identity": { "failed": "身份读取失败" },
   "image": {
     "format": "图片格式不对",
