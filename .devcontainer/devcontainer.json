@@ -1,6 +1,11 @@
 {
   "name": "A2Human",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
+  },
   "forwardPorts": [3847],
   "portsAttributes": {
     "3847": {
