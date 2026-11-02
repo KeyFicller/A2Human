@@ -3,8 +3,8 @@ import { Shell } from "@/components/shell"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "当班",
-  description: "有空就挂上岗。模型按技能发现在岗的人，并用 A2A 把任务立刻派过来。",
+  title: "有人",
+  description: "模型要人的时候，这里有人。有空就挂上岗，按技能把活立刻派过来。",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

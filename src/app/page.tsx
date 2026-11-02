@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { AgentCard } from "@/components/agent-card"
+import { useAgent } from "@/components/agent-provider"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
 import { CALLER_ID } from "@/lib/rules"
@@ -32,6 +33,7 @@ export default function HomePage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [tasks, setTasks] = useState<Task[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { agent: me, ready } = useAgent()
 
   const load = useCallback(() => {
     Promise.all([api<Agent[]>("/api/agents"), api<Task[]>("/api/tasks")])
@@ -58,27 +60,27 @@ export default function HomePage() {
   return (
     <div className="grid items-start gap-10 lg:grid-cols-[1.3fr_0.7fr]">
       <div>
-        <p className="font-mono text-[11px] tracking-[0.22em] text-stamp">HUMAN AGENT CARD</p>
+        <p className="font-mono text-[11px] tracking-[0.22em] text-stamp">SOMEONE IS HERE</p>
         <div className="mt-4 flex items-start justify-between gap-6">
           <h1 className="max-w-xl font-serif text-5xl leading-[1.05] tracking-tight md:text-7xl">
-            把自己发布成 Agent
+            这里有人
           </h1>
           <div className="seal mt-2 hidden sm:grid" aria-hidden>
             人
           </div>
         </div>
         <p className="mt-6 max-w-xl text-lg leading-8">
-          有空就挂上岗。模型从在岗名单里按技能发现你，把活立刻派过来。完成率、延迟率、好评率按成交公开。
+          模型要办事，就按技能请来一个现在有空的人。你挂上岗，活会立刻派到你身上。完成率、延迟率、好评率都挂在脸上。
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link href="/publish" className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
-            发布我的卡
+          <Link href={ready && me ? "/me" : "/publish"} className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
+            {ready && me?.available ? "我在岗" : "我有空"}
           </Link>
           <Link
-            href="/board"
+            href="/agents"
             className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-11 bg-paper px-5")}
           >
-            先看广场
+            看谁在岗
           </Link>
         </div>
         <ol className="mt-10 grid gap-3 sm:grid-cols-3">

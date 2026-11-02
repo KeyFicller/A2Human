@@ -23,7 +23,7 @@ function Header() {
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="group flex items-baseline gap-2">
-            <span className="font-serif text-2xl tracking-tight text-stamp">当班</span>
+            <span className="font-serif text-2xl tracking-tight text-stamp">有人</span>
             <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
               A2A
             </span>
@@ -78,7 +78,7 @@ function HeaderFallback() {
   return (
     <header className="sticky top-0 z-20 border-b border-[#d9d0c0] bg-[#efe8d8]/90">
       <div className="mx-auto flex h-14 max-w-6xl items-center px-4">
-        <span className="font-serif text-2xl text-stamp">当班</span>
+        <span className="font-serif text-2xl text-stamp">有人</span>
       </div>
     </header>
   )

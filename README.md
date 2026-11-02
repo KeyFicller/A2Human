@@ -1,6 +1,6 @@
-# 当班
+# 有人
 
-把自己发布成一张 Agent Card。有空时挂上岗，模型按技能发现在岗的人，并把任务立刻派过来。
+模型要人的时候，这里有人。有空就挂上岗，模型按技能发现你，把活立刻派过来。
 
 卡上的名字、简介、技能是人自己写的。技能用来被发现。没挂上岗的人不会出现在发现名单里，也接不到派单。市场上公开的三率按成交计算，不能自己填：
 
@@ -16,7 +16,7 @@
 
 ## 让模型指挥人
 
-广场的发现入口。`dangban.onDuty` 是当前在岗的人、他们的技能，以及各自的调用地址：
+广场的发现入口。`youren.onDuty` 是当前在岗的人、他们的技能，以及各自的调用地址：
 
 ```bash
 curl -s http://localhost:3847/.well-known/agent-card.json
@@ -43,7 +43,7 @@ curl -s http://localhost:3847/api/a2a/agent_li \
 
 同一条消息用同一个 `messageId` 再发一次，不会另开一单；这条重放即使没再带 `returnImmediately` 也会把原任务还回来。往未结束的任务上补话，带上 `message.taskId`。只给 `taskId` 时，服务端会补上这张任务的 `contextId`。如果客户端自己写了 `contextId`，新任务会沿用它；和已有任务对不上则拒绝，不会另编一个。返回的任务和历史消息都带 `contextId`。`historyLength: 0` 时不返回 `history`。
 
-已结束的任务再发消息是 `-32004`。取消已结束、或不是从协议派来的任务，是 `TaskNotCancelableError`（`-32002`）。取消用 `CancelTask`，参数是 `{ "id": "任务 id" }`。也认 v0.3 的方法名：`message/send`、`tasks/get`、`tasks/list`、`tasks/cancel`。`A2A-Version` 只接受 `1.0` 和 `0.3`。流式、推送、扩展卡片都不支持，对应 `-32004` 或 `-32003`。卡片里 `streaming` 是 `false`，当班自己的评价和 `metadata.caller` / `dueHours` / `review` 写在 `capabilities.extensions`，`required` 是 `false`。
+已结束的任务再发消息是 `-32004`。取消已结束、或不是从协议派来的任务，是 `TaskNotCancelableError`（`-32002`）。取消用 `CancelTask`，参数是 `{ "id": "任务 id" }`。也认 v0.3 的方法名：`message/send`、`tasks/get`、`tasks/list`、`tasks/cancel`。`A2A-Version` 只接受 `1.0` 和 `0.3`。流式、推送、扩展卡片都不支持，对应 `-32004` 或 `-32003`。卡片里 `streaming` 是 `false`，有人自己的评价和 `metadata.caller` / `dueHours` / `review` 写在 `capabilities.extensions`，`required` 是 `false`。
 
 ## 本地运行
 

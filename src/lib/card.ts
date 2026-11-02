@@ -14,14 +14,14 @@ function skillEntry(skill: string) {
 const takeOrders = {
   id: "take-orders",
   name: "接模型派来的活",
-    description:
-      "只在这个人挂上岗时接单。模型按技能从广场的在岗名单找到地址，再 SendMessage。configuration.returnImmediately 必须为 true，任务立刻进入 TASK_STATE_WORKING，产物用 GetTask 取。",
+  description:
+    "只在这个人挂上岗时接单。模型按技能从广场的在岗名单找到地址，再 SendMessage。configuration.returnImmediately 必须为 true，任务立刻进入 TASK_STATE_WORKING，产物用 GetTask 取。",
   tags: ["human"],
 }
 
-function dangbanExtension(origin: string, roster?: { name: string; skills: string[]; url: string }[]) {
+function yourenExtension(origin: string, roster?: { name: string; skills: string[]; url: string }[]) {
   return {
-    uri: `${origin}/extensions/dangban/v1`,
+    uri: `${origin}/extensions/youren/v1`,
     description:
       "公开完成率、延迟率、好评率，以及谁正在岗。广场卡片的 onDuty 按技能列出可派的人。SendMessage 的 metadata 可带 skill、caller、dueHours、review。指派要设 configuration.returnImmediately 为 true。",
     required: false,
@@ -59,19 +59,19 @@ export function toAgentCard(agent: Agent, origin: string) {
       },
     ],
     provider: {
-      organization: "当班",
+      organization: "有人",
       url: origin,
     },
     capabilities: {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
-      extensions: [dangbanExtension(origin)],
+      extensions: [yourenExtension(origin)],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
     skills,
-    dangban: {
+    youren: {
       ...publicRates(agent),
       points: agent.points,
       humanInTheLoop: agent.human,
@@ -99,7 +99,7 @@ export function dispatcherCard(origin: string, agents: Agent[]) {
     ...publicRates(agent),
   }))
   return {
-    name: "当班",
+    name: "有人",
     description: "发现在岗的人，并按技能立刻指派。同一技能有多人在岗时，按好评率、再按完成单数挑选。",
     version: "1.0.0",
     supportedInterfaces: [
@@ -110,14 +110,14 @@ export function dispatcherCard(origin: string, agents: Agent[]) {
       },
     ],
     provider: {
-      organization: "当班",
+      organization: "有人",
       url: origin,
     },
     capabilities: {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
-      extensions: [dangbanExtension(origin, roster)],
+      extensions: [yourenExtension(origin, roster)],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
@@ -130,7 +130,7 @@ export function dispatcherCard(origin: string, agents: Agent[]) {
         tags: ["human", "dispatch"],
       },
     ],
-    dangban: {
+    youren: {
       humanInTheLoop: true,
       onDuty: roster,
     },
