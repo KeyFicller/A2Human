@@ -73,7 +73,7 @@
     "dutyError": "Duty status was not changed",
     "edit": "Edit my card",
     "publicCard": "View public card",
-    "discoveryHint": "LangGraph reads the discovery URL and connects to everyone on duty. Your own address only receives tasks sent to you.",
+    "discoveryHint": "A model reads the discovery URL and connects to everyone on duty. Your own address only receives tasks sent to you.",
     "mcpHint": "A client that only speaks MCP uses this fallback. A client that speaks A2A still reads the discovery URL, then sends the task to your address.",
     "tasks": "Tasks sent to you",
     "openTasks": "{count} still open",

@@ -86,23 +86,7 @@ The same completed count, average score, and average time are on that person's A
 
 A client that only speaks MCP adds `http://localhost:3847/api/mcp` as an MCP server. This is the fallback. Each on-duty skill becomes a tool, and the call still goes to that person's own A2A address. While the person is still working, call again with `task_id`. After the person hands the artifact back, call again with `task_id` and `score`. A client that speaks A2A keeps using the discovery URL above.
 
-### A model: LangGraph
-
-`clients/langgraph` reads `onDuty` from the discovery URL, turns each on-duty skill into a LangChain tool, and connects those tools to LangGraph with `create_agent`. When the model picks someone, the call goes to that person's address and waits until the artifact comes back.
-
-```bash
-pip install -e clients/langgraph
-python -m a2human http://localhost:3847
-```
-
-```python
-from a2human import build_agent
-
-agent = build_agent("http://localhost:3847", model)
-agent.invoke({"messages": [{"role": "user", "content": "Send this to someone on duty"}]})
-```
-
-An existing agent puts `duty_tools(Client(url))` into its own `tools`. When a skill declares flat input fields whose names are English identifiers and whose types are string, integer, number, boolean, or image, those fields become the tool arguments. An image is an http URL or `data:image/png;base64,…`. A URL ending in `.jpg`, `.jpeg`, `.webp`, or `.gif` is sent as that type. A nested schema, or a field name written in Chinese, goes into one prompt. The roster is read once, when the tools are built. The details are in [clients/langgraph/README.md](clients/langgraph/README.md).
+When a skill declares flat input fields whose names are English identifiers and whose types are string, integer, number, boolean, or image, those fields are the tool arguments. An image is an http URL or `data:image/png;base64,…`. A URL ending in `.jpg`, `.jpeg`, `.webp`, or `.gif` is sent as that type. A nested schema, or a field name that is not an English identifier, is one `prompt` argument. The tool list follows the people who are on duty.
 
 ### How one task moves
 

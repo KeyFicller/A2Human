@@ -50,7 +50,6 @@ test("english covers every simplified chinese ui string", () => {
   const pairs = [
     ["src/locales/zh.json", "src/locales/en.json"],
     ["src/locales/wire.zh.json", "src/locales/wire.en.json"],
-    ["clients/langgraph/a2human/locales/zh.json", "clients/langgraph/a2human/locales/en.json"],
   ]
   for (const [left, right] of pairs) {
     assert.deepEqual(leaves(readJson(join(root, right))), leaves(readJson(join(root, left))))
@@ -59,7 +58,7 @@ test("english covers every simplified chinese ui string", () => {
 
 test("production source keeps copy in resource files", () => {
   const root = fileURLToPath(new URL("../..", import.meta.url))
-  const files = [...sourceFiles(join(root, "src")), ...sourceFiles(join(root, "clients/langgraph/a2human"))]
+  const files = sourceFiles(join(root, "src"))
   const hits = files.filter((file) => /[\u4e00-\u9fff]/.test(readFileSync(file, "utf8")))
   assert.deepEqual(hits, [])
 })
