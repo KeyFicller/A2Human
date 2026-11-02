@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { SchemaSummary } from "@/components/schema-summary"
 import { Badge } from "@/components/ui/badge"
 import type { Agent } from "@/lib/types"
 
@@ -15,9 +16,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <li key={skill.name}>
             <Badge variant="secondary">{skill.name}</Badge>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">{skill.description}</p>
-            {skill.inputSchema && skill.outputSchema ? (
-              <pre className="mt-2 overflow-auto text-xs leading-5 text-muted-foreground">{`输入 ${JSON.stringify(skill.inputSchema)}\n输出 ${JSON.stringify(skill.outputSchema)}`}</pre>
-            ) : null}
+            <SchemaSummary skill={skill} />
           </li>
         ))}
       </ul>

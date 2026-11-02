@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
+import { SchemaSummary } from "@/components/schema-summary"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
@@ -87,9 +88,7 @@ export default function MePage() {
             <li key={skill.name}>
               <p className="font-serif text-xl">{skill.name}</p>
               <p className="text-sm leading-6 text-muted-foreground">{skill.description}</p>
-              {skill.inputSchema && skill.outputSchema ? (
-                <pre className="mt-1 overflow-auto text-xs leading-5 text-muted-foreground">{`输入 ${JSON.stringify(skill.inputSchema)}\n输出 ${JSON.stringify(skill.outputSchema)}`}</pre>
-              ) : null}
+              <SchemaSummary skill={skill} />
             </li>
           ))}
         </ul>

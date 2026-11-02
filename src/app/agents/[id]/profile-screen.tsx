@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { SchemaSummary } from "@/components/schema-summary"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
@@ -54,9 +55,7 @@ export default function AgentProfilePage() {
             <li key={skill.name}>
               <Badge variant="secondary">{skill.name}</Badge>
               <p className="mt-1 text-sm leading-6">{skill.description}</p>
-              {skill.inputSchema && skill.outputSchema ? (
-                <pre className="mt-2 overflow-auto text-xs leading-5 text-muted-foreground">{`输入 ${JSON.stringify(skill.inputSchema)}\n输出 ${JSON.stringify(skill.outputSchema)}`}</pre>
-              ) : null}
+              <SchemaSummary skill={skill} />
             </li>
           ))}
         </ul>

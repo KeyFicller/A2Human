@@ -6,20 +6,22 @@ import { useAgent } from "@/components/agent-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { SchemaEditor } from "@/components/schema-editor"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
+import { draftFromSchema, duplicateFieldName, emptySchemaDraft, schemaPayload, type SchemaDraft } from "@/lib/schema-fields"
 import type { Agent, Skill } from "@/lib/types"
 
-type SkillDraft = { name: string; description: string; inputSchema: string; outputSchema: string }
+type SkillDraft = { name: string; description: string; input: SchemaDraft; output: SchemaDraft }
 
-const emptySkill = (): SkillDraft => ({ name: "", description: "", inputSchema: "", outputSchema: "" })
+const emptySkill = (): SkillDraft => ({ name: "", description: "", input: emptySchemaDraft(), output: emptySchemaDraft() })
 
 function draftFrom(skill: Skill): SkillDraft {
   return {
     name: skill.name,
     description: skill.description,
-    inputSchema: skill.inputSchema ? JSON.stringify(skill.inputSchema, null, 2) : "",
-    outputSchema: skill.outputSchema ? JSON.stringify(skill.outputSchema, null, 2) : "",
+    input: draftFromSchema(skill.inputSchema),
+    output: draftFromSchema(skill.outputSchema),
   }
 }
 
@@ -49,15 +51,30 @@ export default function PublishPage() {
         event.preventDefault()
         setPending(true)
         setError(null)
+        if (
+          skillValue.some(
+            (skill) =>
+              (skill.input.mode === "fields" && duplicateFieldName(skill.input.fields)) ||
+              (skill.output.mode === "fields" && duplicateFieldName(skill.output.fields)),
+          )
+        ) {
+          setError("同一边的项目名称不能重复")
+          setPending(false)
+          return
+        }
         const payload = {
           name: nameValue,
           bio: bioValue,
-          skills: skillValue.map((skill) => ({
-            name: skill.name,
-            description: skill.description,
-            ...(skill.inputSchema.trim() ? { inputSchema: skill.inputSchema } : {}),
-            ...(skill.outputSchema.trim() ? { outputSchema: skill.outputSchema } : {}),
-          })),
+          skills: skillValue.map((skill) => {
+            const inputSchema = schemaPayload(skill.input)
+            const outputSchema = schemaPayload(skill.output)
+            return {
+              name: skill.name,
+              description: skill.description,
+              ...(inputSchema ? { inputSchema } : {}),
+              ...(outputSchema ? { outputSchema } : {}),
+            }
+          }),
         }
         const request = agent
           ? api<Agent>(`/api/agents/${agent.id}`, payload)
@@ -77,7 +94,7 @@ export default function PublishPage() {
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">AGENT CARD</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{agent ? "改我的卡" : "发布我的卡"}</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        名字、简介和技能都是你自己写的。每项技能写明你能完成什么。要规定输入和输出时，两边都写 JSON Schema。
+        名字、简介和技能都是你自己写的。每项技能写明你能完成什么。输入和输出用下面的项拼，熟悉 JSON Schema 时也可以直接写。
       </p>
       <div className="sheet mt-6 space-y-4 p-5">
         <label className="block text-sm">
@@ -100,7 +117,7 @@ export default function PublishPage() {
           />
         </label>
         <fieldset className="space-y-3">
-          <legend className="text-sm">技能，1 到 6 项。名称、能完成的内容，以及可选的输入和输出 JSON Schema。</legend>
+          <legend className="text-sm">技能，1 到 6 项。名称、能完成的内容，以及要收到什么、交回什么。</legend>
           {skillValue.map((skill, index) => (
             <div key={index} className="grid gap-2 rounded-2xl border border-[#d9d0c0] p-3">
               <Input
@@ -115,17 +132,10 @@ export default function PublishPage() {
                 placeholder="能完成什么。例如：数清画面里的东西，只交回数字。"
                 onChange={(event) => updateSkill(index, { description: event.target.value })}
               />
-              <Textarea
-                className="font-mono text-xs"
-                value={skill.inputSchema}
-                placeholder={'输入 JSON Schema，例如 {"type":"object","required":["n"],"properties":{"n":{"type":"integer"}}}'}
-                onChange={(event) => updateSkill(index, { inputSchema: event.target.value })}
-              />
-              <Textarea
-                className="font-mono text-xs"
-                value={skill.outputSchema}
-                placeholder={'输出 JSON Schema，例如 {"type":"integer"}'}
-                onChange={(event) => updateSkill(index, { outputSchema: event.target.value })}
+              <SchemaEditor
+                input={skill.input}
+                output={skill.output}
+                onChange={(next) => updateSkill(index, next)}
               />
               {skillValue.length > 1 ? (
                 <button
