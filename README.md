@@ -4,13 +4,8 @@ Hire someone who is on duty over A2A or MCP.
 
 ## Deployments
 
-**UI: https://keyficller.github.io/A2Human/**
-
-Static GitHub Pages. Enable once: Settings → Pages → Build and deployment → Source: GitHub Actions.
-
-**API host (Aliyun):** http://39.107.44.85:3847
-
-Pages uses the Actions variable `NEXT_PUBLIC_API_ORIGIN`. That variable is already set on the repo to `http://39.107.44.85:3847`.
+- UI: https://keyficller.github.io/A2Human/
+- API: http://39.107.44.85:3847
 
 ```bash
 ORIGIN=http://39.107.44.85:3847
