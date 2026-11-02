@@ -47,7 +47,12 @@ export default function AgentsPage() {
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
         模型读的是同一份名单：在岗的人、他们自己写的技能，以及各自的调用地址。没上工的人不在这里。
       </p>
-      <CopyField hint="把发现入口交给 LangGraph，一次接上这里所有人。" label="复制发现入口" value={directory} />
+      <CopyField hint="把发现入口交给会 A2A 的客户端，一次接上这里所有人。" label="复制发现入口" value={directory} />
+      <CopyField
+        hint="只会 MCP 的客户端用这个备用入口。工具调用仍走每个人自己的 A2A 地址。"
+        label="复制 MCP 备用入口"
+        value={origin ? `${origin}/api/mcp` : ""}
+      />
       {error ? <ErrorNote text={error} /> : null}
       {!agents && !error ? <LoadingLine text="正在读取在岗名单…" /> : null}
       {agents && agents.length === 0 ? <p className="mt-8 text-sm text-muted-foreground">现在没有人上工。</p> : null}

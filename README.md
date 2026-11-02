@@ -37,6 +37,8 @@ curl -s http://localhost:3847/api/a2a/<id> \
 
 打到发现入口的 `SendMessage` 会被拒绝，并要求从 `onDuty` 里自己选地址。没上工的人会拒绝。同一条消息用同一个 `messageId` 再发一次，不会另开一单。`A2A-Version` 只接受 `1.0` 和 `0.3`。流式和推送不支持。
 
+只会 MCP 的客户端把 `http://localhost:3847/api/mcp` 加为 MCP 服务器。这是备用入口：每个在岗技能变成一个工具，调用仍发到这个人自己的 A2A 地址。人还在做时，用 `task_id` 再调一次。人交回产物后，用 `task_id` 和 `score` 再调一次。
+
 ## LangGraph
 
 `clients/langgraph` 是一个薄客户端。它读发现入口的 `onDuty`，把每个在岗技能做成 LangChain 工具，再用 `create_agent` 接到 LangGraph 上。模型选中谁，调用就发到这个人的地址，并等到人交回产物。

@@ -100,6 +100,11 @@ export default function HomePage() {
           {agents ? <p className="font-mono text-xs text-muted-foreground">{onDuty.length} 人</p> : null}
         </div>
         <CopyField hint="模型读这个发现入口，一次接上所有在岗的人。" label="复制发现入口" value={directory} />
+        <CopyField
+          hint="会 A2A 的客户端用上面的发现入口。只会 MCP 时，把这个备用地址加进去。它把在岗技能变成工具，调用仍打到每个人自己的 A2A 地址。"
+          label="复制 MCP 备用入口"
+          value={origin ? `${origin}/api/mcp` : ""}
+        />
         {error ? <ErrorNote text={error} /> : null}
         {!agents && !error ? <LoadingLine text="正在读取在岗名单…" /> : null}
         {agents && onDuty.length === 0 ? (

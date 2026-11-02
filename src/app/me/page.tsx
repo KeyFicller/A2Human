@@ -118,6 +118,11 @@ export default function MePage() {
             value={directory}
           />
           <CopyField label="复制我的地址" value={endpoint} />
+          <CopyField
+            hint="只会 MCP 的客户端用这个备用入口。会 A2A 的仍读发现入口，再把任务派到你自己的地址。"
+            label="复制 MCP 备用入口"
+            value={origin ? `${origin}/api/mcp` : ""}
+          />
         </div>
       </section>
       <section>

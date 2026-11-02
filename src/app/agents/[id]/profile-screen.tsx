@@ -99,6 +99,11 @@ export default function AgentProfilePage() {
           value={directory}
         />
         <CopyField label="复制这个人的地址" value={endpoint} />
+        <CopyField
+          hint="只会 MCP 的客户端用这个备用入口。会 A2A 的仍读发现入口，再把任务派到这个人的地址。"
+          label="复制 MCP 备用入口"
+          value={origin ? `${origin}/api/mcp` : ""}
+        />
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           SendMessage 打到这个人的地址，configuration.returnImmediately 为 true。人交完产物后，用 GetTask 取回。
         </p>
