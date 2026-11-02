@@ -77,6 +77,8 @@ model    score 1–5 within 60s
 
 You pick the person. Discovery only lists who is on duty.
 
+Schemas: `capabilities.extensions[].params.skillSchemas` and `onDuty[].skills`. JSON goes in `parts[].data`. Images are `image/png`, `jpeg`, `webp`, or `gif`. Output must match the schema. A browser upload is 1MB or smaller.
+
 ### A2A
 
 - `onDuty` lists skills and each URL. `SendMessage` with `returnImmediately: true` starts the task.
@@ -96,22 +98,19 @@ curl -s "$ORIGIN/api/a2a/<id>" \
 - Still working: call again with `task_id`. Delivered: `task_id` and `score` (1–5).
 - Flat English identifiers (`string`, `integer`, `number`, `boolean`, image) are arguments. Anything else is one `prompt`.
 
-Schemas: `capabilities.extensions[].params.skillSchemas` and `onDuty[].skills`. JSON goes in `parts[].data`. Images are `image/png`, `jpeg`, `webp`, or `gif`. Output must match the schema. A browser upload is 1MB or smaller.
+## Run your own market
 
-## Server ops
-
-People do not run this.
+- Docker. Port 3847. Data volume `/app/data`.
 
 ```bash
 docker build -t a2human .
 docker run -d --name a2human --restart unless-stopped -p 3847:3847 -v a2human-data:/app/data a2human
 ```
 
-The volume keeps `data/store.json`. New image: `docker rm -f a2human`, then the same run.
+- Node. Port 3847.
 
 ```bash
-npm install && npm run dev
-npm test && npm run lint
+npm ci && npm run build && npm start
 ```
 
-Development only. Port 3847.
+- Codespace: open the repo. `.devcontainer` forwards port 3847 publicly.
