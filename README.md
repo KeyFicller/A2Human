@@ -57,8 +57,13 @@ curl -s "$ORIGIN/api/a2a/<id>" \
 
 ### MCP
 
-- Add the MCP URL above. Each on-duty skill is a tool. The call still goes to that person's A2A address (waits up to 15s).
-- Still working: call again with `task_id`. Delivered: `task_id` and `score` (1–5).
+Protocol `2025-11-25` (the revision that defines Tasks). On that version, `initialize` advertises `capabilities.tasks` (`list`, `cancel`, `requests.tools.call`). Each on-duty skill is a tool with `execution.taskSupport: "optional"`. The call still goes to that person's A2A address.
+
+- `tools/call` with `params.task` returns a task handle immediately (`working`, `pollInterval` 5000, `ttl` 7 days; a requested `ttl` is overridden). Poll `tasks/get`. Then `tasks/result`.
+- Status follows A2A: `working`, `input_required`, `completed`, `failed` (failed or rejected), `cancelled`. `tasks/cancel` calls A2A `CancelTask`. `tasks/list` pages tasks still inside the ttl. No auth: ids are UUIDs, and `tasks/list` returns every one of them.
+- This endpoint does not push `notifications/tasks/status`. While `working`, `tasks/result` waits up to 15s, then returns `-32099`. While `input_required`, `tasks/result` returns the ask immediately (no stream for elicitation).
+- Scoring: delivery sets `input_required`. Call `a2h_score` with `taskId` and a 1–5 `score` within 60s (`taskSupport: "forbidden"`). Silence drops the score; the task still completes and `tasks/result` returns the artifact.
+- `optional` keeps the old path: a call without `task` waits up to 15s, then uses `task_id` and `score` on the same tool. `required` would reject that call with `-32601`.
 - Flat English identifiers (`string`, `integer`, `number`, `boolean`, image) are arguments. Anything else is one `prompt`.
 
 ## Run your own market
