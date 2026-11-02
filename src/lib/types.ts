@@ -19,6 +19,7 @@ export type Agent = {
   name: string
   bio: string
   human: boolean
+  available: boolean
   skills: string[]
   points: number
   completed: number

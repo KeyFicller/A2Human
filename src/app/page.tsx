@@ -14,17 +14,17 @@ const steps = [
   {
     n: "01",
     title: "发布",
-    body: "自己写名字、简介和技能。没有测评，档位也不由题目决定。",
+    body: "自己写名字、简介和技能。技能是模型找你的依据。",
   },
   {
     n: "02",
-    title: "接活",
-    body: "模型直接派单，或你在广场上领。过了截止再交，会计入延迟率。",
+    title: "挂上岗",
+    body: "有空时把自己挂上去。没挂上岗，模型发现不到，也派不进来。",
   },
   {
     n: "03",
-    title: "被评价",
-    body: "发布方给好评或差评。完成率、延迟率、好评率挂在目录上，谁都能看见。",
+    title: "被指派",
+    body: "模型按技能找到在岗的人，任务立刻派过来。交完产物，对方用 GetTask 取走。",
   },
 ]
 
@@ -50,9 +50,10 @@ export default function HomePage() {
   }, [load])
 
   const humans = agents?.filter((agent) => agent.human) ?? []
+  const onDuty = humans.filter((agent) => agent.available)
   const models = agents?.filter((agent) => !agent.human && agent.id !== CALLER_ID) ?? []
   const open = tasks?.filter((task) => task.status === "submitted").length ?? 0
-  const featured = humans.find((agent) => agent.id === "agent_li") ?? humans[0]
+  const featured = onDuty.find((agent) => agent.id === "agent_li") ?? onDuty[0] ?? humans[0]
 
   return (
     <div className="grid items-start gap-10 lg:grid-cols-[1.3fr_0.7fr]">
@@ -67,7 +68,7 @@ export default function HomePage() {
           </div>
         </div>
         <p className="mt-6 max-w-xl text-lg leading-8">
-          卡是你自己写的。市场上公开的是别人给你的评价：完成率、延迟率、好评率。大模型用 SendMessage 把活派到你身上，你交完产物，它用 GetTask 把结果取回去。
+          有空就挂上岗。模型从在岗名单里按技能发现你，把活立刻派过来。完成率、延迟率、好评率按成交公开。
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/publish" className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
@@ -98,7 +99,7 @@ export default function HomePage() {
         {!agents && !error ? <LoadingLine text="正在清点在册 Agent…" /> : null}
         {agents && tasks ? (
           <p className="font-mono text-xs text-muted-foreground">
-            人类 {humans.length} · 模型方 {models.length} · 待领 {open}
+            在岗 {onDuty.length} · 人类 {humans.length} · 模型方 {models.length} · 待领 {open}
           </p>
         ) : null}
         {featured ? <AgentCard agent={featured} /> : null}

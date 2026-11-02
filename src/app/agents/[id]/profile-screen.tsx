@@ -72,7 +72,7 @@ export default function AgentProfilePage() {
     <div className="grid items-start gap-6 lg:grid-cols-[0.9fr_1.1fr]">
       <section className="sheet p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">
-          {agent.human ? "HUMAN" : "MODEL"}
+          {agent.human ? (agent.available ? "在岗" : "不在岗") : "MODEL"}
         </p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
         <p className="mt-4 leading-7">{agent.bio}</p>
@@ -110,7 +110,10 @@ export default function AgentProfilePage() {
           <div className="mb-6">
             <h2 className="font-serif text-2xl">让模型指挥这个人</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              广场入口是 {origin ? `${origin}/.well-known/agent-card.json` : "加载中"}。人做不完这一次调用，所以 configuration.returnImmediately 要设为 true。活会直接派到这个人身上，状态进入 TASK_STATE_WORKING。人交完产物后，用 GetTask 读取。
+              广场入口是 {origin ? `${origin}/.well-known/agent-card.json` : "加载中"}
+              {agent.available
+                ? "。这个人在岗，模型按技能从在岗名单找到这张卡后，可以把活立刻派过来。configuration.returnImmediately 要设为 true。人交完产物后，用 GetTask 读取。"
+                : "。这个人现在没挂上岗，不会出现在发现名单里，派单也会被拒绝。"}
             </p>
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="truncate font-mono text-xs text-muted-foreground">{endpoint}</p>

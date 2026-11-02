@@ -1,3 +1,4 @@
+import { reputationOf } from "./reputation"
 import { DUE_HOURS, SKILLS, type Skill } from "./skills"
 import type { Agent, ProtocolMessage, Review, Store, Task } from "./types"
 
@@ -102,6 +103,7 @@ export function publishAgent(
     name: cleanName(input.name),
     bio: cleanBio(input.bio) || "人发布的 Agent。",
     human: true,
+    available: false,
     skills: claimedSkills(input.skills),
     points: 40,
     completed: 0,
@@ -126,6 +128,30 @@ export function updateAgent(
   agent.bio = cleanBio(input.bio) || "人发布的 Agent。"
   agent.skills = claimedSkills(input.skills)
   return agent
+}
+
+export function setAvailability(store: Store, agentId: string, available: unknown): Agent {
+  const agent = requireAgent(store, agentId)
+  if (!agent.human) fail("模型方不用挂上岗")
+  if (typeof available !== "boolean") fail("在岗状态要是 true 或 false")
+  if (available && agent.skills.length < 1) fail("先标至少一项技能再挂上岗")
+  agent.available = available
+  return agent
+}
+
+function compareOnDuty(a: Agent, b: Agent) {
+  const left = reputationOf(a).approval
+  const right = reputationOf(b).approval
+  if (left == null && right != null) return 1
+  if (right == null && left != null) return -1
+  if (left != null && right != null && left !== right) return right - left
+  return b.completed - a.completed || a.id.localeCompare(b.id)
+}
+
+export function onDuty(agents: Agent[], skill?: string) {
+  return agents
+    .filter((agent) => agent.human && agent.available && (!skill || agent.skills.includes(skill)))
+    .sort(compareOnDuty)
 }
 
 export function postTask(
@@ -298,6 +324,7 @@ export function ensureCaller(store: Store): Agent {
     name: "外部模型",
     bio: "从 JSON-RPC 进来的调用方。不领任务，只把活派给人。",
     human: false,
+    available: false,
     skills: [],
     points: 100000,
     completed: 0,
@@ -339,6 +366,7 @@ export function receiveCommand(
     messageId: string
     taskId?: string
     contextId?: string
+    skill?: string
     callerName: string
     dueHours?: number
   },
@@ -385,6 +413,11 @@ export function receiveCommand(
     if (!input.humanId) fail("缺少要指挥的人")
     human = requireAgent(store, input.humanId)
     if (!human.human) fail("只能指挥已经发布的人", -32004)
+    if (!human.available) fail("这个人现在没挂上岗", -32004)
+  } else {
+    if (!input.humanId) fail("没有可指派的在岗的人", -32004)
+    human = requireAgent(store, input.humanId)
+    if (!human.human || !human.available) fail("这个人现在没挂上岗", -32004)
   }
 
   const caller = ensureCaller(store)
@@ -397,7 +430,7 @@ export function receiveCommand(
     brief: text,
     posterId: caller.id,
     posterName: input.callerName,
-    skills: [],
+    skills: input.skill ? [input.skill] : [],
     reward,
     status: human ? "working" : "submitted",
     claimantId: human?.id ?? null,
@@ -427,7 +460,7 @@ export function receiveCommand(
       fromId: human.id,
       fromName: human.name,
       kind: "task.claim",
-      text: `${human.name} 被直接指派，不用再领。`,
+      text: input.mode === "direct" ? `${human.name} 在岗，被直接指派。` : `${human.name} 在岗，按技能被指派。`,
     })
   }
   return task

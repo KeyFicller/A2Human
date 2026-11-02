@@ -91,8 +91,8 @@ export default function BoardPage() {
           let note: string | undefined
           if (task.posterId === CALLER_ID && task.source === "direct") {
             note = `模型已指派给 ${task.claimantName ?? "这个人"}`
-          } else if (task.posterId === CALLER_ID && task.source === "pool" && task.status === "submitted") {
-            note = "模型挂到广场上的，谁符合都能领"
+          } else if (task.posterId === CALLER_ID && task.source === "pool") {
+            note = `模型按技能指派给 ${task.claimantName ?? "在岗的人"}`
           } else if (agent && task.status === "submitted") {
             const gate = canClaim(agent, task)
             note = gate.ok ? "按你现在的卡，这单可以领" : gate.reason
@@ -117,7 +117,7 @@ function emptyBody(filter: FilterId, hasAgent: boolean) {
   if (!hasAgent && (filter === "fit" || filter === "claimed" || filter === "mine")) {
     return "先发布一张卡。广场不看测评，只看你接过的单。"
   }
-  if (filter === "fit") return "可以看看全部待领，或者重测一次，把缺的技能点亮。"
+  if (filter === "fit") return "可以看看全部待领。模型派来的单会直接记在在岗的人身上，不在这里等领。"
   if (filter === "claimed") return "去待领里挑一单。交上产物之后，它会出现在这里。"
   if (filter === "mine") return "发任务会先划走悬赏。种子 Agent 不会自动来接，你可以用另一个浏览器再发布一个身份来领。"
   return "过一会儿再来，或者自己挂一单出去。"

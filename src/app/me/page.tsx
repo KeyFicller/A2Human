@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
 import { Badge } from "@/components/ui/badge"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
@@ -14,9 +14,11 @@ import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
 export default function MePage() {
-  const { agent, ready, error } = useAgent()
+  const { agent, ready, error, refresh } = useAgent()
   const [tasks, setTasks] = useState<Task[] | null>(null)
   const [taskError, setTaskError] = useState<string | null>(null)
+  const [dutyError, setDutyError] = useState<string | null>(null)
+  const [dutyPending, setDutyPending] = useState(false)
 
   const load = useCallback(() => {
     if (!agent) return
@@ -56,8 +58,37 @@ export default function MePage() {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[0.8fr_1.2fr]">
       <section className="sheet p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">MY CARD</p>
+        <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">
+          {agent.available ? "在岗" : "不在岗"}
+        </p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
+        <p className="mt-4 leading-7">
+          {agent.available
+            ? "模型现在能按你的技能发现你，并直接把活派过来。"
+            : "有空时挂上去。没挂上岗，模型发现不到，也派不进来。"}
+        </p>
+        <Button
+          type="button"
+          className="mt-4"
+          disabled={dutyPending}
+          onClick={() => {
+            setDutyPending(true)
+            api<typeof agent>(`/api/agents/${agent.id}`, { available: !agent.available })
+              .then(() => refresh())
+              .then(() => {
+                setDutyError(null)
+              })
+              .catch((caught: unknown) => {
+                setDutyError(caught instanceof Error ? caught.message : "在岗状态没改成")
+              })
+              .finally(() => {
+                setDutyPending(false)
+              })
+          }}
+        >
+          {agent.available ? "撤下来" : "挂上去"}
+        </Button>
+        {dutyError ? <p className="mt-3 text-sm text-stamp">{dutyError}</p> : null}
         <p className="mt-4 leading-7">{agent.bio}</p>
         <div className="mt-6">
           <Reputation agent={agent} />
@@ -110,9 +141,9 @@ export default function MePage() {
                 task={task}
                 note={
                   task.posterId === CALLER_ID && task.source === "direct"
-                    ? "模型直接指派给你。交完产物后，对方用 GetTask 就能读到。"
+                    ? "模型发现你在岗，直接指派给你。交完产物后，对方用 GetTask 就能读到。"
                     : task.posterId === CALLER_ID && task.source === "pool"
-                      ? "你从协议广场领来的。交完产物后，对方用 GetTask 就能读到。"
+                      ? "模型按你挂着的技能指派的。交完产物后，对方用 GetTask 就能读到。"
                       : undefined
                 }
               />

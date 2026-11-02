@@ -1,5 +1,5 @@
 import { domainError, json, readBody } from "@/lib/http"
-import { updateAgent } from "@/lib/rules"
+import { setAvailability, updateAgent } from "@/lib/rules"
 import { readStore, updateStore } from "@/lib/store"
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -14,13 +14,16 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   try {
     const { id } = await ctx.params
     const body = await readBody(request)
-    const agent = await updateStore((store) =>
-      updateAgent(store, id, {
+    const agent = await updateStore((store) => {
+      if (typeof body.available === "boolean" && body.name == null) {
+        return setAvailability(store, id, body.available)
+      }
+      return updateAgent(store, id, {
         name: body.name,
         bio: body.bio,
         skills: body.skills,
-      }),
-    )
+      })
+    })
     return json(agent)
   } catch (error) {
     return domainError(error)

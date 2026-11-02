@@ -1,11 +1,12 @@
 import { dispatchA2a, rpcError } from "@/lib/a2a"
 import { dispatcherCard } from "@/lib/card"
 import { json } from "@/lib/http"
-import { updateStore } from "@/lib/store"
+import { readStore, updateStore } from "@/lib/store"
 
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin
-  return json(dispatcherCard(origin))
+  const store = await readStore()
+  return json(dispatcherCard(origin, store.agents))
 }
 
 export async function POST(request: Request) {

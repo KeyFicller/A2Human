@@ -4,7 +4,6 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { AgentProvider, useAgent } from "@/components/agent-provider"
-import { formatRate, reputationOf } from "@/lib/reputation"
 import { cn } from "cn"
 
 const links = [
@@ -35,7 +34,7 @@ function Header() {
               className="font-mono text-xs text-ink md:hidden"
             >
               {agent.name}
-              {agent.human ? ` · 好评 ${formatRate(reputationOf(agent).approval)}` : ""}
+              {agent.human ? ` · ${agent.available ? "在岗" : "不在岗"}` : ""}
             </Link>
           ) : null}
         </div>
@@ -61,7 +60,7 @@ function Header() {
             <Link href="/me" className="text-sm">
               <span className="font-serif text-lg">{agent.name}</span>
               <span className="ml-2 font-mono text-xs text-muted-foreground">
-                {agent.human ? `好评 ${formatRate(reputationOf(agent).approval)}` : "模型方"}
+                {agent.human ? (agent.available ? "在岗" : "不在岗") : "模型方"}
               </span>
             </Link>
           ) : (
@@ -93,7 +92,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </Suspense>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:py-12">{children}</main>
       <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs leading-5 text-muted-foreground">
-        卡是自己发布的。完成率、延迟率、好评率按成交公开。状态：待领 → 进行中 → 已验收。
+        有空再挂上岗。模型只发现在岗的人，并按技能指派。完成率、延迟率、好评率按成交公开。
       </footer>
     </AgentProvider>
   )

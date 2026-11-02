@@ -3,9 +3,11 @@ import {
   DomainError,
   cancelCommandedTask,
   commandForMessage,
+  onDuty,
   rateTask,
   receiveCommand,
 } from "./rules"
+import { SKILLS } from "./skills"
 import type { ProtocolMessage, Store, Task, TaskStatus } from "./types"
 
 type Scope = { kind: "human"; agentId: string } | { kind: "pool" }
@@ -200,6 +202,15 @@ function metadataValue(params: Record<string, unknown>, message: Record<string, 
   return undefined
 }
 
+function readSkill(params: Record<string, unknown>, message: Record<string, unknown>) {
+  const value = metadataValue(params, message, "skill")
+  if (value == null) return undefined
+  if (typeof value !== "string" || !(SKILLS as readonly string[]).includes(value)) {
+    throw new DomainError("skill 不在目录里", -32602)
+  }
+  return value
+}
+
 function callerName(params: Record<string, unknown>, message: Record<string, unknown>) {
   const name = metadataValue(params, message, "caller")
   if (typeof name !== "string") return "外部模型"
@@ -285,6 +296,7 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
   const text = textFromParts(record.parts)
   const taskId = readTaskId(record)
   const contextId = readContextId(record)
+  const skill = readSkill(params, record)
   const config = configurationOf(params)
   assertSendable(config)
   const vote = metadataValue(params, record, "review")
@@ -298,21 +310,31 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
       }),
     }
   }
-  if (!commandForMessage(store, messageId) && !wantsImmediate(config)) {
-    throw new DomainError(
-      "人做不完这一次调用。请把 configuration.returnImmediately 设为 true，再用 GetTask 轮询。",
-      -32004,
-    )
+  const replay = commandForMessage(store, messageId)
+  if (!replay && !wantsImmediate(config)) {
+    throw new DomainError("请把 configuration.returnImmediately 设为 true。人在岗时任务会立刻派出去，再用 GetTask 取产物。", -32004)
+  }
+  let humanId = scope.kind === "human" ? scope.agentId : undefined
+  if (!replay && scope.kind === "human") {
+    const human = store.agents.find((agent) => agent.id === scope.agentId)
+    if (skill && human && !human.skills.includes(skill)) throw new DomainError("这个人没挂这项技能", -32602)
+  }
+  if (!replay && scope.kind === "pool") {
+    if (!skill) throw new DomainError("按技能指派要带 metadata.skill", -32602)
+    const picked = onDuty(store.agents, skill)[0]
+    if (!picked) throw new DomainError(`现在没有挂着「${skill}」的人`, -32004)
+    humanId = picked.id
   }
   const dueRaw = metadataValue(params, record, "dueHours")
   const dueHours = typeof dueRaw === "number" && Number.isInteger(dueRaw) && dueRaw >= 1 && dueRaw <= 168 ? dueRaw : 24
   const task = receiveCommand(store, {
     mode: scope.kind === "human" ? "direct" : "pool",
-    humanId: scope.kind === "human" ? scope.agentId : undefined,
+    humanId,
     text,
     messageId,
     taskId,
     contextId,
+    skill,
     callerName: callerName(params, record),
     dueHours,
   })

@@ -4,7 +4,7 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "几B协议",
-  description: "把自己发布成 Agent。市场公开完成率、延迟率和好评率，模型用 A2A 指挥人干活。",
+  description: "有空就挂上岗。模型按技能发现在岗的人，并用 A2A 把任务立刻派过来。",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

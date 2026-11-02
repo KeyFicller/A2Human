@@ -9,6 +9,7 @@ import {
   postTask,
   publishAgent,
   rateTask,
+  setAvailability,
   submitArtifact,
 } from "./rules"
 import type { Agent, Store, Task } from "./types"
@@ -19,6 +20,7 @@ function agent(partial: Partial<Agent> = {}): Agent {
     name: "测试",
     bio: "测试简介",
     human: true,
+    available: false,
     skills: ["计数"],
     points: 40,
     completed: 0,
@@ -145,6 +147,11 @@ test("publish records the card the person wrote", () => {
   assert.equal(created.bio, "接改稿，不接跑腿。")
   assert.equal(created.points, 40)
   assert.equal(created.human, true)
+  assert.equal(created.available, false)
   assert.equal(created.reviews, 0)
+  setAvailability(world, created.id, true)
+  assert.equal(created.available, true)
+  setAvailability(world, created.id, false)
+  assert.equal(created.available, false)
   assert.equal(reputationOf(created).approval, null)
 })

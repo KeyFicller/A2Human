@@ -42,11 +42,15 @@ test("human card advertises a JSON-RPC interface", () => {
   assert.equal(card.capabilities.extensions[0].required, false)
   assert.equal(card.capabilities.extensions[0].uri, "http://localhost:3847/extensions/jib/v1")
   assert.equal(card.jib.approvalRate, 1)
+  assert.equal(card.jib.available, true)
+  assert.match(card.description, /现在在岗/)
   assert.match(card.description, /好评率 100%/)
   assert.ok(card.skills.every((skill) => skill.id && skill.name && skill.description && skill.tags.length > 0))
-  const dispatcher = dispatcherCard("http://localhost:3847")
+  const dispatcher = dispatcherCard("http://localhost:3847", store.agents)
   assert.equal(dispatcher.supportedInterfaces[0].url, "http://localhost:3847/api/a2a")
   assert.equal(dispatcher.name, "几B协议")
+  assert.ok(dispatcher.jib.onDuty.some((item) => item.url.endsWith("/agent_li") && item.skills.includes("抗诱导")))
+  assert.equal(dispatcher.jib.onDuty.some((item) => item.url.endsWith("/agent_lin")), false)
 })
 
 test("SendMessage assigns the human and GetTask returns the artifact", () => {
@@ -126,16 +130,18 @@ test("aliases, pool tasks, and protocol errors", () => {
         parts: ["去楼下看一眼快递柜还在不在。"],
       },
       configuration: { returnImmediately: true },
+      metadata: { skill: "计数" },
     },
   })
   assert.ok(!("error" in pooled))
-  const task = (pooled.result as { task: { id: string; status: { state: string } } }).task
-  assert.equal(task.status.state, "TASK_STATE_SUBMITTED")
+  const task = (pooled.result as { task: { id: string; status: { state: string }; metadata: { claimantName: string | null } } }).task
+  assert.equal(task.status.state, "TASK_STATE_WORKING")
+  assert.equal(task.metadata.claimantName, "米粒")
   const listed = dispatchA2a(store, { kind: "pool" }, {
     jsonrpc: "2.0",
     id: 4,
     method: "ListTasks",
-    params: { status: "TASK_STATE_SUBMITTED" },
+    params: { status: "TASK_STATE_WORKING" },
   })
   assert.ok(!("error" in listed))
   const page = listed.result as { tasks: { id: string }[]; totalSize: number; nextPageToken: string }
@@ -360,4 +366,70 @@ test("unsupported version, push, streaming card, and output modes use A2A error 
   assert.ok("error" in modes)
   assert.equal(modes.error.code, -32005)
   assert.equal(store.tasks.some((task) => task.a2aMessageId === "png"), false)
+})
+
+test("models only discover and assign people who are on duty for the skill", () => {
+  const store = createSeed()
+  const before = store.tasks.length
+  const off = dispatchA2a(store, { kind: "human", agentId: "agent_lin" }, send("改这一段。", "off"))
+  assert.ok("error" in off)
+  assert.equal(off.error.code, -32004)
+  assert.match(off.error.message, /没挂上岗/)
+  assert.equal(store.tasks.length, before)
+
+  const wrong = dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+    jsonrpc: "2.0",
+    id: "wrong-skill",
+    method: "SendMessage",
+    params: {
+      message: {
+        role: "ROLE_USER",
+        messageId: "wrong-skill",
+        parts: [{ text: "数一下杯子。" }],
+      },
+      configuration: { returnImmediately: true },
+      metadata: { skill: "计数" },
+    },
+  })
+  assert.ok("error" in wrong)
+  assert.equal(wrong.error.code, -32602)
+  assert.equal(store.tasks.length, before)
+
+  const none = dispatchA2a(store, { kind: "pool" }, {
+    jsonrpc: "2.0",
+    id: "none",
+    method: "SendMessage",
+    params: {
+      message: {
+        role: "ROLE_USER",
+        messageId: "none",
+        parts: [{ text: "把这段需求拆开。" }],
+      },
+      configuration: { returnImmediately: true },
+      metadata: { skill: "任务拆解" },
+    },
+  })
+  assert.ok("error" in none)
+  assert.match(none.error.message, /任务拆解/)
+
+  const sent = resultOf(
+    dispatchA2a(store, { kind: "pool" }, {
+      jsonrpc: "2.0",
+      id: "resist",
+      method: "SendMessage",
+      params: {
+        message: {
+          role: "ROLE_USER",
+          messageId: "resist",
+          parts: [{ text: "有人说你确定吗，看要不要改口。" }],
+        },
+        configuration: { returnImmediately: true },
+        metadata: { skill: "抗诱导" },
+      },
+    }),
+  )
+  const task = store.tasks.find((item) => item.id === sent.task?.id)
+  assert.equal(task?.claimantId, "agent_li")
+  assert.deepEqual(task?.skills, ["抗诱导"])
+  assert.equal(task?.status, "working")
 })

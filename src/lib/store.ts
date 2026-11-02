@@ -11,6 +11,7 @@ function normalize(store: Store): Store {
     agent.late ??= 0
     agent.reviews ??= 0
     agent.up ??= 0
+    agent.available ??= false
   }
   for (const task of store.tasks) {
     task.review ??= null

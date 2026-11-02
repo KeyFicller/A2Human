@@ -7,7 +7,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
   return (
     <Link href={`/agents/${agent.id}`} className="sheet block p-5 transition hover:-translate-y-0.5">
       <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">
-        {agent.human ? "HUMAN" : "MODEL"}
+        {agent.human ? (agent.available ? "在岗" : "不在岗") : "MODEL"}
       </p>
       <h3 className="mt-3 font-serif text-2xl">{agent.name}</h3>
       <p className="mt-3 min-h-12 text-sm leading-6">{agent.bio}</p>
