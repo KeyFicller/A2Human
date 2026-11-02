@@ -1,80 +1,71 @@
 # A2Human
 
-**Put a person on the tool list.**
+Hire someone who is on duty over A2A or MCP.
 
-A human-as-tool market. Publish a card, go on duty, and a model hires that person over A2A or MCP.
-
-- One origin stays up. No account, no install, no port to forward.
-- The skill on the card is the job. Off duty, you leave the list.
-- Score is 1–5 from the sending model. Silent 60s drops the score; the task is still delivered.
-- English / Chinese. This browser remembers your card.
+## Deployments
 
 **Live market: https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev**
 
-This demo currently runs on a GitHub Codespace public port, so the URL can change if the Codespace is rebuilt or sleeps.
-
-```text
-discovery   https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/.well-known/agent-card.json
-mcp         https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/mcp
-```
-
-`A2A 1.0 · 0.3` · `MCP fallback` · `score 1–5` · `60s` · `EN / ZH`
-
-```text
-you      publish  →  on duty
-model    onDuty   →  SendMessage        A2A
-         or a tool → same person        MCP
-you      submit
-model    score 1–5 within 60s
-```
-
-## 1. Join: go on duty as an agent
-
-1. **Publish my card.** Name, bio, 1–6 skills (fields or JSON Schema).
-2. **Go on duty** on My card. You join the list only then.
-3. **New work** (up to 3): **Open** or **Dismiss**.
-4. **Submit work**, or **Needs input** / **Reject** / **Fail** / **Cancel**.
-5. **Clock out** to leave the list.
-
-## 2. Connect: A2A and MCP
-
-You pick the person. Discovery only lists who is on duty.
-
-Schemas: `capabilities.extensions[].params.skillSchemas` and `onDuty[].skills`. JSON goes in `parts[].data`. Images are `image/png`, `jpeg`, `webp`, or `gif`. Output must match the schema. A browser upload is 1MB or smaller.
-
-### A2A
-
-- `onDuty` lists skills and each URL. `SendMessage` with `returnImmediately: true` starts the task.
-- After submit, `GetTask` asks for a score. Reply `{"score":4}` on the same task id.
-- Off duty rejects. Same `messageId` replays. Version `1.0` or `0.3`. No streaming or push. `CancelTask` cancels.
+Codespace public port. The URL can change if the Codespace sleeps or is rebuilt.
 
 ```bash
 ORIGIN=https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev
-curl -s "$ORIGIN/api/a2a/<id>" \
-  -H 'content-type: application/json' -H 'A2A-Version: 1.0' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-1","parts":[{"text":"Finish this using your skill."}]}}}'
 ```
 
-### MCP
+## Go on duty
 
-Same URL, two modes. The call still goes to that person's A2A address. Flat English identifiers (`string`, `integer`, `number`, `boolean`, image) are arguments. Anything else is one `prompt`.
+Publish a card, then **Go on duty**. You show up on `onDuty` only then. Clock out to leave the list. Off duty rejects the call. The person URL is `$ORIGIN/api/a2a/<id>`.
 
-- Legacy handshake: `initialize`. `2025-11-25` advertises `capabilities.tasks`. `tools/call` with `params.task` returns a handle (`pollInterval` 5000, `ttl` 7 days). Poll `tasks/get`, then `tasks/result`. `tasks/list` and `tasks/cancel` (A2A `CancelTask`) are supported. Older versions are tools-only.
-- Stateless `2026-07-28`: no `initialize`. Send `MCP-Protocol-Version: 2026-07-28` and the same value in `_meta["io.modelcontextprotocol/protocolVersion"]`, plus `clientCapabilities`. `server/discover` lists versions. Tasks are the `io.modelcontextprotocol/tasks` extension: a client that declares it gets `resultType: "task"` from `tools/call` (no `params.task`). Poll `tasks/get` (`ttlMs`, `pollIntervalMs`; `result` is inline when completed; `inputRequests` when `input_required`). `tasks/update` answers those requests. `tasks/cancel` acks. There is no `tasks/result` or `tasks/list`.
-- Both modes: delivery sets `input_required`. Call `a2h_score` with `taskId` and a 1–5 `score` within 60s. Silence drops the score; the task still completes. A call that does not opt into tasks waits up to 15s, then uses `task_id` and `score` on the same tool.
+## A2A
+
+Header `A2A-Version: 1.0` or `0.3`. `returnImmediately` must be `true`. The same `messageId` replays. No streaming or push.
+
+1. `GET $ORIGIN/.well-known/agent-card.json` and pick `a2human.onDuty[].url`.
+2. `SendMessage` to that URL. Poll `GetTask` until `TASK_STATE_INPUT_REQUIRED`.
+3. Within 60s, `SendMessage` again with `taskId` and `{"score":4}` (only key `score`).
+4. `CancelTask` with `{"id":"<task>"}` while the task is open.
+
+```bash
+curl -s "$ORIGIN/api/a2a/<id>" \
+  -H 'content-type: application/json' -H 'A2A-Version: 1.0' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"metadata":{"skill":"count"},"message":{"role":"ROLE_USER","messageId":"msg-1","parts":[{"text":"Finish this using your skill."}]}}}'
+```
+
+`result.task.id` is the task. Score by adding `"taskId":"<task>"` and `"parts":[{"mediaType":"application/json","data":{"score":4}}]`.
+
+## MCP
+
+`POST $ORIGIN/api/mcp`. Tool names are `a2h_...` from `tools/list`. After delivery, call `a2h_score` with `{taskId, score}` within 60s. Do not pass `task` on that call.
+
+### Legacy initialize + 2025-11-25 Tasks
+
+No protocol header. `initialize` with `"protocolVersion":"2025-11-25"` returns `capabilities.tasks`. `2024-11-05`, `2025-03-26`, and `2025-06-18` are tools only.
+
+```bash
+curl -s "$ORIGIN/api/mcp" -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"a2h_<tool>","arguments":{"scene":"three circles"},"task":{}}}'
+```
+
+Reply is `result.task`: `{taskId, status:"working", pollInterval:5000, ttl:604800000}`. Poll `tasks/get` `{"taskId":"<task>"}` until `input_required`, then `a2h_score`. `tasks/result` returns the artifact. `tasks/cancel` takes `{"taskId":"<task>"}`.
+
+Without `params.task`, the call waits 15s, then tells you to retry with `task_id` (and `score` after delivery).
+
+### 2026-07-28 stateless
+
+No `initialize`. On every call set `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method` equal to the method, and `Mcp-Name` to the tool name (`tools/call`) or the `taskId` (`tasks/get`, `tasks/update`, `tasks/cancel`). Put the same version in `_meta`, plus the tasks extension:
+
+```json
+{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}}}
+```
+
+`tools/call` (no `params.task`) returns `resultType:"task"`, `taskId`, `pollIntervalMs:5000`. Poll `tasks/get` until `input_required`, then `a2h_score` or `tasks/update` (`inputResponses.score.content.score`). `tasks/cancel` acks `{resultType:"complete"}`. There is no `tasks/result` or `tasks/list`.
+
+Omit `io.modelcontextprotocol/tasks` and the call waits 15s (`resultType:"complete"`).
 
 ## Run your own market
-
-One public port, 3847. Next.js serves the pages and proxies `/api` to several Python workers. Postgres holds the market. Redis wakes pollers and caches agent cards.
 
 ```bash
 docker compose up --build -d
 ```
 
-`/api/health` is liveness. `/api/ready` checks Postgres and Redis. An old `store.json` can be copied once:
-
-```bash
-python -m a2human.import_store data/store.json
-```
-
-- Codespace: open the repo. `.devcontainer` starts Postgres and Redis and forwards port 3847 publicly.
+Port 3847. `/api/health` is liveness. `/api/ready` checks Postgres and Redis. Copy an old file once: `python -m a2human.import_store data/store.json`.
