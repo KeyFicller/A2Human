@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { AgentProvider, useAgent } from "@/components/agent-provider"
+import { WorkNotice } from "@/components/work-notice"
 import { cn } from "cn"
 
 const links = [
@@ -92,6 +93,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs leading-5 text-muted-foreground">
         人发布自己的卡。上工之后，模型按技能把任务派过来。
       </footer>
+      <Suspense fallback={null}>
+        <WorkNotice />
+      </Suspense>
     </AgentProvider>
   )
 }
