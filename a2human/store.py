@@ -1,131 +1,81 @@
-"""JSON file at ``data/store.json``. One writer at a time, same as the old server.
+"""Postgres is the market. ``update_store`` is the only write path for HTTP.
 
-Missing file starts an empty market and writes it. A bad file is not replaced.
+The function still receives the same dict the rules use. The commit locks the
+rows it changed and retries when another worker won the version check.
+Nothing about a task is kept in this process between requests.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import threading
-from pathlib import Path
 from typing import Any, Callable, TypeVar
 
-from a2human.images import IMAGE_TYPES
-from a2human.jsonutil import dumps, loads
-from a2human.rules import create_seed
+from a2human.bus import notify
+from a2human.db import session_maker
+from a2human.repository import Conflict, apply_changes, load_market, public_copy
 
 T = TypeVar("T")
-_lock = threading.Lock()
 
 
-def data_file() -> Path:
-    root = os.environ.get("A2HUMAN_DATA")
-    directory = Path(root) if root else Path.cwd() / "data"
-    return directory / "store.json"
+async def read_store() -> dict[str, Any]:
+    maker = session_maker()
+    async with maker() as session:
+        return await load_market(session)
 
 
-def _schema_of(value: object) -> dict[str, Any] | None:
-    if not isinstance(value, dict):
-        return None
-    try:
-        encoded = dumps(value)
-        if len(encoded) > 2000:
-            return None
-        parsed = loads(encoded)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
+async def update_store(fn: Callable[[dict[str, Any]], T]) -> T:
+    maker = session_maker()
+    last: Exception | None = None
+    for _attempt in range(8):
+        try:
+            async with maker() as session:
+                async with session.begin():
+                    store = await load_market(session)
+                    result = fn(store)
+                    changed = await apply_changes(session, store)
+            await notify(changed, bool(changed))
+            return result
+        except Conflict as error:
+            last = error
+            continue
+    raise RuntimeError("market write lost a version race") from last
 
 
-def _skill_of(value: object) -> dict[str, Any] | None:
-    if isinstance(value, str) and value.strip():
-        name = value.strip()
-        return {"name": name, "description": name}
-    if not isinstance(value, dict) or not isinstance(value.get("name"), str) or not value["name"].strip():
-        return None
-    name = value["name"].strip()
-    description = value["description"].strip() if isinstance(value.get("description"), str) and value["description"].strip() else name
-    input_schema = _schema_of(value.get("inputSchema"))
-    output_schema = _schema_of(value.get("outputSchema"))
-    if input_schema and output_schema:
-        return {"name": name, "description": description, "inputSchema": input_schema, "outputSchema": output_schema}
-    return {"name": name, "description": description}
+async def commit_store(fn: Callable[[dict[str, Any]], bool]) -> dict[str, Any]:
+    """Run ``fn`` and write only when it reports a change. Returns the market afterwards."""
+    holder: dict[str, Any] = {}
 
-
-def _image_of(value: object) -> dict[str, Any] | None:
-    if not isinstance(value, dict) or value.get("mediaType") not in IMAGE_TYPES:
-        return None
-    raw = value["raw"] if isinstance(value.get("raw"), str) and len(value["raw"]) <= 1_500_000 else None
-    url = value["url"] if isinstance(value.get("url"), str) and value["url"].startswith(("http://", "https://")) and len(value["url"]) <= 2000 else None
-    if not raw and not url:
-        return None
-    image: dict[str, Any] = {"mediaType": value["mediaType"]}
-    if raw:
-        image["raw"] = raw
-    if url:
-        image["url"] = url
-    if isinstance(value.get("filename"), str):
-        image["filename"] = value["filename"][:80]
-    return image
-
-
-def normalize(store: dict[str, Any]) -> dict[str, Any]:
-    store.setdefault("agents", [])
-    store.setdefault("tasks", [])
-    store.setdefault("messages", [])
-    for agent in store["agents"]:
-        agent["available"] = bool(agent.get("available", False))
-        skills = agent.get("skills") if isinstance(agent.get("skills"), list) else []
-        agent["skills"] = [skill for item in skills if (skill := _skill_of(item))]
-    for task in store["tasks"]:
-        images = [_image_of(item) for item in task.get("images") or []]
-        images = [image for image in images if image]
-        if images:
-            task["images"] = images
-        else:
-            task.pop("images", None)
-        artifact = _image_of(task.get("artifactImage"))
-        if artifact:
-            task["artifactImage"] = artifact
-        else:
-            task.pop("artifactImage", None)
-    return store
-
-
-def _load() -> dict[str, Any]:
-    path = data_file()
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        store = normalize(create_seed())
-        _persist(store)
-        return store
-    return normalize(loads(raw))
-
-
-def _persist(store: dict[str, Any]) -> None:
-    path = data_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dumps(store, pretty=True), encoding="utf-8")
-
-
-def update_store(fn: Callable[[dict[str, Any]], T]) -> T:
-    with _lock:
-        store = _load()
-        result = fn(store)
-        _persist(store)
-        return result
-
-
-def commit_store(fn: Callable[[dict[str, Any]], bool]) -> dict[str, Any]:
-    with _lock:
-        store = _load()
-        if fn(store):
-            _persist(store)
+    def run(store: dict[str, Any]) -> dict[str, Any]:
+        holder["store"] = store
+        if not fn(store):
+            store["_skip_save"] = True
         return store
 
+    await update_store(run)
+    return holder["store"]
 
-def read_store() -> dict[str, Any]:
-    with _lock:
-        return _load()
+
+async def persist_outside(store: dict[str, Any]) -> None:
+    """Commit a dict that tests have been mutating by hand."""
+    versions = _copy_meta(store, "_versions")
+    seqs = _copy_meta(store, "_seq")
+    loaded = store.get("_loaded")
+    try:
+        maker = session_maker()
+        async with maker() as session:
+            async with session.begin():
+                changed = await apply_changes(session, store)
+        await notify(changed, bool(changed))
+    except Exception:
+        store["_versions"] = versions
+        store["_seq"] = seqs
+        store["_loaded"] = loaded
+        raise
+
+
+def _copy_meta(store: dict[str, Any], key: str) -> dict[str, Any]:
+    raw = store.get(key) or {}
+    return {name: dict(values) for name, values in raw.items()} if raw and isinstance(next(iter(raw.values()), None), dict) else dict(raw)
+
+
+def same_market(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return public_copy(left) == public_copy(right)

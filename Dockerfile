@@ -17,7 +17,8 @@ WORKDIR /app
 COPY --from=webbuild /app/.next/standalone ./
 COPY --from=webbuild /app/.next/static ./.next/static
 COPY --from=webbuild /app/public ./public
-COPY pyproject.toml ./
+COPY pyproject.toml alembic.ini ./
+COPY alembic ./alembic
 COPY a2human ./a2human
 COPY src/locales ./src/locales
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh

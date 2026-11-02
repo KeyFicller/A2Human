@@ -19,6 +19,18 @@ def now_iso(at_ms: int | None = None) -> str:
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{millis:03d}Z"
 
 
+def to_datetime(value: str) -> datetime:
+    return datetime.fromtimestamp(parse_ms(value) / 1000, timezone.utc)
+
+
+def from_datetime(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    value = value.astimezone(timezone.utc)
+    millis = calendar.timegm(value.utctimetuple()) * 1000 + value.microsecond // 1000
+    return now_iso(millis)
+
+
 def parse_ms(value: str) -> int:
     text = value[:-1] + "+00:00" if value.endswith("Z") else value
     moment = datetime.fromisoformat(text)

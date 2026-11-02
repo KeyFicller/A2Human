@@ -13,6 +13,7 @@ from typing import Any
 
 from a2human.clock import now_iso, now_ms, parse_ms
 from a2human.copy import wire
+from a2human.hooks import remember
 from a2human.images import read_image
 from a2human.jsonutil import dumps, loads
 from a2human.schema_fields import canonical_output
@@ -175,6 +176,7 @@ def publish_agent(store: dict[str, Any], payload: dict[str, Any]) -> dict[str, A
         "createdAt": now_iso(),
     }
     store["agents"].append(agent)
+    remember(store)
     return agent
 
 
@@ -187,6 +189,7 @@ def update_agent(store: dict[str, Any], agent_id: str, payload: dict[str, Any]) 
     agent["skills"] = _clean_skills(payload.get("skills"))
     if len(agent["skills"]) < 1:
         agent["available"] = False
+    remember(store)
     return agent
 
 
@@ -199,6 +202,7 @@ def set_availability(store: dict[str, Any], agent_id: str, available: object) ->
     if available and len(agent["skills"]) < 1:
         fail(wire("duty.needsSkill"))
     agent["available"] = available
+    remember(store)
     return agent
 
 
@@ -306,6 +310,7 @@ def submit_artifact(store: dict[str, Any], task_id: str, agent_id: str, text: ob
         "kind": "task.scoreRequest",
         "text": wire("score.ask", {"name": task["posterName"]}),
     })
+    remember(store)
     return task
 
 
@@ -370,6 +375,7 @@ def _task_open(status: str) -> bool:
 def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     replay = _find_command_task(store, payload["messageId"])
     if replay:
+        remember(store)
         return replay
     text = str(payload.get("text") or "").strip()
     images = list(payload.get("images") or [])
@@ -420,6 +426,7 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
             })
             task["status"] = "completed"
             task["updatedAt"] = now_iso()
+            remember(store)
             return task
         if images:
             next_images = [*(task.get("images") or []), *images]
@@ -436,6 +443,7 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         })
         task["status"] = "working"
         task["updatedAt"] = now_iso()
+        remember(store)
         return task
 
     human = _require_agent(store, payload["humanId"])
@@ -477,6 +485,7 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         "text": text or wire("note.attached"),
         "a2aMessageId": payload["messageId"],
     })
+    remember(store)
     return task
 
 
@@ -504,6 +513,7 @@ def decide_task(store: dict[str, Any], task_id: str, agent_id: str, action: obje
         "kind": decision["kind"],
         "text": reason,
     })
+    remember(store)
     return task
 
 
@@ -534,9 +544,10 @@ def _expire_score(store: dict[str, Any], task: dict[str, Any], at: int | None = 
 
 def expire_scores(store: dict[str, Any], at: int | None = None) -> bool:
     changed = False
-    for task in store["tasks"]:
+    for task in list(store["tasks"]):
         if _expire_score(store, task, at):
             changed = True
+    remember(store)
     return changed
 
 
@@ -556,4 +567,20 @@ def cancel_commanded_task(store: dict[str, Any], task_id: str) -> dict[str, Any]
         "kind": "task.cancel",
         "text": wire("cancel.caller"),
     })
+    remember(store)
     return task
+
+
+def claim_task(store: dict[str, Any], task_id: str, agent_id: str) -> bool:
+    """Give an unclaimed task to one person. The database keeps the second claim from landing."""
+    task = _require_task(store, task_id)
+    agent = _require_agent(store, agent_id)
+    if task.get("claimantId") or not _task_open(task["status"]):
+        return False
+    task["claimantId"] = agent["id"]
+    task["claimantName"] = agent["name"]
+    task["targetId"] = agent["id"]
+    task["status"] = "working"
+    task["updatedAt"] = now_iso()
+    remember(store)
+    return True

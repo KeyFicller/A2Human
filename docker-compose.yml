@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: a2human
+      POSTGRES_PASSWORD: a2human
+      POSTGRES_DB: a2human
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U a2human"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build: .
+    ports:
+      - "3847:3847"
+      - "127.0.0.1:3848:3848"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://a2human:a2human@postgres:5432/a2human
+      REDIS_URL: redis://redis:6379/0
+      WEB_CONCURRENCY: "4"
+      A2HUMAN_API_ORIGIN: http://127.0.0.1:3848
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

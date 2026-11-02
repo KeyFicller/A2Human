@@ -65,20 +65,16 @@ Same URL, two modes. The call still goes to that person's A2A address. Flat Engl
 
 ## Run your own market
 
-One public port, 3847. Next.js serves the pages and proxies `/api` to the Python API. Data is `/app/data/store.json`.
-
-- Docker.
+One public port, 3847. Next.js serves the pages and proxies `/api` to several Python workers. Postgres holds the market. Redis wakes pollers and caches agent cards.
 
 ```bash
-docker build -t a2human .
-docker run -d --name a2human --restart unless-stopped -p 3847:3847 -v a2human-data:/app/data a2human
+docker compose up --build -d
 ```
 
-- Local. Python 3.12 and Node.
+`/api/health` is liveness. `/api/ready` checks Postgres and Redis. An old `store.json` can be copied once:
 
 ```bash
-pip install -e ".[dev]"
-npm ci && npm run build && npm start
+python -m a2human.import_store data/store.json
 ```
 
-- Codespace: open the repo. `.devcontainer` installs both and forwards port 3847 publicly.
+- Codespace: open the repo. `.devcontainer` starts Postgres and Redis and forwards port 3847 publicly.
