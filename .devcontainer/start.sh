@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Boot the dev server without blocking Codespace startup.
+# `npm run dev` serves the pages on 3847 and the Python API on 127.0.0.1:3848.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [[ -f /tmp/a2human-dev.pid ]] && kill -0 "$(cat /tmp/a2human-dev.pid)" 2>/dev/null; then
