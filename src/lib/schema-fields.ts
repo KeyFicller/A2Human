@@ -1,4 +1,4 @@
-import type { Locale } from "./messages"
+import { phrase, wire, type Locale } from "./copy"
 import type { JsonSchema } from "./types"
 
 export const FIELD_TYPES = ["string", "integer", "number", "boolean", "image"] as const
@@ -20,29 +20,12 @@ export type SchemaDraft = {
   json: string
 }
 
-const TYPE_LABEL: Record<Locale, Record<FieldType, string>> = {
-  zh: {
-    string: "文字",
-    integer: "整数",
-    number: "数字",
-    boolean: "是或否",
-    image: "图片",
-  },
-  en: {
-    string: "text",
-    integer: "integer",
-    number: "number",
-    boolean: "yes or no",
-    image: "image",
-  },
-}
-
 export function emptySchemaDraft(): SchemaDraft {
   return { mode: "fields", fields: [], json: "" }
 }
 
 export function fieldTypeLabel(type: FieldType, locale: Locale = "zh") {
-  return TYPE_LABEL[locale][type]
+  return phrase(`schema.types.${type}`, undefined, locale)
 }
 
 function isFieldType(value: unknown): value is FieldType {
@@ -155,10 +138,16 @@ export function contractModes(schema: JsonSchema | undefined) {
 export function describeSchema(schema: JsonSchema, locale: Locale = "zh") {
   const fields = schemaToFields(schema)
   if (!fields) return JSON.stringify(schema)
-  const labels = TYPE_LABEL[locale]
-  const required = locale === "en" ? ", required" : "，必填"
-  const joiner = locale === "en" ? "; " : "；"
-  const colon = locale === "en" ? ": " : "："
+  const labels = {
+    string: fieldTypeLabel("string", locale),
+    integer: fieldTypeLabel("integer", locale),
+    number: fieldTypeLabel("number", locale),
+    boolean: fieldTypeLabel("boolean", locale),
+    image: fieldTypeLabel("image", locale),
+  }
+  const required = phrase("schema.requiredMark", undefined, locale)
+  const joiner = phrase("schema.join", undefined, locale)
+  const colon = phrase("schema.colon", undefined, locale)
   return fields
     .map((field) => {
       const head = `${field.name} ${labels[field.type]}${field.required ? required : ""}`
@@ -209,16 +198,6 @@ export function outputShape(schema: JsonSchema): OutputShape {
   return { kind: "json" }
 }
 
-function typeLabel(type: string) {
-  if (type === "string") return "文字"
-  if (type === "integer") return "整数"
-  if (type === "number") return "数字"
-  if (type === "boolean") return "是或否"
-  if (type === "object") return "对象"
-  if (type === "array") return "数组"
-  return type
-}
-
 function valueMatchesType(type: string, value: unknown) {
   if (type === "string") return typeof value === "string"
   if (type === "boolean") return typeof value === "boolean"
@@ -229,34 +208,41 @@ function valueMatchesType(type: string, value: unknown) {
   return false
 }
 
+const MUST_TYPES = new Set(["string", "integer", "number", "boolean", "object", "array"])
+
+function mustBe(type: string, label: string) {
+  if (MUST_TYPES.has(type)) return wire(`must.${type}`, { label })
+  return wire("must.raw", { label, type })
+}
+
 function checkValue(schema: JsonSchema, value: unknown, label: string) {
-  if (Object.keys(schema).some((key) => !SCHEMA_KEYS.has(key))) throw new Error("这份输出 Schema 有对不齐的规则")
+  if (Object.keys(schema).some((key) => !SCHEMA_KEYS.has(key))) throw new Error(wire("output.misaligned"))
   if (schema.type == null && schema.properties == null && schema.enum == null) {
-    throw new Error("这份输出 Schema 有对不齐的规则")
+    throw new Error(wire("output.misaligned"))
   }
   if (Array.isArray(schema.enum)) {
     const listed = schema.enum.some((item) => Object.is(item, value) || JSON.stringify(item) === JSON.stringify(value))
-    if (!listed) throw new Error(`${label} 不在允许的值里`)
+    if (!listed) throw new Error(wire("must.enum", { label }))
   }
   if (typeof schema.type === "string" && !valueMatchesType(schema.type, value)) {
-    throw new Error(`${label} 要是${typeLabel(schema.type)}`)
+    throw new Error(mustBe(schema.type, label))
   }
   if (schema.type === "string" && typeof value === "string") {
     const length = [...value].length
-    if (typeof schema.minLength === "number" && length < schema.minLength) throw new Error(`${label} 太短`)
-    if (typeof schema.maxLength === "number" && length > schema.maxLength) throw new Error(`${label} 太长`)
+    if (typeof schema.minLength === "number" && length < schema.minLength) throw new Error(wire("must.short", { label }))
+    if (typeof schema.maxLength === "number" && length > schema.maxLength) throw new Error(wire("must.long", { label }))
     if (typeof schema.contentMediaType === "string" && schema.contentMediaType.startsWith("image/")) {
       const image = /^https?:\/\//.test(value) || /^data:image\/(?:png|jpeg|webp|gif);base64,/.test(value)
-      if (!image) throw new Error(`${label} 要是图片地址`)
+      if (!image) throw new Error(wire("must.image", { label }))
     }
   }
   if ((schema.type === "integer" || schema.type === "number") && typeof value === "number") {
-    if (typeof schema.minimum === "number" && value < schema.minimum) throw new Error(`${label} 太小`)
-    if (typeof schema.maximum === "number" && value > schema.maximum) throw new Error(`${label} 太大`)
+    if (typeof schema.minimum === "number" && value < schema.minimum) throw new Error(wire("must.small", { label }))
+    if (typeof schema.maximum === "number" && value > schema.maximum) throw new Error(wire("must.large", { label }))
   }
   if (schema.type === "array" && Array.isArray(value)) {
-    if (typeof schema.minItems === "number" && value.length < schema.minItems) throw new Error(`${label} 项太少`)
-    if (typeof schema.maxItems === "number" && value.length > schema.maxItems) throw new Error(`${label} 项太多`)
+    if (typeof schema.minItems === "number" && value.length < schema.minItems) throw new Error(wire("must.few", { label }))
+    if (typeof schema.maxItems === "number" && value.length > schema.maxItems) throw new Error(wire("must.many", { label }))
     if (schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)) {
       value.forEach((item, index) => checkValue(schema.items as JsonSchema, item, `${label}[${index}]`))
     }
@@ -269,27 +255,27 @@ function checkValue(schema: JsonSchema, value: unknown, label: string) {
         : {}
     const required = Array.isArray(schema.required) ? schema.required.filter((item): item is string => typeof item === "string") : []
     for (const name of required) {
-      if (record[name] == null) throw new Error(`${name} 要填`)
+      if (record[name] == null) throw new Error(wire("field.required", { name }))
     }
     for (const [key, item] of Object.entries(record)) {
       const property = properties[key]
       if (property) checkValue(property, item, key)
       else if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
         checkValue(schema.additionalProperties as JsonSchema, item, key)
-      } else if (schema.additionalProperties !== true) throw new Error(`输出里没有 ${key}`)
+      } else if (schema.additionalProperties !== true) throw new Error(wire("output.missing", { key }))
     }
   }
 }
 
 function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean) {
   const images = fields.filter((field) => field.type === "image")
-  if (images.length > 1) throw new Error("输出里一次只能有一张图片")
+  if (images.length > 1) throw new Error(wire("output.oneImage"))
   const image = images[0]
-  if (image?.required && !hasImage) throw new Error("要交一张图片")
-  if (!image && hasImage) throw new Error("这项输出没有图片")
+  if (image?.required && !hasImage) throw new Error(wire("output.needImage"))
+  if (!image && hasImage) throw new Error(wire("output.noImage"))
   const dataFields = fields.filter((field) => field.type !== "image")
   if (dataFields.length === 0) {
-    if (text.trim()) throw new Error("这项输出只要图片")
+    if (text.trim()) throw new Error(wire("output.imageOnly"))
     return ""
   }
   let parsed: unknown = {}
@@ -297,16 +283,16 @@ function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean)
     try {
       parsed = JSON.parse(text)
     } catch {
-      throw new Error("输出要按字段交，不能写自由文本")
+      throw new Error(wire("output.fieldsNotText"))
     }
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("输出要是这些字段")
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(wire("output.fields"))
   const record = parsed as Record<string, unknown>
   const out: Record<string, unknown> = {}
   for (const field of dataFields) {
     const value = record[field.name]
     if (value == null || value === "") {
-      if (field.required) throw new Error(`${field.name} 要填`)
+      if (field.required) throw new Error(wire("field.required", { name: field.name }))
       continue
     }
     checkValue({ type: field.type }, value, field.name)
@@ -314,7 +300,7 @@ function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean)
   }
   for (const key of Object.keys(record)) {
     if (image && key === image.name) continue
-    if (!dataFields.some((field) => field.name === key)) throw new Error(`输出里没有 ${key}`)
+    if (!dataFields.some((field) => field.name === key)) throw new Error(wire("output.missing", { key }))
   }
   return JSON.stringify(out)
 }
@@ -323,19 +309,19 @@ export function canonicalOutput(schema: JsonSchema, text: string, hasImage: bool
   const fields = schemaToFields(schema)
   if (fields) return canonicalFields(fields, text, hasImage)
   if (isImageSchema(schema)) {
-    if (!hasImage) throw new Error("要交一张图片")
-    if (text.trim()) throw new Error("这项输出只要图片")
+    if (!hasImage) throw new Error(wire("output.needImage"))
+    if (text.trim()) throw new Error(wire("output.imageOnly"))
     return ""
   }
-  if (hasImage) throw new Error("这项输出没有图片")
+  if (hasImage) throw new Error(wire("output.noImage"))
   const trimmed = text.trim()
-  if (!trimmed) throw new Error("输出要按 Schema 交，不能留空")
+  if (!trimmed) throw new Error(wire("output.schemaRequired"))
   let parsed: unknown
   try {
     parsed = JSON.parse(trimmed)
   } catch {
-    throw new Error("输出要是 JSON，不能写自由文本")
+    throw new Error(wire("output.jsonNotText"))
   }
-  checkValue(schema, parsed, "输出")
+  checkValue(schema, parsed, wire("output.whole"))
   return JSON.stringify(parsed)
 }

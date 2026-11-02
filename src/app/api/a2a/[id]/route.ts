@@ -1,4 +1,5 @@
 import { dispatchA2a, rpcError } from "@/lib/a2a"
+import { wire } from "@/lib/copy"
 import { toAgentCard } from "@/lib/card"
 import { json, requestOrigin } from "@/lib/http"
 import { expireScores } from "@/lib/rules"
@@ -12,7 +13,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params
   const store = await commitStore((store) => expireScores(store))
   const agent = store.agents.find((item) => item.id === id)
-  if (!agent) return json({ error: "找不到这个 Agent" }, 404)
+  if (!agent) return json({ error: wire("agent.missing") }, 404)
   const origin = requestOrigin(request)
   return json(toAgentCard(agent, origin, store.tasks))
 }
@@ -23,10 +24,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   try {
     body = await request.json()
   } catch {
-    return rpcFail(-32700, "请求体不是 JSON")
+    return rpcFail(-32700, wire("request.body"))
   }
   const known = await readStore()
-  if (!known.agents.some((item) => item.id === id)) return rpcFail(-32001, "找不到这个 Agent")
+  if (!known.agents.some((item) => item.id === id)) return rpcFail(-32001, wire("agent.missing"))
   const result = await updateStore((store) =>
     dispatchA2a(store, { kind: "human", agentId: id }, body, { a2aVersion: request.headers.get("a2a-version") }),
   )

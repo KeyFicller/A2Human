@@ -1,11 +1,12 @@
 import sys
 
+from a2human.phrases import phrase
 from a2human.protocol import A2HumanError, Client, summarize_roster
 
 
 def main() -> None:
     if len(sys.argv) != 2:
-        print("用法：python -m a2human https://<入口>", file=sys.stderr)
+        print(phrase("usage"), file=sys.stderr)
         raise SystemExit(2)
     try:
         client = Client(sys.argv[1])

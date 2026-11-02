@@ -6,6 +6,8 @@ import urllib.request
 import uuid
 from urllib.parse import urlparse, urlunparse
 
+from a2human.phrases import phrase
+
 WAITING = {"TASK_STATE_SUBMITTED", "TASK_STATE_WORKING"}
 FAILED = {"TASK_STATE_FAILED", "TASK_STATE_CANCELED", "TASK_STATE_REJECTED"}
 ASKING = {"TASK_STATE_INPUT_REQUIRED"}
@@ -19,7 +21,7 @@ def directory_url(value: str) -> str:
     raw = str(value or "").strip()
     parsed = urlparse(raw)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise A2HumanError("发现入口要是一个 http 地址")
+        raise A2HumanError(phrase("directory.http"))
     path = parsed.path.rstrip("/")
     if path.endswith("agent-card.json") or path.endswith("/api/a2a"):
         return urlunparse(parsed._replace(fragment=""))
@@ -54,7 +56,7 @@ def read_roster(card: dict) -> list[dict]:
         url = urlunparse(parsed._replace(fragment="")).rstrip("/")
         skills = person.get("skills") if isinstance(person.get("skills"), list) else []
         person_name = person.get("name")
-        name = person_name.strip() if isinstance(person_name, str) and person_name.strip() else "未命名"
+        name = person_name.strip() if isinstance(person_name, str) and person_name.strip() else phrase("unnamed")
         for skill in skills:
             if not isinstance(skill, dict) or not isinstance(skill.get("name"), str) or not skill["name"].strip():
                 continue
@@ -118,24 +120,24 @@ def _schema_line(label: str, schema) -> str:
     text = json.dumps(schema, ensure_ascii=False)
     if len(text) > 800:
         text = f"{text[:800]}…"
-    return f"{label}：{text}"
+    return phrase("schema.line", label=label, text=text)
 
 
 def duration_phrase(seconds: int) -> str:
     whole = max(0, int(round(seconds)))
     if whole < 60:
-        return f"平均 {whole} 秒"
+        return phrase("duration.sec", value=whole)
     minutes = int(round(whole / 60))
     if minutes < 60:
-        return f"平均 {minutes} 分钟"
+        return phrase("duration.min", value=minutes)
     hours = whole / 3600
     if hours < 24:
         shown = round(hours * 10) / 10
         text = str(int(shown)) if shown == int(shown) else f"{shown:.1f}"
-        return f"平均 {text} 小时"
+        return phrase("duration.hr", value=text)
     days = round(whole / 86400 * 10) / 10
     text = str(int(days)) if days == int(days) else f"{days:.1f}"
-    return f"平均 {text} 天"
+    return phrase("duration.day", value=text)
 
 
 def record_line(entry: dict) -> str:
@@ -143,40 +145,36 @@ def record_line(entry: dict) -> str:
     if type(completed) is not int:
         return ""
     average = entry.get("average_score")
-    score = f"平均 {average:g} 分" if type(average) in {int, float} else "还没有得分"
+    score = phrase("record.score", value=f"{average:g}") if type(average) in {int, float} else phrase("record.noScore")
     duration = entry.get("average_duration")
-    spent = duration_phrase(duration) if type(duration) is int and duration >= 0 else "还没有耗时"
-    return f"完成 {completed} 单，{score}，{spent}。"
+    spent = duration_phrase(duration) if type(duration) is int and duration >= 0 else phrase("record.noTime")
+    return phrase("record.line", completed=completed, score=score, spent=spent)
 
 
 def describe_duty(entry: dict) -> str:
     flat = flat_fields(entry.get("input_schema"))
     lines = [
-        f"在岗的人：{entry['person_name']}。技能：{entry['skill_name']}。",
+        phrase("duty.person", name=entry["person_name"], skill=entry["skill_name"]),
         record_line(entry),
         entry["description"],
-        None if flat else _schema_line("输入", entry["input_schema"]),
-        _schema_line("输出", entry["output_schema"]),
-        (
-            "按参数填写。图片填 http 地址或 data:image/png;base64,…。这一调用会等到人交回产物。"
-            if flat
-            else "prompt 里写要这个人办的事。内容若是 JSON 对象或数组，会按 application/json 送出。这一调用会等到人交回产物。"
-        ),
-        '人交回产物后，结果是 {"request":"score","taskId":"…","person":"人名","artifact":"产物"}。再用 task_id 和 score 调用一次。score 是你给这个人打的 1 到 5 分，这次调用取回产物。',
+        None if flat else _schema_line(phrase("schema.input"), entry["input_schema"]),
+        _schema_line(phrase("schema.output"), entry["output_schema"]),
+        phrase("duty.fields") if flat else phrase("duty.prompt"),
+        phrase("duty.score"),
     ]
     return "\n".join(line for line in lines if line)
 
 
 def summarize_roster(entries: list[dict]) -> str:
     if not entries:
-        return "这张卡上现在没有在岗的人。"
+        return phrase("roster.empty")
     lines = [
-        f"- {entry['person_name']} · {entry['skill_name']}"
-        + (f"：{entry['description']}" if entry["description"] else "")
-        + (f"（{record_line(entry)[:-1]}）" if record_line(entry) else "")
+        phrase("roster.item", name=entry["person_name"], skill=entry["skill_name"])
+        + (phrase("roster.detail", text=entry["description"]) if entry["description"] else "")
+        + (phrase("roster.record", text=record_line(entry)[:-1]) if record_line(entry) else "")
         for entry in entries
     ]
-    return f"已接上 {len(entries)} 项在岗技能：\n" + "\n".join(lines)
+    return phrase("roster.joined", count=len(entries), lines="\n".join(lines))
 
 
 def flat_fields(schema) -> list[dict] | None:
@@ -222,7 +220,7 @@ def image_part(value: str) -> dict:
         return {"mediaType": _image_media_from_url(text), "url": text}
     matched = re.fullmatch(r"data:(image/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)", text)
     if not matched:
-        raise A2HumanError("图片要是 http 地址，或 data:image/png;base64,…")
+        raise A2HumanError(phrase("image.url"))
     return {"mediaType": matched.group(1), "raw": re.sub(r"\s", "", matched.group(2))}
 
 
@@ -234,7 +232,7 @@ def message_parts(prompt=None, *, fields=None, images=None) -> list[dict]:
         parts.extend(_prompt_parts(prompt))
     parts.extend(images or [])
     if not parts:
-        raise A2HumanError("prompt 不能是空的")
+        raise A2HumanError(phrase("prompt.empty"))
     return parts
 
 
@@ -243,7 +241,7 @@ def _prompt_parts(prompt) -> list[dict]:
         return [{"mediaType": "application/json", "data": prompt}]
     text = str(prompt or "").strip()
     if not text:
-        raise A2HumanError("prompt 不能是空的")
+        raise A2HumanError(phrase("prompt.empty"))
     if text.startswith("{") or text.startswith("["):
         try:
             data = json.loads(text)
@@ -319,8 +317,8 @@ def _part_text(part: dict) -> str:
     media = part.get("mediaType")
     if isinstance(raw, str) and isinstance(media, str) and media.startswith("image/"):
         if len(raw) <= 12000:
-            return f"[图片 {media}] {raw}"
-        return f"[图片 {media}，{len(raw)} 字符 base64]"
+            return phrase("image.short", media=media, raw=raw)
+        return phrase("image.long", media=media, count=len(raw))
     return ""
 
 
@@ -349,8 +347,8 @@ def format_task(task: dict) -> str:
     if state in ASKING:
         return note or text or state
     if state == "TASK_STATE_COMPLETED":
-        return text or "人交回了空产物"
-    raise A2HumanError(note or f"任务停在 {state or '未知状态'}")
+        return text or phrase("artifact.empty")
+    raise A2HumanError(note or phrase("task.stopped", state=state or phrase("task.unknown")))
 
 
 def urllib_transport(method: str, url: str, body, headers: dict, timeout: float):
@@ -364,7 +362,7 @@ def urllib_transport(method: str, url: str, body, headers: dict, timeout: float)
         try:
             return json.loads(raw)
         except json.JSONDecodeError as parse_error:
-            raise A2HumanError(f"调用没有返回 JSON（{error.code}）") from parse_error
+            raise A2HumanError(phrase("call.jsonStatus", code=error.code)) from parse_error
 
 
 class Client:
@@ -383,9 +381,9 @@ class Client:
         response = self.transport(method, url, body, headers, self.request_timeout)
         if isinstance(response, dict) and response.get("error"):
             message = response["error"].get("message") if isinstance(response["error"], dict) else None
-            raise A2HumanError(message or "调用失败")
+            raise A2HumanError(message or phrase("call.failed"))
         if not isinstance(response, dict):
-            raise A2HumanError("调用没有返回 JSON")
+            raise A2HumanError(phrase("call.json"))
         return response
 
     def card(self) -> dict:
@@ -408,23 +406,23 @@ class Client:
     ) -> str:
         if task_id is not None or score is not None:
             if not isinstance(task_id, str) or not task_id.strip():
-                raise A2HumanError("打分要带上任务 id")
+                raise A2HumanError(phrase("score.needsTask"))
             if type(score) is not int or score < 1 or score > 5:
-                raise A2HumanError("分数要是 1 到 5 的整数")
+                raise A2HumanError(phrase("score.range"))
             sent = self._request("POST", url, score_body(message_id or str(uuid.uuid4()), skill, task_id.strip(), score))
         else:
             sent = self._request("POST", url, send_body(message_id or str(uuid.uuid4()), skill, prompt, fields=fields, images=images))
         task = task_of(sent)
         if not task or not isinstance(task.get("id"), str):
-            raise A2HumanError("没有返回任务")
+            raise A2HumanError(phrase("noTask"))
         deadline = time.monotonic() + self.timeout
         while (task.get("status") or {}).get("state") in WAITING:
             if time.monotonic() >= deadline:
-                raise A2HumanError("人还没交，等待超时")
+                raise A2HumanError(phrase("timeout"))
             if self.interval > 0:
                 time.sleep(self.interval)
             got = self._request("POST", url, get_body(task["id"]))
             task = task_of(got)
             if not task or not isinstance(task.get("id"), str):
-                raise A2HumanError("GetTask 没有返回任务")
+                raise A2HumanError(phrase("getTask"))
         return format_task(task)

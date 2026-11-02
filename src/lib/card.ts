@@ -1,3 +1,4 @@
+import { wire } from "./copy"
 import { contractModes } from "./schema-fields"
 import { onDuty, workRecord } from "./rules"
 import type { Agent, JsonSchema, Skill, Task } from "./types"
@@ -31,14 +32,12 @@ function a2humanExtension(
   },
 ) {
   const schemas = skillSchemas(options?.skills ?? [])
-  const schemaNote = Object.keys(schemas).length
-    ? " params.skillSchemas 写每项技能要的输入和会交回的输出。文字和数字在 JSON 里。contentMediaType 为 image/* 的项是图片，调用时另附 image/png、image/jpeg、image/webp 或 image/gif 的 part，内容放 raw（base64）或 http 地址。"
-    : ""
+  const schemaNote = Object.keys(schemas).length ? wire("card.schemaNote") : ""
   return {
     uri: `${origin}/extensions/a2human/v1`,
     description: options?.roster
-      ? "onDuty 列出正在上工的人、他们自己写的技能，以及各自的调用地址。模型自己选一个人，把 SendMessage 打到那个 url。configuration.returnImmediately 必须为 true。"
-      : `这个人自己写的技能说明能完成什么。上工之后才会出现在发现名单里。SendMessage 要设 configuration.returnImmediately 为 true，产物用 GetTask 取。${schemaNote}`,
+      ? wire("card.roster")
+      : wire("card.person", { schemaNote }),
     required: false,
     params: {
       returnImmediately: true,
@@ -54,7 +53,7 @@ export function toAgentCard(agent: Agent, origin: string, tasks: Task[] = []) {
   return {
     name: agent.name,
     description: agent.human
-      ? `${agent.bio}${agent.available ? " 现在在岗。" : " 现在不在岗。"}`
+      ? `${agent.bio}${agent.available ? wire("card.dutyOn") : wire("card.dutyOff")}`
       : agent.bio,
     version: "1.0.0",
     supportedInterfaces: [
@@ -96,7 +95,7 @@ export function dispatcherCard(origin: string, agents: Agent[], tasks: Task[] = 
   }))
   return {
     name: "A2Human",
-    description: "发现正在上工的人。每人的 skills 写明能完成什么。选中一个人，把 SendMessage 打到对方的 url。",
+    description: wire("card.dispatcher"),
     version: "1.0.0",
     supportedInterfaces: [
       {
@@ -120,8 +119,8 @@ export function dispatcherCard(origin: string, agents: Agent[], tasks: Task[] = 
     skills: [
       {
         id: "discover-humans",
-        name: "发现在岗的人",
-        description: "读 onDuty。里面是在岗的人、技能说明和调用地址。广场不代为指派。",
+        name: wire("card.discoverName"),
+        description: wire("card.discoverDescription"),
         tags: ["human", "discover"],
       },
     ],

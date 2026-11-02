@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { AGENT_KEY, ApiError, api } from "@/lib/client"
+import { wire } from "@/lib/copy"
 import type { Agent } from "@/lib/types"
 
 type AgentContextValue = {
@@ -34,12 +35,13 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         setError(null)
       })
       .catch((caught: unknown) => {
-        if (caught instanceof ApiError && caught.message.includes("找不到")) {
+        const missing = caught instanceof ApiError && [wire("agent.missing"), wire("task.missing")].some((item) => caught.message.includes(item))
+        if (missing) {
           localStorage.removeItem(AGENT_KEY)
           setAgent(null)
           setError(null)
         } else {
-          setError(caught instanceof Error ? caught.message : "身份读取失败")
+          setError(caught instanceof Error ? caught.message : wire("identity.failed"))
         }
       })
       .finally(() => {
@@ -68,6 +70,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
 export function useAgent() {
   const value = useContext(AgentContext)
-  if (!value) throw new Error("useAgent 需要放在 AgentProvider 里")
+  if (!value) throw new Error("useAgent must be used inside AgentProvider")
   return value
 }

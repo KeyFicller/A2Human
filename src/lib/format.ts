@@ -1,4 +1,4 @@
-import type { Locale } from "./messages"
+import { phrase, type Locale } from "./copy"
 import type { MessageKind, TaskStatus } from "./types"
 
 export function formatWhen(iso: string, locale: Locale = "zh") {
@@ -11,37 +11,17 @@ export function formatWhen(iso: string, locale: Locale = "zh") {
   })
 }
 
-export const STATUS_LABEL: Record<TaskStatus, string> = {
-  submitted: "未派",
-  working: "进行中",
-  completed: "已交",
-  canceled: "已取消",
-  failed: "失败",
-  rejected: "已拒绝",
-  "input-required": "要补充",
-}
-
-const STATUS_EN: Record<TaskStatus, string> = {
-  submitted: "Unassigned",
-  working: "In progress",
-  completed: "Delivered",
-  canceled: "Canceled",
-  failed: "Failed",
-  rejected: "Rejected",
-  "input-required": "Needs input",
-}
-
-const KIND_EN: Record<MessageKind, string> = {
-  "task.submit": "Assigned",
-  "task.artifact": "Artifact",
-  "task.complete": "Completed",
-  "task.cancel": "Canceled",
-  "task.note": "Note",
-  "task.reject": "Rejected",
-  "task.fail": "Failed",
-  "task.input": "Needs input",
-  "task.scoreRequest": "Score request",
-  "task.score": "Score",
+const KIND_PATH: Record<MessageKind, string> = {
+  "task.submit": "format.kind.submit",
+  "task.artifact": "format.kind.artifact",
+  "task.complete": "format.kind.complete",
+  "task.cancel": "format.kind.cancel",
+  "task.note": "format.kind.note",
+  "task.reject": "format.kind.reject",
+  "task.fail": "format.kind.fail",
+  "task.input": "format.kind.input",
+  "task.scoreRequest": "format.kind.scoreRequest",
+  "task.score": "format.kind.score",
 }
 
 function durationParts(seconds: number) {
@@ -60,17 +40,12 @@ function durationParts(seconds: number) {
 
 export function durationValue(seconds: number, locale: Locale = "zh") {
   const { unit, value } = durationParts(seconds)
-  if (locale === "en") {
-    const word = unit === "day" ? (value === "1" ? "day" : "days") : unit
-    return `${value} ${word}`
-  }
-  const word = unit === "sec" ? "秒" : unit === "min" ? "分钟" : unit === "hr" ? "小时" : "天"
+  const word = unit === "day" && value === "1" ? phrase("format.dayOne", undefined, locale) : phrase(`format.units.${unit}`, undefined, locale)
   return `${value} ${word}`
 }
 
 export function durationPhrase(seconds: number, locale: Locale = "zh") {
-  const value = durationValue(seconds, locale)
-  return locale === "en" ? `avg ${value}` : `平均 ${value}`
+  return phrase("format.avg", { value: durationValue(seconds, locale) }, locale)
 }
 
 export function scoreValue(averageScore: number | null) {
@@ -85,37 +60,19 @@ export function recordLine(
   locale: Locale = "zh",
 ) {
   const shownScore = scoreValue(averageScore)
-  if (locale === "en") {
-    const score = shownScore == null ? "no score yet" : `avg score ${shownScore}`
-    const duration = averageDuration == null ? "no time yet" : durationPhrase(averageDuration, "en")
-    return `Completed ${completed} · ${score} · ${duration}`
-  }
-  const score = shownScore == null ? "还没有得分" : `平均 ${shownScore} 分`
-  const duration = averageDuration == null ? "还没有耗时" : durationPhrase(averageDuration)
-  return `完成 ${completed} 单 · ${score} · ${duration}`
+  const score = shownScore == null ? phrase("format.noScore", undefined, locale) : phrase("format.score", { score: shownScore }, locale)
+  const duration = averageDuration == null ? phrase("format.noTime", undefined, locale) : durationPhrase(averageDuration, locale)
+  return phrase("format.line", { completed, score, duration }, locale)
 }
 
 export function statusLabel(status: TaskStatus, locale: Locale = "zh") {
-  return locale === "en" ? STATUS_EN[status] : STATUS_LABEL[status]
+  return phrase(`format.status.${status}`, undefined, locale)
 }
 
 export function kindLabel(kind: MessageKind, locale: Locale = "zh") {
-  return locale === "en" ? KIND_EN[kind] : KIND_LABEL[kind]
+  return phrase(KIND_PATH[kind], undefined, locale)
 }
 
 export function taskOpen(status: TaskStatus) {
   return status === "submitted" || status === "working" || status === "input-required"
-}
-
-export const KIND_LABEL: Record<MessageKind, string> = {
-  "task.submit": "派单",
-  "task.artifact": "产物",
-  "task.complete": "完成",
-  "task.cancel": "取消",
-  "task.note": "补充",
-  "task.reject": "拒绝",
-  "task.fail": "失败",
-  "task.input": "要补充",
-  "task.scoreRequest": "请打分",
-  "task.score": "打分",
 }

@@ -1,3 +1,5 @@
+import { wire } from "./copy"
+
 export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const
 
 export type ImageMediaType = (typeof IMAGE_TYPES)[number]
@@ -30,27 +32,27 @@ function matches(media: ImageMediaType, bytes: Buffer) {
 }
 
 export function readImage(value: unknown): { image: TaskImage } | { error: string } {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return { error: "图片格式不对" }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { error: wire("image.format") }
   const record = value as Record<string, unknown>
   const media = record.mediaType ?? record.media_type
-  if (!isImageType(media)) return { error: "图片只接受 png、jpeg、webp、gif" }
+  if (!isImageType(media)) return { error: wire("image.types") }
   const filename = filenameOf(record.filename)
   const rawValue = typeof record.raw === "string" ? record.raw.replace(/\s/g, "") : ""
   if (rawValue) {
-    if (rawValue.length > RAW_MAX) return { error: "图片太大" }
-    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(rawValue)) return { error: "图片内容要是 base64" }
+    if (rawValue.length > RAW_MAX) return { error: wire("image.tooBig") }
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(rawValue)) return { error: wire("image.base64") }
     const bytes = Buffer.from(rawValue, "base64")
-    if (bytes.length < 12 || !matches(media, bytes)) return { error: "图片内容和类型对不上" }
+    if (bytes.length < 12 || !matches(media, bytes)) return { error: wire("image.mismatch") }
     return { image: { mediaType: media, raw: rawValue, ...(filename ? { filename } : {}) } }
   }
   const urlValue = typeof record.url === "string" ? record.url.trim() : ""
   if (urlValue.startsWith("data:")) {
     const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(urlValue)
-    if (!matched || matched[1] !== media) return { error: "图片内容和类型对不上" }
+    if (!matched || matched[1] !== media) return { error: wire("image.mismatch") }
     return readImage({ mediaType: media, raw: matched[2], filename })
   }
   if (/^https?:\/\//.test(urlValue) && urlValue.length <= 2000) {
     return { image: { mediaType: media, url: urlValue, ...(filename ? { filename } : {}) } }
   }
-  return { error: "图片要带 base64 或 http 地址" }
+  return { error: wire("image.needsData") }
 }

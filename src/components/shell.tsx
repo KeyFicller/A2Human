@@ -10,7 +10,7 @@ import type { Locale } from "@/lib/messages"
 import { cn } from "cn"
 
 function LocaleSwitch() {
-  const { locale, setLocale } = useLocale()
+  const { locale, setLocale, t } = useLocale()
   const item = (value: Locale, label: string) => (
     <button
       type="button"
@@ -23,8 +23,8 @@ function LocaleSwitch() {
   )
   return (
     <div className="flex shrink-0 gap-1 font-mono text-[11px]">
-      {item("zh", "中文")}
-      {item("en", "English")}
+      {item("zh", t.locale.zh)}
+      {item("en", t.locale.en)}
     </div>
   )
 }

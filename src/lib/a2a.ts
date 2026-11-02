@@ -1,3 +1,4 @@
+import { wire } from "./copy"
 import { readImage, type TaskImage } from "./images"
 import { DomainError, cancelCommandedTask, commandForMessage, expireScores, receiveCommand } from "./rules"
 import type { ProtocolMessage, Store, Task, TaskStatus } from "./types"
@@ -118,7 +119,7 @@ export function projectTask(
       ? [
           {
             artifactId: `${task.id}:artifact`,
-            name: "产物",
+            name: wire("artifact.name"),
             parts,
           },
         ]
@@ -134,9 +135,9 @@ function statusMessage(store: Store, task: Task, contextId: string) {
   const decision = [...store.messages].reverse().find((item) => item.taskId === task.id && DECISION_KINDS.has(item.kind))
   const waiting =
     task.status === "working"
-      ? "人还在做。请用 GetTask 轮询产物。"
+      ? wire("working.poll")
       : task.status === "submitted"
-        ? "任务还没派到人。请用 GetTask 轮询。"
+        ? wire("submitted.poll")
         : decision?.kind === "task.scoreRequest"
           ? JSON.stringify({ request: "score", taskId: task.id, person: task.claimantName ?? "", artifact: task.artifact ?? "" })
           : decision?.text
@@ -176,7 +177,7 @@ function visible(task: Task, scope: Scope) {
 
 function requireVisible(store: Store, scope: Scope, id: string) {
   const task = store.tasks.find((item) => item.id === id)
-  if (!task || !visible(task, scope)) throw new DomainError("找不到这张任务", -32001)
+  if (!task || !visible(task, scope)) throw new DomainError(wire("task.missing"), -32001)
   return task
 }
 
@@ -223,12 +224,12 @@ function encodeData(data: unknown) {
   try {
     return JSON.stringify(data)
   } catch {
-    throw new DomainError("data 要是 JSON", -32602)
+    throw new DomainError(wire("data.json"), -32602)
   }
 }
 
 function readParts(parts: unknown) {
-  if (!Array.isArray(parts) || parts.length === 0) throw new DomainError("parts 里需要文字、JSON 或图片", -32602)
+  if (!Array.isArray(parts) || parts.length === 0) throw new DomainError(wire("parts.required"), -32602)
   const chunks: string[] = []
   const images: TaskImage[] = []
   for (const part of parts) {
@@ -236,7 +237,7 @@ function readParts(parts: unknown) {
       chunks.push(part)
       continue
     }
-    if (!part || typeof part !== "object") throw new DomainError("part 格式不对", -32602)
+    if (!part || typeof part !== "object") throw new DomainError(wire("part.bad"), -32602)
     const record = part as Record<string, unknown>
     const media = record.mediaType ?? record.media_type
     if (typeof media === "string" && media.startsWith("image/")) {
@@ -246,11 +247,11 @@ function readParts(parts: unknown) {
       continue
     }
     if ("raw" in record || "url" in record || "file" in record) {
-      throw new DomainError("只接受文字、JSON 或图片", -32005)
+      throw new DomainError(wire("part.kind"), -32005)
     }
     if ("data" in record && record.data !== undefined) {
       if (typeof media === "string" && media !== "application/json" && media !== "*/*") {
-        throw new DomainError(`不支持的内容类型 ${media}`, -32005)
+        throw new DomainError(wire("media.unsupported", { media }), -32005)
       }
       const encoded = encodeData(record.data)
       if (encoded.trim()) chunks.push(encoded)
@@ -263,13 +264,13 @@ function readParts(parts: unknown) {
       media !== "*/*" &&
       media !== "application/json"
     ) {
-      throw new DomainError(`不支持的内容类型 ${media}`, -32005)
+      throw new DomainError(wire("media.unsupported", { media }), -32005)
     }
     if (typeof record.text === "string") chunks.push(record.text)
   }
   const text = chunks.join("\n").trim()
-  if (!text && images.length === 0) throw new DomainError("parts 里需要文字、JSON 或图片", -32602)
-  if (images.length > 4) throw new DomainError("最多 4 张图片", -32602)
+  if (!text && images.length === 0) throw new DomainError(wire("parts.required"), -32602)
+  if (images.length > 4) throw new DomainError(wire("images.max"), -32602)
   return { text, images }
 }
 
@@ -286,24 +287,24 @@ function readSkill(params: Record<string, unknown>, message: Record<string, unkn
   const value = metadataValue(params, message, "skill")
   if (value == null) return undefined
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new DomainError("skill 要是技能名", -32602)
+    throw new DomainError(wire("skill.type"), -32602)
   }
   return value.trim()
 }
 
 function callerName(params: Record<string, unknown>, message: Record<string, unknown>) {
   const name = metadataValue(params, message, "caller")
-  if (typeof name !== "string") return "外部模型"
+  if (typeof name !== "string") return wire("caller.name")
   const trimmed = name.trim()
   const length = [...trimmed].length
   if (length >= 1 && length <= 24) return trimmed
-  return "外部模型"
+  return wire("caller.name")
 }
 
 function historyLength(value: unknown) {
   if (value == null) return null
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) {
-    throw new DomainError("historyLength 无效", -32602)
+    throw new DomainError(wire("history.invalid"), -32602)
   }
   return value
 }
@@ -311,7 +312,7 @@ function historyLength(value: unknown) {
 function configurationOf(params: Record<string, unknown>) {
   const config = params.configuration
   if (config == null) return {}
-  if (typeof config !== "object" || Array.isArray(config)) throw new DomainError("configuration 要是对象", -32602)
+  if (typeof config !== "object" || Array.isArray(config)) throw new DomainError(wire("config.object"), -32602)
   return config as Record<string, unknown>
 }
 
@@ -321,12 +322,12 @@ function wantsImmediate(config: Record<string, unknown>) {
 
 function assertSendable(config: Record<string, unknown>) {
   if (config.taskPushNotificationConfig != null || config.task_push_notification_config != null) {
-    throw new DomainError("不支持推送通知。请用 GetTask 轮询。", -32003)
+    throw new DomainError(wire("push.unsupported"), -32003)
   }
   const modes = config.acceptedOutputModes ?? config.accepted_output_modes
   if (modes == null) return
   if (!Array.isArray(modes) || modes.some((mode) => typeof mode !== "string")) {
-    throw new DomainError("acceptedOutputModes 要是字符串数组", -32602)
+    throw new DomainError(wire("modes.type"), -32602)
   }
   const supported = modes.some(
     (mode) =>
@@ -337,21 +338,21 @@ function assertSendable(config: Record<string, unknown>) {
       mode === "image/*" ||
       mode.startsWith("image/"),
   )
-  if (!supported) throw new DomainError("只输出文字、JSON 或图片", -32005)
+  if (!supported) throw new DomainError(wire("modes.kind"), -32005)
 }
 
 function readContextId(record: Record<string, unknown>) {
   const value = record.contextId ?? record.context_id
   if (value == null) return undefined
-  if (typeof value !== "string") throw new DomainError("contextId 要是字符串", -32602)
+  if (typeof value !== "string") throw new DomainError(wire("context.type"), -32602)
   const trimmed = value.trim()
-  if (trimmed.length < 1 || [...trimmed].length > 128) throw new DomainError("contextId 无效", -32602)
+  if (trimmed.length < 1 || [...trimmed].length > 128) throw new DomainError(wire("context.invalid"), -32602)
   return trimmed
 }
 
 function readMessageId(record: Record<string, unknown>) {
   const value = record.messageId ?? record.message_id
-  if (typeof value !== "string" || value.trim().length === 0) throw new DomainError("messageId 缺失", -32602)
+  if (typeof value !== "string" || value.trim().length === 0) throw new DomainError(wire("message.missing"), -32602)
   return value.trim()
 }
 
@@ -375,11 +376,11 @@ function taskIdFrom(params: Record<string, unknown>) {
 function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>) {
   const message = params.message
   if (!message || typeof message !== "object" || Array.isArray(message)) {
-    throw new DomainError("params.message 缺失", -32602)
+    throw new DomainError(wire("message.params"), -32602)
   }
   const record = message as Record<string, unknown>
   const role = record.role
-  if (role !== "ROLE_USER" && role !== "user") throw new DomainError("role 需要是 ROLE_USER", -32602)
+  if (role !== "ROLE_USER" && role !== "user") throw new DomainError(wire("role.user"), -32602)
   const messageId = readMessageId(record)
   const { text, images } = readParts(record.parts)
   const taskId = readTaskId(record)
@@ -389,15 +390,15 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
   assertSendable(config)
   const replay = commandForMessage(store, messageId)
   if (!replay && !wantsImmediate(config)) {
-    throw new DomainError("请把 configuration.returnImmediately 设为 true。人在岗时任务会立刻派出去，再用 GetTask 取产物。", -32004)
+    throw new DomainError(wire("returnImmediately"), -32004)
   }
   if (!replay && scope.kind === "pool") {
-    throw new DomainError("从 onDuty 里选一个人，把 SendMessage 打到那个人的 url。广场不代为指派。", -32004)
+    throw new DomainError(wire("directory.assign"), -32004)
   }
   if (!replay && scope.kind === "human") {
     const human = store.agents.find((agent) => agent.id === scope.agentId)
     if (skill && human && !human.skills.some((item) => item.name === skill)) {
-      throw new DomainError("这个人没挂这项技能", -32602)
+      throw new DomainError(wire("skill.missing"), -32602)
     }
   }
   const task = receiveCommand(store, {
@@ -420,7 +421,7 @@ function sendMessage(store: Store, scope: Scope, params: Record<string, unknown>
 
 function getTask(store: Store, scope: Scope, params: Record<string, unknown>) {
   const id = taskIdFrom(params)
-  if (!id) throw new DomainError("缺少任务 id", -32602)
+  if (!id) throw new DomainError(wire("task.id"), -32602)
   const task = requireVisible(store, scope, id)
   return projectTask(store, task, {
     historyLength: historyLength(params.historyLength),
@@ -432,14 +433,14 @@ function listTasks(store: Store, scope: Scope, params: Record<string, unknown>) 
   let pageSize = 50
   if (params.pageSize != null) {
     if (typeof params.pageSize !== "number" || !Number.isInteger(params.pageSize) || params.pageSize < 1 || params.pageSize > 100) {
-      throw new DomainError("pageSize 要是 1 到 100 的整数", -32602)
+      throw new DomainError(wire("page.size"), -32602)
     }
     pageSize = params.pageSize
   }
   let offset = 0
   if (params.pageToken != null && params.pageToken !== "") {
     if (typeof params.pageToken !== "string" || !/^\d+$/.test(params.pageToken)) {
-      throw new DomainError("pageToken 无效", -32602)
+      throw new DomainError(wire("page.token"), -32602)
     }
     offset = Number(params.pageToken)
   }
@@ -449,7 +450,7 @@ function listTasks(store: Store, scope: Scope, params: Record<string, unknown>) 
   }
   if (params.status != null) {
     if (typeof params.status !== "string" || !STATE_NAMES.has(params.status)) {
-      throw new DomainError("status 不在协议状态里", -32602)
+      throw new DomainError(wire("protocolStatus.unknown"), -32602)
     }
     const status = STATE_NAMES.get(params.status)
     tasks = tasks.filter((task) => task.status === status)
@@ -468,7 +469,7 @@ function listTasks(store: Store, scope: Scope, params: Record<string, unknown>) 
 
 function cancelTask(store: Store, scope: Scope, params: Record<string, unknown>) {
   const id = taskIdFrom(params)
-  if (!id) throw new DomainError("缺少任务 id", -32602)
+  if (!id) throw new DomainError(wire("task.id"), -32602)
   requireVisible(store, scope, id)
   const task = cancelCommandedTask(store, id)
   return projectTask(store, task, { includeArtifacts: true })
@@ -481,30 +482,30 @@ export function dispatchA2a(
   options?: { a2aVersion?: string | null },
 ): RpcResponse {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return rpcError(null, -32600, "请求不是 JSON-RPC")
+    return rpcError(null, -32600, wire("rpc.not"))
   }
   const request = body as Record<string, unknown>
   const id = asId(request.id)
   if (id === undefined || request.jsonrpc !== "2.0" || typeof request.method !== "string") {
-    return rpcError(id === undefined ? null : id, -32600, "请求不是 JSON-RPC 2.0")
+    return rpcError(id === undefined ? null : id, -32600, wire("rpc.version"))
   }
   const version = options?.a2aVersion?.trim()
   if (version && !SUPPORTED_VERSIONS.has(version)) {
-    return rpcError(id, -32009, `不支持的 A2A 版本 ${version}`)
+    return rpcError(id, -32009, wire("version.unsupported", { version }))
   }
   const method = request.method
   if (method === "SendStreamingMessage" || method === "message/stream" || method === "SubscribeToTask" || method === "tasks/subscribe") {
-    return rpcError(id, -32004, "不支持流式。请用 SendMessage，再轮询 GetTask。")
+    return rpcError(id, -32004, wire("stream.unsupported"))
   }
   if (method === "GetExtendedAgentCard" || method === "agent/getAuthenticatedExtendedCard") {
-    return rpcError(id, -32004, "没有扩展卡片。")
+    return rpcError(id, -32004, wire("card.extended"))
   }
   if (PUSH_METHODS.has(method)) {
-    return rpcError(id, -32003, "不支持推送通知。请用 GetTask 轮询。")
+    return rpcError(id, -32003, wire("push.unsupported"))
   }
   const params = request.params
   if (params != null && (typeof params !== "object" || Array.isArray(params))) {
-    return rpcError(id, -32602, "params 要是对象")
+    return rpcError(id, -32602, wire("params.object"))
   }
   const record = (params ?? {}) as Record<string, unknown>
   expireScores(store)
@@ -521,10 +522,10 @@ export function dispatchA2a(
     if (method === "CancelTask" || method === "tasks/cancel") {
       return ok(id, cancelTask(store, scope, record))
     }
-    return rpcError(id, -32601, `不认识的方法 ${method}`)
+    return rpcError(id, -32601, wire("method.unknown", { method }))
   } catch (error) {
     if (error instanceof DomainError) {
-      const code = error.code ?? (error.message === "找不到这张任务" ? -32001 : -32602)
+      const code = error.code ?? (error.message === wire("task.missing") ? -32001 : -32602)
       return rpcError(id, code, error.message)
     }
     throw error

@@ -1,3 +1,4 @@
+import { wire } from "@/lib/copy"
 import { domainError, json, readBody } from "@/lib/http"
 import { DomainError, decideTask, expireScores, submitArtifact } from "@/lib/rules"
 import { commitStore, updateStore } from "@/lib/store"
@@ -6,7 +7,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params
   const store = await commitStore((store) => expireScores(store))
   const task = store.tasks.find((item) => item.id === id)
-  if (!task) return json({ error: "找不到这张任务" }, 404)
+  if (!task) return json({ error: wire("task.missing") }, 404)
   const messages = store.messages.filter((message) => message.taskId === id)
   const poster = store.agents.find((agent) => agent.id === task.posterId) ?? null
   const claimant = task.claimantId
@@ -20,14 +21,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     const body = await readBody(request)
     const agentId = body.agentId
-    if (typeof agentId !== "string") return json({ error: "缺少 Agent" }, 400)
+    if (typeof agentId !== "string") return json({ error: wire("agent.idMissing") }, 400)
 
     const task = await updateStore((store) => {
       if (body.action === "artifact") return submitArtifact(store, id, agentId, body.text, body.image)
       if (body.action === "reject" || body.action === "cancel" || body.action === "fail" || body.action === "input") {
         return decideTask(store, id, agentId, body.action, body.text)
       }
-      throw new DomainError("未知动作")
+      throw new DomainError(wire("action.unknown"))
     })
     return json(task)
   } catch (error) {

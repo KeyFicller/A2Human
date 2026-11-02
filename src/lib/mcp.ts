@@ -1,4 +1,5 @@
 import { dispatchA2a, type RpcResponse } from "./a2a"
+import { wire } from "./copy"
 import { recordLine } from "./format"
 import { onDuty, workRecord } from "./rules"
 import type { JsonSchema, Store } from "./types"
@@ -8,8 +9,7 @@ const DEFAULT_PROTOCOL = "2025-06-18"
 const WAIT_MS = 15_000
 const POLL_MS = 1_000
 
-const INSTRUCTIONS =
-  "会 A2A 的客户端读发现入口 /.well-known/agent-card.json，从 onDuty 里自己选人，把 SendMessage 打到那个人的 url。这个 MCP 入口是备用：每个在岗技能是一个工具，调用仍发到这个人自己的 A2A 地址。人还在做时，用 task_id 再调一次。人交回产物后，结果是打分请求，用 task_id 和 score 再调一次。"
+const INSTRUCTIONS = wire("mcp.instructions")
 
 type FlatField = {
   name: string
@@ -94,18 +94,18 @@ function inputSchema(fields: FlatField[] | null): JsonSchema {
     for (const field of fields) {
       properties[field.name] =
         field.kind === "image"
-          ? { type: "string", description: field.description || "图片的 http 地址，或 data:image/png;base64,…" }
+          ? { type: "string", description: field.description || wire("mcp.imageDescription") }
           : { type: field.kind, ...(field.description ? { description: field.description } : {}) }
       if (field.required) required.push(field.name)
     }
   } else {
-    properties.prompt = { type: "string", description: "要这个人办的事。内容若是 JSON 对象或数组，会按 application/json 送出。" }
+    properties.prompt = { type: "string", description: wire("mcp.promptDescription") }
   }
   if (!properties.task_id) {
-    properties.task_id = { type: "string", description: "人还在做、请你补充或请你打分时带上的任务 id。" }
+    properties.task_id = { type: "string", description: wire("mcp.taskIdDescription") }
   }
   if (!properties.score) {
-    properties.score = { type: "integer", description: "给做这单的人打的 1 到 5 分。只有结果要求打分时才填。" }
+    properties.score = { type: "integer", description: wire("mcp.scoreDescription") }
   }
   return required.length ? { type: "object", properties, required, additionalProperties: false } : { type: "object", properties, additionalProperties: false }
 }
@@ -126,10 +126,10 @@ function catalog(store: Store): DutyTool[] {
       tools.push({
         name,
         description: [
-          `在岗的人：${agent.name}。技能：${skill.name}。`,
-          `${recordLine(record.completed, record.averageScore, record.averageDuration)}。`,
+          wire("mcp.toolPerson", { name: agent.name, skill: skill.name }),
+          wire("mcp.recordLine", { line: recordLine(record.completed, record.averageScore, record.averageDuration) }),
           skill.description,
-          "会 A2A 的客户端应直接把 SendMessage 打到这个人的地址。这里的调用仍走那个人的 A2A。人还在做时，只填 task_id 再调一次。结果若是打分请求，用 task_id 和 score 再调一次。",
+          wire("mcp.toolPath"),
         ].join("\n"),
         inputSchema: inputSchema(fields),
         agentId: agent.id,
@@ -173,19 +173,19 @@ function taskOf(result: unknown): TaskView | undefined {
 function explain(response: RpcResponse): Step {
   if ("error" in response) return { kind: "error", text: response.error.message }
   const task = taskOf(response.result)
-  if (!task?.id) return { kind: "error", text: "没有返回任务" }
+  if (!task?.id) return { kind: "error", text: wire("mcp.noTask") }
   const state = task.status?.state
   const note = statusText(task)
   const artifact = artifactText(task)
   if (state === "TASK_STATE_WORKING" || state === "TASK_STATE_SUBMITTED") {
-    return { kind: "pending", taskId: task.id, agentId: "", text: `人还在做。用同一个工具再调一次，task_id 填 ${task.id}。` }
+    return { kind: "pending", taskId: task.id, agentId: "", text: wire("mcp.stillWorking", { id: task.id }) }
   }
   if (state === "TASK_STATE_INPUT_REQUIRED") return { kind: "done", text: note || artifact || state }
-  if (state === "TASK_STATE_COMPLETED") return { kind: "done", text: artifact || "人交回了空产物" }
+  if (state === "TASK_STATE_COMPLETED") return { kind: "done", text: artifact || wire("mcp.emptyArtifact") }
   if (state === "TASK_STATE_FAILED" || state === "TASK_STATE_CANCELED" || state === "TASK_STATE_REJECTED") {
     return { kind: "error", text: note || artifact || state }
   }
-  return { kind: "error", text: note || `任务停在 ${state ?? "未知状态"}` }
+  return { kind: "error", text: note || wire("task.stopped", { state: state ?? wire("task.unknownState") }) }
 }
 
 function withAgent(step: Step, agentId: string): Step {
@@ -230,19 +230,19 @@ function imagePart(value: string): { mediaType: string; url?: string; raw?: stri
   const text = value.trim()
   if (text.startsWith("http://") || text.startsWith("https://")) return { mediaType: mediaFromUrl(text), url: text }
   const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(text)
-  if (!matched) return { error: "图片要是 http 地址，或 data:image/png;base64,…" }
+  if (!matched) return { error: wire("image.url") }
   return { mediaType: matched[1], raw: matched[2].replace(/\s/g, "") }
 }
 
 function promptParts(prompt: string): { parts: Record<string, unknown>[] } | { error: string } {
   const text = prompt.trim()
-  if (!text) return { error: "prompt 不能是空的" }
+  if (!text) return { error: wire("mcp.promptEmpty") }
   if (text.startsWith("{") || text.startsWith("[")) {
     try {
       const data = JSON.parse(text) as unknown
       if (data && typeof data === "object") return { parts: [{ mediaType: "application/json", data }] }
     } catch {
-      // 普通文字里碰巧以括号开头，按文字送出。
+      // Plain text that happens to start with a bracket is sent as text.
     }
   }
   return { parts: [{ text }] }
@@ -253,23 +253,23 @@ function fieldParts(fields: FlatField[], args: Record<string, unknown>): { parts
   const parts: Record<string, unknown>[] = []
   for (const field of fields) {
     const value = args[field.name]
-    if (field.required && (value == null || value === "")) return { error: `还缺 ${field.name}` }
+    if (field.required && (value == null || value === "")) return { error: wire("field.missing", { name: field.name }) }
     if (value == null || value === "") continue
     if (field.kind === "image") {
-      if (typeof value !== "string") return { error: "图片要是 http 地址，或 data:image/png;base64,…" }
+      if (typeof value !== "string") return { error: wire("image.url") }
       const image = imagePart(value)
       if ("error" in image) return image
       parts.push(image)
       continue
     }
-    if (field.kind === "string" && typeof value !== "string") return { error: `${field.name} 要是文字` }
-    if (field.kind === "integer" && !Number.isInteger(value)) return { error: `${field.name} 要是整数` }
-    if (field.kind === "number" && typeof value !== "number") return { error: `${field.name} 要是数字` }
-    if (field.kind === "boolean" && typeof value !== "boolean") return { error: `${field.name} 要是是或否` }
+    if (field.kind === "string" && typeof value !== "string") return { error: wire("must.string", { label: field.name }) }
+    if (field.kind === "integer" && !Number.isInteger(value)) return { error: wire("must.integer", { label: field.name }) }
+    if (field.kind === "number" && typeof value !== "number") return { error: wire("must.number", { label: field.name }) }
+    if (field.kind === "boolean" && typeof value !== "boolean") return { error: wire("must.boolean", { label: field.name }) }
     data[field.name] = value
   }
   if (Object.keys(data).length) parts.unshift({ mediaType: "application/json", data })
-  if (!parts.length) return { error: "要填这项技能要求的内容。" }
+  if (!parts.length) return { error: wire("mcp.fieldsRequired") }
   return { parts }
 }
 
@@ -309,12 +309,12 @@ function filled(fields: FlatField[] | null, args: Record<string, unknown>) {
 
 export function dutyStep(store: Store, name: string, args: Record<string, unknown>): Step {
   const tool = catalog(store).find((item) => item.name === name)
-  if (!tool) return { kind: "error", text: "没有这项在岗技能" }
+  if (!tool) return { kind: "error", text: wire("skill.absent") }
   const taskId = textArg(args.task_id)
   if (args.score != null && args.score !== "") {
-    if (!taskId) return { kind: "error", text: "打分要带上任务 id" }
+    if (!taskId) return { kind: "error", text: wire("score.needsTask") }
     if (!Number.isInteger(args.score) || (args.score as number) < 1 || (args.score as number) > 5) {
-      return { kind: "error", text: "分数要是 1 到 5 的整数" }
+      return { kind: "error", text: wire("score.range") }
     }
     return dispatch(store, tool.agentId, tool.skillName, [{ mediaType: "application/json", data: { score: args.score } }], taskId)
   }
@@ -340,12 +340,12 @@ function toolResult(step: Step): McpResult {
 
 export async function handleMcp(body: unknown, io: McpIo): Promise<McpResult> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return { status: 400, body: { jsonrpc: "2.0", id: null, error: { code: -32600, message: "请求不是 JSON-RPC" } } }
+    return { status: 400, body: { jsonrpc: "2.0", id: null, error: { code: -32600, message: wire("rpc.not") } } }
   }
   const request = body as Record<string, unknown>
   const method = request.method
   if (typeof method !== "string") {
-    return { status: 400, body: { jsonrpc: "2.0", id: request.id ?? null, error: { code: -32600, message: "请求不是 JSON-RPC" } } }
+    return { status: 400, body: { jsonrpc: "2.0", id: request.id ?? null, error: { code: -32600, message: wire("rpc.not") } } }
   }
   if (!("id" in request) && method.startsWith("notifications/")) return { status: 202, body: null }
   const id = request.id ?? null
@@ -393,5 +393,5 @@ export async function handleMcp(body: unknown, io: McpIo): Promise<McpResult> {
     body.id = id
     return { status: 200, body }
   }
-  return { status: 200, body: { jsonrpc: "2.0", id, error: { code: -32601, message: `不认识的方法 ${method}` } } }
+  return { status: 200, body: { jsonrpc: "2.0", id, error: { code: -32601, message: wire("method.unknown", { method: String(method) }) } } }
 }

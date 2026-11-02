@@ -1,8 +1,38 @@
 import assert from "node:assert/strict"
+import { readdirSync, readFileSync, statSync } from "node:fs"
+import { join } from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 import { durationPhrase, durationValue, kindLabel, recordLine, scoreValue, statusLabel } from "./format"
 import { en, localizeError, zh } from "./messages"
 import { describeSchema, fieldTypeLabel } from "./schema-fields"
+
+function leaves(value: unknown, prefix = ""): string[] {
+  if (typeof value === "string") return [prefix]
+  if (!value || typeof value !== "object") return [prefix]
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
+    leaves(child, prefix ? `${prefix}.${key}` : key),
+  )
+}
+
+function readJson(path: string) {
+  return JSON.parse(readFileSync(path, "utf8")) as unknown
+}
+
+function touch(value: unknown) {
+  if (typeof value === "function") (value as (a: string, b: string) => unknown)("Label", "body")
+  else if (value && typeof value === "object") Object.values(value).forEach(touch)
+}
+
+function sourceFiles(dir: string, out: string[] = []) {
+  for (const name of readdirSync(dir)) {
+    if (name === "locales" || name === "node_modules" || name === ".next" || name === "__pycache__" || name === "tests") continue
+    const path = join(dir, name)
+    if (statSync(path).isDirectory()) sourceFiles(path, out)
+    else if (/\.(ts|tsx|py)$/.test(name) && !name.endsWith(".test.ts")) out.push(path)
+  }
+  return out
+}
 
 function paths(value: unknown, prefix = ""): string[] {
   if (typeof value === "string" || typeof value === "function") return [prefix]
@@ -14,6 +44,24 @@ function paths(value: unknown, prefix = ""): string[] {
 
 test("english covers every simplified chinese ui string", () => {
   assert.deepEqual(paths(en), paths(zh))
+  touch(zh)
+  touch(en)
+  const root = fileURLToPath(new URL("../..", import.meta.url))
+  const pairs = [
+    ["src/locales/zh.json", "src/locales/en.json"],
+    ["src/locales/wire.zh.json", "src/locales/wire.en.json"],
+    ["clients/langgraph/a2human/locales/zh.json", "clients/langgraph/a2human/locales/en.json"],
+  ]
+  for (const [left, right] of pairs) {
+    assert.deepEqual(leaves(readJson(join(root, right))), leaves(readJson(join(root, left))))
+  }
+})
+
+test("production source keeps copy in resource files", () => {
+  const root = fileURLToPath(new URL("../..", import.meta.url))
+  const files = [...sourceFiles(join(root, "src")), ...sourceFiles(join(root, "clients/langgraph/a2human"))]
+  const hits = files.filter((file) => /[\u4e00-\u9fff]/.test(readFileSync(file, "utf8")))
+  assert.deepEqual(hits, [])
 })
 
 test("record line stays chinese unless a locale is asked for", () => {

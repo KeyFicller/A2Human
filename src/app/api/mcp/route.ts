@@ -1,3 +1,4 @@
+import { wire } from "@/lib/copy"
 import { handleMcp } from "@/lib/mcp"
 import { json } from "@/lib/http"
 import { expireScores } from "@/lib/rules"
@@ -8,7 +9,7 @@ export async function GET() {
     {
       jsonrpc: "2.0",
       id: null,
-      error: { code: -32004, message: "这个备用入口只用 POST。会 A2A 的客户端请读发现入口。" },
+      error: { code: -32004, message: wire("mcp.getOnly") },
     },
     405,
   )
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json()
   } catch {
-    return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "请求体不是 JSON" } }, 400)
+    return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: wire("request.body") } }, 400)
   }
   const response = await handleMcp(body, {
     read: () => commitStore((store) => expireScores(store)),
