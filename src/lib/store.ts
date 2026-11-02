@@ -98,6 +98,19 @@ export async function updateStore<T>(fn: (store: Store) => T): Promise<T> {
   return run
 }
 
+export async function commitStore(fn: (store: Store) => boolean): Promise<Store> {
+  const run = queue.then(async () => {
+    const store = await load()
+    if (fn(store)) await persist(store)
+    return store
+  })
+  queue = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
 export async function readStore(): Promise<Store> {
   const run = queue.then(() => load())
   queue = run.then(

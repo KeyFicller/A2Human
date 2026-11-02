@@ -1,10 +1,10 @@
 import { domainError, json, readBody } from "@/lib/http"
-import { DomainError, decideTask, submitArtifact } from "@/lib/rules"
-import { readStore, updateStore } from "@/lib/store"
+import { DomainError, decideTask, expireScores, submitArtifact } from "@/lib/rules"
+import { commitStore, updateStore } from "@/lib/store"
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
-  const store = await readStore()
+  const store = await commitStore((store) => expireScores(store))
   const task = store.tasks.find((item) => item.id === id)
   if (!task) return json({ error: "找不到这张任务" }, 404)
   const messages = store.messages.filter((message) => message.taskId === id)

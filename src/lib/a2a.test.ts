@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { dispatchA2a } from "./a2a"
 import { dispatcherCard, toAgentCard } from "./card"
-import { decideTask, publishAgent, setAvailability, submitArtifact } from "./rules"
+import { SCORE_WAIT_MS, decideTask, expireScores, publishAgent, setAvailability, submitArtifact } from "./rules"
 import { createSeed } from "./seed"
 
 const counting = { name: "计数", description: "数清画面或文字里的东西，只交回数字。" }
@@ -305,6 +305,38 @@ test("delivery asks the dispatcher to score, and the score completes the task", 
   assert.equal(kept.metadata?.scoredBy, "某个大模型")
   assert.equal(kept.metadata?.person, "米粒")
   assert.equal(kept.artifacts?.[0].parts[0].text, "3")
+})
+
+test("a score request is dropped when the model does not reply in time", () => {
+  const { store, on } = world()
+  const opened = dispatchA2a(store, { kind: "human", agentId: on.id }, send("数一下。", "expire-1", { skill: "计数" }))
+  const task = resultOf(opened).task
+  assert.ok(task)
+  submitArtifact(store, task.id, on.id, "3")
+  const request = store.messages.find((item) => item.taskId === task.id && item.kind === "task.scoreRequest")
+  assert.ok(request)
+  const asked = Date.parse(request.createdAt)
+  assert.equal(expireScores(store, asked + SCORE_WAIT_MS - 1), false)
+  assert.equal(store.tasks.find((item) => item.id === task.id)?.status, "input-required")
+  assert.equal(expireScores(store, asked + SCORE_WAIT_MS), true)
+  const saved = store.tasks.find((item) => item.id === task.id)
+  assert.equal(saved?.status, "completed")
+  assert.equal(saved?.workScore, undefined)
+  assert.equal(saved?.artifact, "3")
+  const late = dispatchA2a(store, { kind: "human", agentId: on.id }, send('{"score":4}', "expire-late", { taskId: task.id }))
+  assert.ok("error" in late)
+  assert.equal(late.error.code, -32004)
+  const got = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "expire-get",
+    method: "GetTask",
+    params: { id: task.id },
+  })
+  assert.ok(!("error" in got))
+  const body = got.result as { status: { state: string }; metadata?: { score?: number }; artifacts?: { parts: { text: string }[] }[] }
+  assert.equal(body.status.state, "TASK_STATE_COMPLETED")
+  assert.equal(body.metadata?.score, undefined)
+  assert.equal(body.artifacts?.[0].parts[0].text, "3")
 })
 
 test("application/json input is kept for the person and returned as data", () => {

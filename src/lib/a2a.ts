@@ -1,5 +1,5 @@
 import { readImage, type TaskImage } from "./images"
-import { DomainError, cancelCommandedTask, commandForMessage, receiveCommand } from "./rules"
+import { DomainError, cancelCommandedTask, commandForMessage, expireScores, receiveCommand } from "./rules"
 import type { ProtocolMessage, Store, Task, TaskStatus } from "./types"
 
 type Scope = { kind: "human"; agentId: string } | { kind: "pool" }
@@ -507,6 +507,7 @@ export function dispatchA2a(
     return rpcError(id, -32602, "params 要是对象")
   }
   const record = (params ?? {}) as Record<string, unknown>
+  expireScores(store)
   try {
     if (method === "SendMessage" || method === "message/send") {
       return ok(id, sendMessage(store, scope, record))

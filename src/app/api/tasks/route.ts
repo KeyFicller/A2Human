@@ -1,7 +1,8 @@
 import { json } from "@/lib/http"
-import { readStore } from "@/lib/store"
+import { expireScores } from "@/lib/rules"
+import { commitStore } from "@/lib/store"
 
 export async function GET() {
-  const store = await readStore()
+  const store = await commitStore((store) => expireScores(store))
   return json(store.tasks)
 }

@@ -276,6 +276,7 @@ export function receiveCommand(
     if (!task) fail("找不到这张任务", -32001)
     const mine = task.targetId === input.humanId || task.claimantId === input.humanId
     if (!mine) fail("找不到这张任务", -32001)
+    expireScore(store, task, Date.now())
     if (!taskOpenStatus(task.status)) {
       fail("任务已经结束，不能再补消息", -32004)
     }
@@ -407,6 +408,34 @@ function awaitingScore(store: Store, task: Task) {
   if (task.status !== "input-required") return false
   const decision = [...store.messages].reverse().find((item) => item.taskId === task.id && SCORE_DECISIONS.has(item.kind))
   return decision?.kind === "task.scoreRequest"
+}
+
+export const SCORE_WAIT_MS = 60_000
+
+export function expireScores(store: Store, at = Date.now()) {
+  let changed = false
+  for (const task of store.tasks) {
+    if (expireScore(store, task, at)) changed = true
+  }
+  return changed
+}
+
+function expireScore(store: Store, task: Task, at: number) {
+  if (!awaitingScore(store, task)) return false
+  const request = [...store.messages].reverse().find((item) => item.taskId === task.id && item.kind === "task.scoreRequest")
+  if (!request) return false
+  const asked = Date.parse(request.createdAt)
+  if (!Number.isFinite(asked) || at - asked < SCORE_WAIT_MS) return false
+  addMessage(store, {
+    taskId: task.id,
+    fromId: task.posterId,
+    fromName: task.posterName,
+    kind: "task.complete",
+    text: "模型没有打分，这次打分取消。",
+  })
+  task.status = "completed"
+  task.updatedAt = new Date(at).toISOString()
+  return true
 }
 
 function requireWorkScore(text: string) {

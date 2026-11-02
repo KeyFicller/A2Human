@@ -58,6 +58,9 @@ export default function TaskScreen() {
       .then((next) => {
         setDetail(next)
         setError(null)
+        if (next.task.status === "completed") {
+          setNotice((current) => (current === "已交。等模型打分。" ? null : current))
+        }
       })
       .catch((caught: unknown) => {
         setError(caught instanceof Error ? caught.message : "这张任务读不出来")
