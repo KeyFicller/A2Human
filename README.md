@@ -4,13 +4,13 @@
 
 The skill on the card is the job. One server stays up. Open the site. No account, no install, no port to forward.
 
-**Live market: PENDING_PUBLIC_URL**
+**Live market: https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev**
 
-No public HTTPS origin is published yet. Replace `PENDING_PUBLIC_URL` when one is supplied. Until then, the site you are looking at is the origin.
+This demo currently runs on a GitHub Codespace public port, so the URL can change if the Codespace is rebuilt or sleeps.
 
 ```text
-discovery   PENDING_PUBLIC_URL/.well-known/agent-card.json
-mcp         PENDING_PUBLIC_URL/api/mcp
+discovery   https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/.well-known/agent-card.json
+mcp         https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/mcp
 ```
 
 `A2A 1.0 · 0.3` · `MCP fallback` · `score 1–5` · `60s` · `EN / 中文` · `no accounts`
@@ -23,7 +23,7 @@ you      submit the work
 model    score 1–5 within 60s, or the score is dropped and the task is still delivered
 ```
 
-The page you are looking at fills in its own origin. The curls below keep `PENDING_PUBLIC_URL` until that public origin exists.
+The page you are looking at fills in its own origin. The curls below use the live market.
 
 ## See it
 
@@ -84,8 +84,8 @@ You are the caller. Two doors, one person.
 A2A clients read the discovery URL. MCP-only clients add the MCP URL. Both end at the same person.
 
 ```text
-discovery   PENDING_PUBLIC_URL/.well-known/agent-card.json
-mcp         PENDING_PUBLIC_URL/api/mcp
+discovery   https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/.well-known/agent-card.json
+mcp         https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/mcp
 ```
 
 ### A2A
@@ -93,11 +93,11 @@ mcp         PENDING_PUBLIC_URL/api/mcp
 `a2human.onDuty` lists who is on duty, the skills they wrote, and each person's URL. Send `SendMessage` to that URL with `configuration.returnImmediately` set to `true`. The task starts as `TASK_STATE_WORKING`.
 
 ```bash
-curl -s PENDING_PUBLIC_URL/.well-known/agent-card.json
+curl -s https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/.well-known/agent-card.json
 ```
 
 ```bash
-curl -s PENDING_PUBLIC_URL/api/a2a/<id> \
+curl -s https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/a2a/<id> \
   -H 'content-type: application/json' \
   -H 'A2A-Version: 1.0' \
   -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-1","parts":[{"text":"Finish this using your skill."}]}}}'
@@ -106,13 +106,13 @@ curl -s PENDING_PUBLIC_URL/api/a2a/<id> \
 After the person submits, `GetTask` returns `TASK_STATE_INPUT_REQUIRED`. The result is in `artifacts`. `status.message` is `{"request":"score","taskId":"...","person":"...","artifact":"..."}`. Reply on the same task id with an object whose only field is `score`, as in `{"score":4}`. The state becomes `TASK_STATE_COMPLETED`.
 
 ```bash
-curl -s PENDING_PUBLIC_URL/api/a2a/<id> \
+curl -s https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/a2a/<id> \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":2,"method":"GetTask","params":{"id":"<task id>"}}'
 ```
 
 ```bash
-curl -s PENDING_PUBLIC_URL/api/a2a/<id> \
+curl -s https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/a2a/<id> \
   -H 'content-type: application/json' \
   -H 'A2A-Version: 1.0' \
   -d '{"jsonrpc":"2.0","id":3,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-2","contextId":"<contextId>","taskId":"<task id>","parts":[{"data":{"score":4}}]}}}'
@@ -128,7 +128,7 @@ curl -s PENDING_PUBLIC_URL/api/a2a/<id> \
 
 ### MCP
 
-Add `PENDING_PUBLIC_URL/api/mcp`. Each skill of each person on duty becomes a tool. The call still goes to that person's A2A address.
+Add `https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/mcp`. Each skill of each person on duty becomes a tool. The call still goes to that person's A2A address.
 
 The call waits up to 15 seconds. If the person is still working, call the same tool again with `task_id`. After they deliver, call again with `task_id` and `score` (an integer from 1 to 5).
 
@@ -166,7 +166,7 @@ npm install
 npm run dev
 ```
 
-That is only for development. It listens on [http://localhost:3847](http://localhost:3847).
+That is only for development. It listens on port 3847.
 
 ```bash
 npm test
