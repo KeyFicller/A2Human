@@ -45,7 +45,7 @@ function Header() {
         <div className="flex items-center justify-between gap-3">
           <AppLink href="/" className="flex min-w-0 items-baseline gap-2">
             <span className="font-serif text-2xl tracking-tight text-stamp">A2Human</span>
-            <span className="hidden font-mono text-[11px] tracking-[0.18em] text-muted-foreground sm:inline">AGENT CARD</span>
+            <span className="hidden font-mono text-[11px] tracking-[0.18em] text-muted-foreground sm:inline">{t.brand}</span>
           </AppLink>
           <div className="flex items-center gap-3">
             <LocaleSwitch />

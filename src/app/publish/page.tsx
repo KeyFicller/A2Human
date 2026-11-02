@@ -95,7 +95,7 @@ export default function PublishPage() {
           })
       }}
     >
-      <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">AGENT CARD</p>
+      <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">{t.brand}</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{agent ? t.publish.edit : t.publish.create}</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{t.publish.lead}</p>
       <div className="sheet mt-6 space-y-4 p-5">

@@ -1,6 +1,7 @@
 {
   "locale": { "zh": "中文", "en": "English" },
-  "meta": { "description": "Humans publish an A2A card, go on duty, and models send the work." },
+  "brand": "AS AN AGENT",
+  "meta": { "description": "Pretend to be an agent. Publish skills and go on duty; models find you over A2A or MCP and send the work." },
   "nav": { "publish": "Publish", "duty": "On duty", "mine": "My card" },
   "duty": {
     "on": "On duty",
@@ -12,7 +13,7 @@
     "clockOut": "Clock out",
     "clockIn": "Go on duty"
   },
-  "footer": "People publish their own card. Once they are on duty, models send tasks that match their skills.",
+  "footer": "Publish your skills and go on duty. Models find you and send the work that matches.",
   "record": { "completed": "Done", "score": "Score", "time": "Time", "empty": "—" },
   "copy": {
     "loading": "Loading",
@@ -25,8 +26,8 @@
     "callCopied": "Call copied"
   },
   "home": {
-    "title": "A person's agent card",
-    "lead": "Publish an A2A card. Each skill says what you can finish. A model finds people on duty, picks one, and sends the task.",
+    "title": "Pretend to be an agent",
+    "lead": "Publish your skills, then go on duty to join the list. Over A2A or MCP, a model finds someone on duty whose skills match and sends the work.",
     "onDutyNow": "On duty now",
     "goOnDuty": "Go on duty",
     "publish": "Publish my card",
@@ -34,33 +35,33 @@
     "step1Title": "Publish",
     "step1Body": "Write your name, a short bio, and what each skill can finish.",
     "step2Title": "On duty",
-    "step2Body": "Your card joins the discovery list after you go on duty.",
-    "step3Title": "Delegated",
-    "step3Body": "A model reads your skills and sends a matching task to your address. After you deliver, it picks the result up with GetTask.",
+    "step2Body": "After you go on duty, you join the list and a model can find you.",
+    "step3Title": "Sent",
+    "step3Body": "A model matches your skills and sends the work to you.",
     "dutyTitle": "On duty",
     "peopleOne": "{count} person",
     "peopleMany": "{count} people",
-    "discoveryHint": "A model reads this discovery URL and connects to everyone on duty.",
-    "mcpHint": "Clients that speak A2A use the discovery URL above. Clients that only speak MCP add this fallback. It turns on-duty skills into tools, and each call still goes to that person's own A2A address.",
+    "discoveryHint": "A model reads this discovery URL and finds someone on duty.",
+    "mcpHint": "Clients that speak A2A find people through the discovery URL above. Clients that only speak MCP add this fallback. It turns on-duty skills into tools, and each call still goes to that person's own A2A address.",
     "rosterError": "The on-duty list could not be loaded",
     "loading": "Loading the on-duty list…",
-    "empty": "Nobody is on duty. Publish a card and go on duty before a model can find you."
+    "empty": "Nobody is on duty. Publish your skills and go on duty before a model can find you."
   },
   "agents": {
     "title": "On duty",
-    "lead": "A model reads one list: people on duty, the skills they wrote, and each person's address. People who are off duty are not here.",
-    "discoveryHint": "Give the discovery URL to a client that speaks A2A. It connects to everyone here at once.",
-    "mcpHint": "A client that only speaks MCP uses this fallback. Tool calls still go to each person's own A2A address.",
+    "lead": "Models hire from this list: who is on duty, the skills they wrote, and where to reach them. People who are off duty are not here.",
+    "discoveryHint": "Give the discovery URL to a client that speaks A2A, and hire from the people on duty here.",
+    "mcpHint": "A client that only speaks MCP uses this fallback to hire. Tool calls still go to each person's own A2A address.",
     "rosterError": "The on-duty list could not be loaded",
     "loading": "Loading the on-duty list…",
     "empty": "Nobody is on duty."
   },
   "profile": {
     "forModels": "For models",
-    "discoveryOn": "The discovery URL connects everyone on duty. The address below receives tasks only for this person.",
-    "discoveryOff": "This person is off duty, so the discovery list leaves them out. After they go on duty, a model can pick them from the list.",
-    "mcpHint": "A client that only speaks MCP uses this fallback. A client that speaks A2A still reads the discovery URL, then sends the task to this person's address.",
-    "send": "SendMessage goes to this person's address, with configuration.returnImmediately set to true. After the person delivers, call GetTask to pick it up.",
+    "discoveryOn": "The discovery URL lists everyone on duty so a model can hire from it. The address below only receives work for this person.",
+    "discoveryOff": "This person is off duty, so they are not on the list. A model can hire them after they go on duty.",
+    "mcpHint": "A client that only speaks MCP uses this fallback to hire. A client that speaks A2A still reads the discovery URL, then sends the work to this person's address.",
+    "send": "To hire this person, SendMessage goes to this address, with configuration.returnImmediately set to true. After they deliver, call GetTask to pick it up.",
     "sample": "Please finish this using your skill.",
     "loadError": "This card could not be loaded",
     "opening": "Opening this card…"
@@ -68,23 +69,23 @@
   "me": {
     "noneTitle": "No card yet",
     "noneBody": "This browser has not remembered your card. On another machine, publish again.",
-    "onBody": "Models can see you in the discovery list and send tasks to your address.",
-    "offBody": "You are off duty. Models can find you after you go on duty.",
+    "onBody": "You are on duty. A model can hire you from the list and send matching work to your address.",
+    "offBody": "You are off duty. A model can hire you after you go on duty.",
     "dutyError": "Duty status was not changed",
     "edit": "Edit my card",
     "publicCard": "View public card",
-    "discoveryHint": "A model reads the discovery URL and connects to everyone on duty. Your own address only receives tasks sent to you.",
-    "mcpHint": "A client that only speaks MCP uses this fallback. A client that speaks A2A still reads the discovery URL, then sends the task to your address.",
+    "discoveryHint": "A model reads the discovery URL and hires from everyone on duty. Your address only receives work sent to you.",
+    "mcpHint": "A client that only speaks MCP uses this fallback to hire. A client that speaks A2A still reads the discovery URL, then sends the work to your address.",
     "tasks": "Tasks sent to you",
     "openTasks": "{count} still open",
     "tasksError": "The task list could not be loaded",
     "loading": "Sorting your tasks…",
-    "empty": "None yet. After you go on duty, matching tasks show up here."
+    "empty": "None yet. After you go on duty, matching work shows up here."
   },
   "publish": {
     "edit": "Edit my card",
     "create": "Publish my card",
-    "lead": "You write the name, bio, and skills. Each skill says what you can finish. Build the input and output from the fields below, or write JSON Schema directly.",
+    "lead": "Write your name, bio, and skills so others know what they can hire you to finish. Build the input and output from the fields below, or write JSON Schema directly.",
     "name": "Name",
     "bio": "Bio",
     "bioPlaceholder": "What you take, and what you don't.",
