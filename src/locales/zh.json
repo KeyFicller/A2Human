@@ -1,7 +1,7 @@
 {
   "locale": { "zh": "中文", "en": "English" },
-  "brand": "雇在岗的人",
-  "meta": { "description": "雇一个在岗的人。发布技能并上工，模型经 A2A 或 MCP 雇对得上的人。" },
+  "brand": "AS AN AGENT",
+  "meta": { "description": "假装成 agent。发布技能并上工，模型经 A2A 或 MCP 找到在岗的人，把对得上的活派来。" },
   "nav": { "publish": "发布", "duty": "在岗", "mine": "我的卡" },
   "duty": {
     "on": "在岗",
@@ -13,7 +13,7 @@
     "clockOut": "收工",
     "clockIn": "上工"
   },
-  "footer": "发布技能，上工之后可雇。模型按技能把对得上的活派来。",
+  "footer": "发布技能，上工之后出现在名单里。模型按技能把对得上的活派来。",
   "record": { "completed": "完成", "score": "平均分", "time": "平均耗时", "empty": "—" },
   "copy": {
     "loading": "加载中",
@@ -26,8 +26,8 @@
     "callCopied": "已复制调用"
   },
   "home": {
-    "title": "雇一个在岗的人",
-    "lead": "发布你的技能，上工之后出现在名单里。模型经 A2A 或 MCP 雇在岗、技能对得上的人。",
+    "title": "Pretend to be an agent",
+    "lead": "发布你的技能，上工之后出现在名单里。模型经 A2A 或 MCP 找到在岗、技能对得上的人，把活派过来。",
     "onDutyNow": "正在上工",
     "goOnDuty": "去上工",
     "publish": "发布我的卡",
@@ -35,17 +35,17 @@
     "step1Title": "发布",
     "step1Body": "自己写名字、简介，以及每项技能能完成什么。",
     "step2Title": "上工",
-    "step2Body": "上工之后，你才出现在名单里，模型才能雇到你。",
-    "step3Title": "被雇",
-    "step3Body": "模型按技能雇你，把对得上的活派到你这里。",
+    "step2Body": "上工之后，你才出现在名单里，模型才找得到你。",
+    "step3Title": "派来",
+    "step3Body": "模型按技能找到你，把对得上的活派到你这里。",
     "dutyTitle": "在岗",
     "peopleOne": "{count} 人",
     "peopleMany": "{count} 人",
-    "discoveryHint": "模型读这个发现入口，从在岗的人里雇一个。",
-    "mcpHint": "会 A2A 的客户端用上面的发现入口雇人。只会 MCP 时，把这个备用地址加进去。它把在岗技能变成工具，调用仍打到每个人自己的 A2A 地址。",
+    "discoveryHint": "模型读这个发现入口，从在岗的人里找一个。",
+    "mcpHint": "会 A2A 的客户端用上面的发现入口找人。只会 MCP 时，把这个备用地址加进去。它把在岗技能变成工具，调用仍打到每个人自己的 A2A 地址。",
     "rosterError": "在岗名单暂时读不出来",
     "loading": "正在读取在岗名单…",
-    "empty": "现在没有人上工。发布技能并上工之后，模型才能雇到你。"
+    "empty": "现在没有人上工。发布技能并上工之后，模型才能找到你。"
   },
   "agents": {
     "title": "在岗",

@@ -1,7 +1,7 @@
 {
   "locale": { "zh": "中文", "en": "English" },
-  "brand": "HIRE ON DUTY",
-  "meta": { "description": "Hire someone who is on duty. People publish skills and go on duty; models hire them over A2A or MCP." },
+  "brand": "AS AN AGENT",
+  "meta": { "description": "Pretend to be an agent. Publish skills and go on duty; models find you over A2A or MCP and send the work." },
   "nav": { "publish": "Publish", "duty": "On duty", "mine": "My card" },
   "duty": {
     "on": "On duty",
@@ -13,7 +13,7 @@
     "clockOut": "Clock out",
     "clockIn": "Go on duty"
   },
-  "footer": "Publish your skills and go on duty to be hired. Models send the work that matches.",
+  "footer": "Publish your skills and go on duty. Models find you and send the work that matches.",
   "record": { "completed": "Done", "score": "Score", "time": "Time", "empty": "—" },
   "copy": {
     "loading": "Loading",
@@ -26,8 +26,8 @@
     "callCopied": "Call copied"
   },
   "home": {
-    "title": "Hire someone on duty",
-    "lead": "Publish your skills, then go on duty to join the list. Over A2A or MCP, a model hires someone on duty whose skills match.",
+    "title": "Pretend to be an agent",
+    "lead": "Publish your skills, then go on duty to join the list. Over A2A or MCP, a model finds someone on duty whose skills match and sends the work.",
     "onDutyNow": "On duty now",
     "goOnDuty": "Go on duty",
     "publish": "Publish my card",
@@ -35,17 +35,17 @@
     "step1Title": "Publish",
     "step1Body": "Write your name, a short bio, and what each skill can finish.",
     "step2Title": "On duty",
-    "step2Body": "After you go on duty, you join the list and a model can hire you.",
-    "step3Title": "Hired",
-    "step3Body": "A model hires you for matching work and sends it to you.",
+    "step2Body": "After you go on duty, you join the list and a model can find you.",
+    "step3Title": "Sent",
+    "step3Body": "A model matches your skills and sends the work to you.",
     "dutyTitle": "On duty",
     "peopleOne": "{count} person",
     "peopleMany": "{count} people",
-    "discoveryHint": "A model reads this discovery URL and hires someone on duty.",
-    "mcpHint": "Clients that speak A2A hire through the discovery URL above. Clients that only speak MCP add this fallback. It turns on-duty skills into tools, and each call still goes to that person's own A2A address.",
+    "discoveryHint": "A model reads this discovery URL and finds someone on duty.",
+    "mcpHint": "Clients that speak A2A find people through the discovery URL above. Clients that only speak MCP add this fallback. It turns on-duty skills into tools, and each call still goes to that person's own A2A address.",
     "rosterError": "The on-duty list could not be loaded",
     "loading": "Loading the on-duty list…",
-    "empty": "Nobody is on duty. Publish your skills and go on duty before a model can hire you."
+    "empty": "Nobody is on duty. Publish your skills and go on duty before a model can find you."
   },
   "agents": {
     "title": "On duty",
