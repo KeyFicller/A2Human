@@ -66,7 +66,7 @@ export type Task = {
   updatedAt: string
   contextId?: string
   a2aMessageId?: string
-  source?: "direct"
+  source?: "direct" | "dispatch"
   targetId?: string
 }
 

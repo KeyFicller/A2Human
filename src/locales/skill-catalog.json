@@ -1,0 +1,187 @@
+[
+  {
+    "name": "translate",
+    "description": "中英互译",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "direction": { "type": "string" }
+      },
+      "required": ["text"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" }
+      },
+      "required": ["text"]
+    }
+  },
+  {
+    "name": "summarize",
+    "description": "长文/会议纪要压缩",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" }
+      },
+      "required": ["text"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" }
+      },
+      "required": ["summary"]
+    }
+  },
+  {
+    "name": "rewrite",
+    "description": "改语气、改得更顺",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "tone": { "type": "string" }
+      },
+      "required": ["text"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" }
+      },
+      "required": ["text"]
+    }
+  },
+  {
+    "name": "proofread",
+    "description": "错别字和病句",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" }
+      },
+      "required": ["text"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" }
+      },
+      "required": ["text"]
+    }
+  },
+  {
+    "name": "brainstorm",
+    "description": "点子、标题、活动方案",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "topic": { "type": "string" }
+      },
+      "required": ["topic"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ideas": { "type": "string" }
+      },
+      "required": ["ideas"]
+    }
+  },
+  {
+    "name": "schedule",
+    "description": "约时间、排日程",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "request": { "type": "string" }
+      },
+      "required": ["request"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "suggestion": { "type": "string" }
+      },
+      "required": ["suggestion"]
+    }
+  },
+  {
+    "name": "research",
+    "description": "查公开资料并给出处",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" }
+      },
+      "required": ["question"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "answer": { "type": "string" },
+        "sources": { "type": "string" }
+      },
+      "required": ["answer", "sources"]
+    }
+  },
+  {
+    "name": "coach",
+    "description": "简历/面试口头陪练",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "topic": { "type": "string" },
+        "material": { "type": "string" }
+      },
+      "required": ["topic"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "feedback": { "type": "string" }
+      },
+      "required": ["feedback"]
+    }
+  },
+  {
+    "name": "customer_reply",
+    "description": "客服式礼貌回复",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": { "type": "string" }
+      },
+      "required": ["message"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "reply": { "type": "string" }
+      },
+      "required": ["reply"]
+    }
+  },
+  {
+    "name": "plan_trip",
+    "description": "行程与清单建议",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "destination": { "type": "string" },
+        "days": { "type": "integer" }
+      },
+      "required": ["destination"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "plan": { "type": "string" }
+      },
+      "required": ["plan"]
+    }
+  }
+]

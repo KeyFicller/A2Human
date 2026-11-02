@@ -19,6 +19,7 @@ from a2human.a2a import dispatch_a2a, rpc_error
 from a2human.bus import allow, cached_card, ping, store_card
 from a2human.card import dispatcher_card, to_agent_card
 from a2human.copy import wire
+from a2human.skill_catalog import skill_catalog
 from a2human.db import session_maker, shutdown_resources
 from a2human.jsonutil import dumps, loads
 from a2human.mcp import McpIo, handle_mcp
@@ -219,6 +220,22 @@ async def post_task(task_id: str, request: Request) -> Response:
         return json_response(await update_store(run))
     except (DomainError, json.JSONDecodeError) as error:
         return _domain_response(error)
+
+
+@app.get("/api/skill-catalog")
+async def get_skill_catalog() -> Response:
+    return json_response({"skills": skill_catalog()})
+
+
+@app.post("/api/a2a/dispatch")
+async def dispatch_rpc(request: Request) -> Response:
+    body = await _read_rpc(request)
+    if body is _PARSE_ERROR:
+        return json_response(rpc_error(None, -32700, wire("request.body")))
+    result = await update_store(
+        lambda store: dispatch_a2a(store, {"kind": "dispatch"}, body, {"a2aVersion": request.headers.get("a2a-version")})
+    )
+    return json_response(result)
 
 
 @app.get("/api/a2a")

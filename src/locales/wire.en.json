@@ -27,7 +27,8 @@
     "duplicate": "Skill names cannot repeat",
     "type": "skill must be a skill name",
     "missing": "This person does not list that skill",
-    "absent": "No such on-duty skill"
+    "absent": "No such on-duty skill",
+    "reserved": "That name is a built-in skill. Do not reuse it with different casing."
   },
   "card": {
     "locked": "This card cannot be edited",
@@ -141,6 +142,11 @@
   "role": { "user": "role must be ROLE_USER" },
   "returnImmediately": "Set configuration.returnImmediately to true. While the person is on duty the task is dispatched immediately, then picked up with GetTask.",
   "directory": { "assign": "Pick someone from onDuty and send SendMessage to that person's url. The directory does not assign work." },
+  "dispatch": {
+    "skill": "Dispatch needs metadata.skill.",
+    "none": "Nobody on duty lists that skill.",
+    "agent": "That person is not on duty, or does not list that skill."
+  },
   "page": { "size": "pageSize must be an integer from 1 to 100", "token": "pageToken is invalid" },
   "protocolStatus": { "unknown": "status is not a protocol state" },
   "rpc": { "not": "The request is not JSON-RPC", "version": "The request is not JSON-RPC 2.0" },

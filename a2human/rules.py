@@ -14,6 +14,7 @@ from typing import Any
 from a2human.clock import now_iso, now_ms, parse_ms
 from a2human.copy import wire
 from a2human.hooks import remember
+from a2human.skill_catalog import reserved_custom_name
 from a2human.images import read_image
 from a2human.jsonutil import dumps, loads
 from a2human.schema_fields import canonical_output
@@ -149,6 +150,8 @@ def _clean_skills(skills: object) -> list[dict[str, Any]]:
         description = item["description"].strip()
         if text_len(name) < 1 or text_len(name) > 24:
             fail(wire("skill.name"))
+        if reserved_custom_name(name):
+            fail(wire("skill.reserved"))
         if text_len(description) < 1 or text_len(description) > 120:
             fail(wire("skill.description"))
         if name in seen:
@@ -473,7 +476,7 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         "updatedAt": created_at,
         "contextId": payload.get("contextId") or str(uuid.uuid4()),
         "a2aMessageId": payload["messageId"],
-        "source": "direct",
+        "source": payload["source"] if payload.get("source") in {"direct", "dispatch"} else "direct",
         "targetId": human["id"],
     }
     store["tasks"].insert(0, task)

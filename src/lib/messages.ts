@@ -93,11 +93,20 @@ export type Messages = {
     bio: string
     bioPlaceholder: string
     legend: string
+    catalogLead: string
     skillName: string
     skillPlaceholder: string
+    lockedName: string
     canDo: string
     canDoPlaceholder: string
     removeSkill: string
+    customAdd: string
+    customName: string
+    customHint: string
+    customPlaceholder: string
+    customInvalid: string
+    customReserved: string
+    needSkill: string
     addSkill: string
     duplicate: string
     writing: string
@@ -284,11 +293,20 @@ function bind(locale: Locale): Messages {
       bio: text("publish.bio"),
       bioPlaceholder: text("publish.bioPlaceholder"),
       legend: text("publish.legend"),
+      catalogLead: text("publish.catalogLead"),
       skillName: text("publish.skillName"),
       skillPlaceholder: text("publish.skillPlaceholder"),
+      lockedName: text("publish.lockedName"),
       canDo: text("publish.canDo"),
       canDoPlaceholder: text("publish.canDoPlaceholder"),
       removeSkill: text("publish.removeSkill"),
+      customAdd: text("publish.customAdd"),
+      customName: text("publish.customName"),
+      customHint: text("publish.customHint"),
+      customPlaceholder: text("publish.customPlaceholder"),
+      customInvalid: text("publish.customInvalid"),
+      customReserved: text("publish.customReserved"),
+      needSkill: text("publish.needSkill"),
       addSkill: text("publish.addSkill"),
       duplicate: text("publish.duplicate"),
       writing: text("publish.writing"),
