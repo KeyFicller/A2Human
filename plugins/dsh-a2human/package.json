@@ -1,0 +1,17 @@
+{
+  "name": "dsh-a2human",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin that reads one A2Human directory and turns every on-duty person into a tool.",
+  "type": "module",
+  "main": "index.js",
+  "files": ["index.js", "roster.js", "cordis.patch.yml", "README.md"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

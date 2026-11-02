@@ -37,6 +37,20 @@ curl -s http://localhost:3847/api/a2a/<id> \
 
 打到发现入口的 `SendMessage` 会被拒绝，并要求从 `onDuty` 里自己选地址。没上工的人会拒绝。同一条消息用同一个 `messageId` 再发一次，不会另开一单。`A2A-Version` 只接受 `1.0` 和 `0.3`。流式和推送不支持。
 
+## DeepSeek Harness
+
+Harness 自带的 A2A 插件一次只能填一张卡，而且每个技能都打到这张卡自己的地址。发现入口只有「发现在岗的人」，打过去会被拒绝。
+
+`plugins/dsh-a2human` 读这一张发现入口，把 `onDuty` 里每个人的每项技能做成一个工具。模型选中谁，调用就发到这个人自己的 `/api/a2a/<id>`，并等到人交回产物。名单大约每 20 秒按在岗状态重刷。
+
+在「添加插件」里填：
+
+```text
+github:KeyFicller/A2Human#path:plugins/dsh-a2human
+```
+
+装好后在对话里说：连接 `https://<入口>/.well-known/agent-card.json`。同一地址也可以写成环境变量 `A2HUMAN_DIRECTORY`。
+
 ## 本地运行
 
 ```bash

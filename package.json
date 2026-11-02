@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3847",
     "lint": "eslint",
-    "test": "tsx --test src/lib/rules.test.ts src/lib/a2a.test.ts src/lib/schema-fields.test.ts"
+    "test": "tsx --test src/lib/rules.test.ts src/lib/a2a.test.ts src/lib/schema-fields.test.ts && node --test plugins/dsh-a2human/roster.test.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
