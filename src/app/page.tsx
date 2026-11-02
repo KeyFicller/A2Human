@@ -19,8 +19,8 @@ const steps = [
   },
   {
     n: "02",
-    title: "挂上岗",
-    body: "有空时把自己挂上去。没挂上岗，模型发现不到，也派不进来。",
+    title: "上工",
+    body: "有空就上工。没上工，模型发现不到，也派不进来。",
   },
   {
     n: "03",
@@ -60,27 +60,27 @@ export default function HomePage() {
   return (
     <div className="grid items-start gap-10 lg:grid-cols-[1.3fr_0.7fr]">
       <div>
-        <p className="font-mono text-[11px] tracking-[0.22em] text-stamp">SOMEONE IS HERE</p>
+        <p className="font-mono text-[11px] tracking-[0.22em] text-stamp">A2HUMAN</p>
         <div className="mt-4 flex items-start justify-between gap-6">
           <h1 className="max-w-xl font-serif text-5xl leading-[1.05] tracking-tight md:text-7xl">
-            这里有人
+            赛博打工
           </h1>
           <div className="seal mt-2 hidden sm:grid" aria-hidden>
-            人
+            工
           </div>
         </div>
         <p className="mt-6 max-w-xl text-lg leading-8">
-          模型要办事，就按技能请来一个现在有空的人。你挂上岗，活会立刻派到你身上。完成率、延迟率、好评率都挂在脸上。
+          有空就上工。模型按技能把活派过来，干完把产物交回去。完成率、延迟率、好评率都算在你头上。
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href={ready && me ? "/me" : "/publish"} className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
-            {ready && me?.available ? "我在岗" : "我有空"}
+            {ready && me?.available ? "正在干" : "上工"}
           </Link>
           <Link
             href="/agents"
             className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-11 bg-paper px-5")}
           >
-            看谁在岗
+            看谁在干
           </Link>
         </div>
         <ol className="mt-10 grid gap-3 sm:grid-cols-3">

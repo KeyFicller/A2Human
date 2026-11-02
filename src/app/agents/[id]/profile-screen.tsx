@@ -113,7 +113,7 @@ export default function AgentProfilePage() {
               广场入口是 {origin ? `${origin}/.well-known/agent-card.json` : "加载中"}
               {agent.available
                 ? "。这个人在岗，模型按技能从在岗名单找到这张卡后，可以把活立刻派过来。configuration.returnImmediately 要设为 true。人交完产物后，用 GetTask 读取。"
-                : "。这个人现在没挂上岗，不会出现在发现名单里，派单也会被拒绝。"}
+                : "。这个人现在没上工，不会出现在发现名单里，派单也会被拒绝。"}
             </p>
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="truncate font-mono text-xs text-muted-foreground">{endpoint}</p>

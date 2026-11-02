@@ -51,7 +51,7 @@ export default function AgentsPage() {
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">DIRECTORY</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">Agent 目录</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        在岗的人排在前面。模型按技能从这里发现人，并把活立刻派给在岗的那一个。没挂上岗的卡还在，但派不进来。
+        正在上工的人排在前面。模型按技能把活派给其中一位。没上工的卡还在，但派不进来。
       </p>
       <div className="mt-5 flex gap-2">
         {(

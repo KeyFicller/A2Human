@@ -1,4 +1,4 @@
-export const AGENT_KEY = "youren-agent-id"
+export const AGENT_KEY = "a2human-agent-id"
 
 export class ApiError extends Error {}
 

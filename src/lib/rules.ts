@@ -132,9 +132,9 @@ export function updateAgent(
 
 export function setAvailability(store: Store, agentId: string, available: unknown): Agent {
   const agent = requireAgent(store, agentId)
-  if (!agent.human) fail("模型方不用挂上岗")
+  if (!agent.human) fail("模型方不用上工")
   if (typeof available !== "boolean") fail("在岗状态要是 true 或 false")
-  if (available && agent.skills.length < 1) fail("先标至少一项技能再挂上岗")
+  if (available && agent.skills.length < 1) fail("先标至少一项技能再上工")
   agent.available = available
   return agent
 }
@@ -413,11 +413,11 @@ export function receiveCommand(
     if (!input.humanId) fail("缺少要指挥的人")
     human = requireAgent(store, input.humanId)
     if (!human.human) fail("只能指挥已经发布的人", -32004)
-    if (!human.available) fail("这个人现在没挂上岗", -32004)
+    if (!human.available) fail("这个人现在没上工", -32004)
   } else {
     if (!input.humanId) fail("没有可指派的在岗的人", -32004)
     human = requireAgent(store, input.humanId)
-    if (!human.human || !human.available) fail("这个人现在没挂上岗", -32004)
+    if (!human.human || !human.available) fail("这个人现在没上工", -32004)
   }
 
   const caller = ensureCaller(store)

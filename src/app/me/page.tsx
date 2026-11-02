@@ -59,13 +59,13 @@ export default function MePage() {
     <div className="grid items-start gap-6 lg:grid-cols-[0.8fr_1.2fr]">
       <section className="sheet p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">
-          {agent.available ? "在岗" : "不在岗"}
+          {agent.available ? "上工中" : "没上工"}
         </p>
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
         <p className="mt-4 leading-7">
           {agent.available
-            ? "模型现在能按你的技能发现你，并直接把活派过来。"
-            : "有空时挂上去。没挂上岗，模型发现不到，也派不进来。"}
+            ? "赛博打工进行中。模型按你的技能把活派过来。"
+            : "还没上工。上工之后，模型才发现得到你。"}
         </p>
         <Button
           type="button"
@@ -86,7 +86,7 @@ export default function MePage() {
               })
           }}
         >
-          {agent.available ? "撤下来" : "挂上去"}
+          {agent.available ? "收工" : "上工"}
         </Button>
         {dutyError ? <p className="mt-3 text-sm text-stamp">{dutyError}</p> : null}
         <p className="mt-4 leading-7">{agent.bio}</p>

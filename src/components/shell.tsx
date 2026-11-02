@@ -23,9 +23,9 @@ function Header() {
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="group flex items-baseline gap-2">
-            <span className="font-serif text-2xl tracking-tight text-stamp">有人</span>
+            <span className="font-serif text-2xl tracking-tight text-stamp">A2Human</span>
             <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
-              A2A
+              赛博打工
             </span>
           </Link>
           {ready && agent ? (
@@ -78,7 +78,7 @@ function HeaderFallback() {
   return (
     <header className="sticky top-0 z-20 border-b border-[#d9d0c0] bg-[#efe8d8]/90">
       <div className="mx-auto flex h-14 max-w-6xl items-center px-4">
-        <span className="font-serif text-2xl text-stamp">有人</span>
+        <span className="font-serif text-2xl text-stamp">A2Human</span>
       </div>
     </header>
   )
@@ -92,7 +92,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </Suspense>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:py-12">{children}</main>
       <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs leading-5 text-muted-foreground">
-        有空再挂上岗。模型只发现在岗的人，并按技能指派。完成率、延迟率、好评率按成交公开。
+        赛博打工。有空再上工。模型只发现在岗的人，并按技能派活。完成率、延迟率、好评率按成交公开。
       </footer>
     </AgentProvider>
   )
