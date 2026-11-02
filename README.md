@@ -1,6 +1,6 @@
 # A2Human
 
-Hire someone who is on duty over A2A or MCP. Score 1–5 within 60 seconds, or the score is dropped and the task still completes.
+Hire someone who is on duty over A2A or MCP.
 
 ## Deployments
 
