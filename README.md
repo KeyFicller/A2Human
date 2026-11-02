@@ -6,8 +6,8 @@ A human-as-tool market. Publish a card, go on duty, and a model hires that perso
 
 - One origin stays up. No account, no install, no port to forward.
 - The skill on the card is the job. Off duty, you leave the list.
-- Score is an integer 1–5 from the model that sent the task. Silent 60s, the score drops and the task is still delivered.
-- Header: English / 中文. This browser remembers your card.
+- Score is 1–5 from the sending model. Silent 60s drops the score; the task is still delivered.
+- English / 中文. This browser remembers your card.
 
 **Live market: https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev**
 
@@ -21,10 +21,10 @@ mcp         https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/mc
 `A2A 1.0 · 0.3` · `MCP fallback` · `score 1–5` · `60s` · `EN / 中文`
 
 ```text
-you      publish a card  →  go on duty
-model    read onDuty     →  SendMessage to that url      A2A
-         or call a tool  →  same person, same address    MCP
-you      submit the work
+you      publish  →  on duty
+model    onDuty   →  SendMessage        A2A
+         or a tool → same person        MCP
+you      submit
 model    score 1–5 within 60s
 ```
 
@@ -34,32 +34,32 @@ model    score 1–5 within 60s
 <tr>
 <td width="50%">
 
-![Home. Publish, go on duty, see who is working.](docs/demo/home.png)
+![Home](docs/demo/home.png)
 
-**Home.** Publish and see who is on duty.
+**Home.**
 
 </td>
 <td width="50%">
 
-![On duty. Skills and where a task goes.](docs/demo/duty.png)
+![On duty](docs/demo/duty.png)
 
-**On duty.** Skills, and the address.
+**On duty.**
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-![My card. Clock in or out. Tasks on the right.](docs/demo/me.png)
+![My card](docs/demo/me.png)
 
-**My card.** Duty switch. Tasks on the right.
+**My card.**
 
 </td>
 <td width="50%">
 
-![Delivered. The model left a score.](docs/demo/task.png)
+![Delivered](docs/demo/task.png)
 
-**Delivered.** Work in. Score on it.
+**Delivered.**
 
 </td>
 </tr>
@@ -67,90 +67,51 @@ model    score 1–5 within 60s
 
 ## 1. 加入：假装成 agent 上工
 
-You are the tool. This browser is the client. Another browser means publishing again. Cards and tasks live in `data/store.json`.
-
-1. **Publish my card.** Name, bio, 1–6 skills. Each skill says what you can finish. Input and output: fields (name, type, required, a note) or JSON Schema.
-2. **Go on duty** on My card. You join discovery only then.
-3. Tasks sit on the right. **New work** pops up (title, request, sender, up to three). **Open** or **Dismiss**. Already on that task, it stays quiet.
-4. **Submit work**, or **Needs input** / **Reject** / **Fail** / **Cancel**. Needs input: the model sends the same task id and it returns to in progress.
-5. The model scores 1–5. You cannot ask. 60s of silence drops the score; the task is still delivered. Delivered, rejected, failed, and canceled stay as they are.
-6. **Clock out** to leave the list.
-
-Card numbers use delivered tasks only. Average score skips unscored tasks and keeps one decimal. Average time is seconds from dispatch to delivery.
+1. **Publish my card.** Name, bio, 1–6 skills (fields or JSON Schema).
+2. **Go on duty** on My card. You join the list only then.
+3. **New work** (up to 3): **Open** or **Dismiss**.
+4. **Submit work**, or **Needs input** / **Reject** / **Fail** / **Cancel**.
+5. **Clock out** to leave the list.
 
 ## 2. 接入方式使用说明
 
-You are the caller. Two doors, one person. You pick who. Discovery only lists people on duty.
+You pick the person. Discovery only lists who is on duty.
 
 ### A2A
 
-`a2human.onDuty` has the skills and each person's URL. `SendMessage` with `configuration.returnImmediately: true` starts `TASK_STATE_WORKING`.
+- `onDuty` lists skills and each URL. `SendMessage` with `returnImmediately: true` starts the task.
+- After submit, `GetTask` asks for a score. Reply `{"score":4}` on the same task id.
+- Off duty rejects. Same `messageId` replays. Version `1.0` or `0.3`. No streaming or push. `CancelTask` cancels.
 
 ```bash
 ORIGIN=https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev
-
 curl -s "$ORIGIN/api/a2a/<id>" \
-  -H 'content-type: application/json' \
-  -H 'A2A-Version: 1.0' \
+  -H 'content-type: application/json' -H 'A2A-Version: 1.0' \
   -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-1","parts":[{"text":"Finish this using your skill."}]}}}'
 ```
 
-After submit, `GetTask` is `TASK_STATE_INPUT_REQUIRED`. The result is in `artifacts`. `status.message` is `{"request":"score","taskId":"...","person":"...","artifact":"..."}`. Reply on the same task id with `{"score":4}` only. The state becomes `TASK_STATE_COMPLETED`.
-
-```bash
-ORIGIN=https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev
-
-curl -s "$ORIGIN/api/a2a/<id>" \
-  -H 'content-type: application/json' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"GetTask","params":{"id":"<task id>"}}'
-
-curl -s "$ORIGIN/api/a2a/<id>" \
-  -H 'content-type: application/json' \
-  -H 'A2A-Version: 1.0' \
-  -d '{"jsonrpc":"2.0","id":3,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-2","contextId":"<contextId>","taskId":"<task id>","parts":[{"data":{"score":4}}]}}}'
-```
-
-`a2human.completed`, `averageScore`, and `averageDuration` (seconds) are on the card and on each `onDuty` entry.
-
-- Off duty rejects the call. The same `messageId` returns the existing task.
-- `A2A-Version` is `1.0` or `0.3`. Streaming and push are unsupported. Cancel with `CancelTask`.
-
 ### MCP
 
-Add `https://special-chainsaw-96w7vv6jjpwp26gg-3847.app.github.dev/api/mcp`. Each on-duty skill is a tool. The call still goes to that person's A2A address. It waits up to 15 seconds.
+- Add the MCP URL above. Each on-duty skill is a tool. The call still goes to that person's A2A address (waits up to 15s).
+- Still working: call again with `task_id`. Delivered: `task_id` and `score` (1–5).
+- Flat English identifiers (`string`, `integer`, `number`, `boolean`, image) are arguments. Anything else is one `prompt`.
 
-- Still working: call again with `task_id`.
-- Delivered: call again with `task_id` and `score` (integer 1–5).
-- A flat object of English identifiers (a letter or `_`, then letters, digits, or `_`), each `string`, `integer`, `number`, `boolean`, or image, becomes the arguments. Anything else arrives as one `prompt` string.
-- An image is an http or https URL, or `data:image/png;base64,…` (`jpeg`, `webp`, `gif` too). A URL ending in `.jpg`, `.jpeg`, `.webp`, or `.gif` uses that type. Any other URL is `image/png`.
-
-### Payload
-
-- Schemas sit in `capabilities.extensions[].params.skillSchemas` and on `onDuty[].skills`. A field note is `description`. AgentSkill has no schema field.
-- With both schemas set, modes are `application/json` for data, plus `image/png`, `image/jpeg`, `image/webp`, `image/gif` when a field is an image.
-- JSON goes in `parts[].data`. A picture is one of those image parts: base64 `raw`, or an http or https URL.
-- Output must match the schema: required fields, right types, no extras, no free text when a schema is declared.
-- `GetTask` returns JSON in `data` and a picture as the same image part. No output schema: plain text. A browser upload is 1MB or smaller.
+Schemas: `capabilities.extensions[].params.skillSchemas` and `onDuty[].skills`. JSON goes in `parts[].data`. Images are `image/png`, `jpeg`, `webp`, or `gif`. Output must match the schema. A browser upload is 1MB or smaller.
 
 ## Server ops
 
-People do not run this. One machine stays up.
+People do not run this.
 
 ```bash
 docker build -t a2human .
 docker run -d --name a2human --restart unless-stopped -p 3847:3847 -v a2human-data:/app/data a2human
 ```
 
-The volume keeps `data/store.json`. To ship a new image: `docker rm -f a2human`, then the same `docker run`. The volume stays.
+The volume keeps `data/store.json`. New image: `docker rm -f a2human`, then the same run.
 
 ```bash
-npm install
-npm run dev
+npm install && npm run dev
+npm test && npm run lint
 ```
 
-Development only. It listens on port 3847.
-
-```bash
-npm test
-npm run lint
-```
+Development only. Port 3847.
