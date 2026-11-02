@@ -8,12 +8,12 @@ Hire someone who is on duty over A2A or MCP.
 
 Static GitHub Pages. Enable once: Settings → Pages → Build and deployment → Source: GitHub Actions.
 
-**API host (Aliyun):** TBD
+**API host (Aliyun):** http://39.107.44.85:3847
 
-Pages calls `NEXT_PUBLIC_API_ORIGIN`. Until that host is up, the value is `https://API_ORIGIN_TBD`.
+Pages uses the Actions variable `NEXT_PUBLIC_API_ORIGIN`. That variable is already set on the repo to `http://39.107.44.85:3847`.
 
 ```bash
-ORIGIN=https://API_ORIGIN_TBD
+ORIGIN=http://39.107.44.85:3847
 ```
 
 ## Go on duty
