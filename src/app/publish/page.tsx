@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { SchemaEditor } from "@/components/schema-editor"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
+import { go, pagesExport } from "@/lib/paths"
 import { draftFromSchema, duplicateFieldName, emptySchemaDraft, schemaPayload, type SchemaDraft } from "@/lib/schema-fields"
 import type { Agent, Skill } from "@/lib/types"
 
@@ -85,7 +86,8 @@ export default function PublishPage() {
           .then(async (next) => {
             if (agent) await refresh()
             else await signIn(next.id)
-            router.push("/me")
+            if (pagesExport) go("/me")
+            else router.push("/me")
           })
           .catch((caught: unknown) => {
             setError(caught instanceof ApiError ? showError(caught, t.publish.saveError) : t.publish.saveError)

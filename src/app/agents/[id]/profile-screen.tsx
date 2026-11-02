@@ -9,6 +9,7 @@ import { SchemaSummary } from "@/components/schema-summary"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorNote } from "@/components/status"
+import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
 import { RecordFigures } from "@/components/record-figures"
 import type { Agent } from "@/lib/types"
@@ -18,17 +19,19 @@ export function ProfileFallback() {
   return <LoadingLine text={t.profile.opening} />
 }
 
-export default function AgentProfilePage() {
-  const params = useParams<{ id: string }>()
+export default function AgentProfilePage({ id }: { id?: string }) {
+  const params = useParams<{ id?: string }>()
+  const agentId = id || params.id || ""
   const [agent, setAgent] = useState<Agent | null>(null)
   const [card, setCard] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [origin, setOrigin] = useState("")
+  const origin = useApiOrigin()
   const { t, error: showError } = useText()
 
   const load = useCallback(() => {
-    Promise.all([api<Agent>(`/api/agents/${params.id}`), api<unknown>(`/api/a2a/${params.id}`)])
+    if (!agentId) return
+    Promise.all([api<Agent>(`/api/agents/${agentId}`), api<unknown>(`/api/a2a/${agentId}`)])
       .then(([nextAgent, nextCard]) => {
         setAgent(nextAgent)
         setCard(nextCard)
@@ -37,15 +40,11 @@ export default function AgentProfilePage() {
       .catch((caught: unknown) => {
         setError(showError(caught, t.profile.loadError))
       })
-  }, [params.id, showError, t.profile.loadError])
+  }, [agentId, showError, t.profile.loadError])
 
   useEffect(() => {
     load()
   }, [load])
-
-  useEffect(() => {
-    Promise.resolve().then(() => setOrigin(window.location.origin))
-  }, [])
 
   useEffect(() => {
     if (!copied) return

@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import { AppLink } from "@/components/app-link"
 import { buttonVariants } from "@/components/ui/button"
 import { AgentCard } from "@/components/agent-card"
 import { useAgent } from "@/components/agent-provider"
 import { CopyField } from "@/components/copy-field"
 import { useText } from "@/components/locale-provider"
 import { ErrorNote, LoadingLine } from "@/components/status"
+import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
 import type { Agent } from "@/lib/types"
 import { cn } from "cn"
@@ -15,7 +16,7 @@ import { cn } from "cn"
 export default function HomePage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [origin, setOrigin] = useState("")
+  const origin = useApiOrigin()
   const { agent: me, ready } = useAgent()
   const { t, error: showError } = useText()
 
@@ -41,10 +42,6 @@ export default function HomePage() {
     }
   }, [showError, t.home.rosterError])
 
-  useEffect(() => {
-    Promise.resolve().then(() => setOrigin(window.location.origin))
-  }, [])
-
   const onDuty = agents?.filter((agent) => agent.available) ?? []
   const published = Boolean(ready && me)
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
@@ -60,12 +57,12 @@ export default function HomePage() {
       <h1 className="mt-4 max-w-xl font-serif text-5xl leading-[1.05] tracking-tight md:text-7xl">{t.home.title}</h1>
       <p className="mt-6 max-w-xl text-lg leading-8">{t.home.lead}</p>
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        <Link href={published ? "/me" : "/publish"} className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
+        <AppLink href={published ? "/me" : "/publish"} className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
           {me?.available ? t.home.onDutyNow : published ? t.home.goOnDuty : t.home.publish}
-        </Link>
-        <Link href="/agents" className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-11 bg-paper px-5")}>
+        </AppLink>
+        <AppLink href="/agents" className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-11 bg-paper px-5")}>
           {t.home.seeDuty}
-        </Link>
+        </AppLink>
       </div>
       <ol className="mt-10 grid gap-3 sm:grid-cols-3">
         {steps.map((step) => (

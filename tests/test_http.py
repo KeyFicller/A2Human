@@ -51,3 +51,25 @@ def test_publish_duty_and_discovery_keep_the_old_urls():
         assert opened.json()["result"]["protocolVersion"] == "2025-11-25"
         assert client.get("/api/health").json()["status"] == "ok"
         assert client.get("/api/ready").status_code == 200
+
+
+def test_pages_and_local_origins_can_call_the_api():
+    with TestClient(app) as client:
+        preflight = client.options(
+            "/api/agents",
+            headers={
+                "origin": "https://keyficller.github.io",
+                "access-control-request-method": "GET",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers["access-control-allow-origin"] == "https://keyficller.github.io"
+        listed = client.get("/api/agents", headers={"origin": "https://keyficller.github.io"})
+        assert listed.status_code == 200
+        assert listed.headers["access-control-allow-origin"] == "https://keyficller.github.io"
+        local = client.get("/api/agents", headers={"origin": "http://127.0.0.1:4173"})
+        assert local.headers["access-control-allow-origin"] == "http://127.0.0.1:4173"
+        host = client.get("/api/agents", headers={"origin": "http://localhost:3000"})
+        assert host.headers["access-control-allow-origin"] == "http://localhost:3000"
+        denied = client.get("/api/agents", headers={"origin": "https://evil.example"})
+        assert "access-control-allow-origin" not in denied.headers

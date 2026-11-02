@@ -47,8 +47,9 @@ export function TaskFallback() {
   return <LoadingLine text={t.task.opening} />
 }
 
-export default function TaskScreen() {
-  const params = useParams<{ id: string }>()
+export default function TaskScreen({ id }: { id?: string }) {
+  const params = useParams<{ id?: string }>()
+  const taskId = id || params.id || ""
   const { agent, ready } = useAgent()
   const { locale, t, error: showError } = useText()
   const [detail, setDetail] = useState<Detail | null>(null)
@@ -62,7 +63,8 @@ export default function TaskScreen() {
   const [reason, setReason] = useState("")
 
   const load = useCallback(() => {
-    api<Detail>(`/api/tasks/${params.id}`)
+    if (!taskId) return
+    api<Detail>(`/api/tasks/${taskId}`)
       .then((next) => {
         setDetail(next)
         setError(null)
@@ -71,7 +73,7 @@ export default function TaskScreen() {
       .catch((caught: unknown) => {
         setError(showError(caught, t.task.loadError))
       })
-  }, [params.id, showError, t.task.loadError])
+  }, [taskId, showError, t.task.loadError])
 
   useEffect(() => {
     load()

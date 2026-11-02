@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { AppLink } from "@/components/app-link"
 import { useLocale } from "@/components/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { statusLabel } from "@/lib/format"
@@ -21,7 +21,7 @@ export function TaskRow({ task }: { task: Task }) {
   const { locale, t } = useLocale()
   const waiting = task.status === "input-required" && (task.artifact || task.artifactImage)
   return (
-    <Link href={`/tasks/${task.id}`} className="sheet block px-4 py-4 transition hover:-translate-y-0.5 md:px-5">
+    <AppLink href={`/tasks/${task.id}`} className="sheet block px-4 py-4 transition hover:-translate-y-0.5 md:px-5">
       <p className={cn("inline-flex rounded-full bg-[#f3e6c8] px-2 py-0.5 font-mono text-[11px] tracking-[0.12em]", tone[task.status])}>
         {waiting ? t.task.awaitingScore : statusLabel(task.status, locale)}
       </p>
@@ -36,6 +36,6 @@ export function TaskRow({ task }: { task: Task }) {
         {typeof task.workScore === "number" ? <span className="text-xs text-muted-foreground">{t.task.gotScore(task.workScore)}</span> : null}
         <span className="ml-auto text-xs text-muted-foreground">{t.task.from(task.posterName)}</span>
       </div>
-    </Link>
+    </AppLink>
   )
 }

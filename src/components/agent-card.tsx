@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { AppLink } from "@/components/app-link"
 import { useLocale } from "@/components/locale-provider"
 import { RecordFigures } from "@/components/record-figures"
 import { SchemaSummary } from "@/components/schema-summary"
@@ -10,7 +10,7 @@ import type { Agent } from "@/lib/types"
 export function AgentCard({ agent }: { agent: Agent }) {
   const { t } = useLocale()
   return (
-    <Link href={`/agents/${agent.id}`} className="sheet block p-5 transition hover:-translate-y-0.5">
+    <AppLink href={`/agents/${agent.id}`} className="sheet block p-5 transition hover:-translate-y-0.5">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="font-serif text-2xl">{agent.name}</h3>
         <p className="shrink-0 font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{agent.available ? t.duty.on : t.duty.off}</p>
@@ -26,6 +26,6 @@ export function AgentCard({ agent }: { agent: Agent }) {
           </li>
         ))}
       </ul>
-    </Link>
+    </AppLink>
   )
 }

@@ -1,12 +1,12 @@
 "use client"
 
 import { Suspense } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { AppLink } from "@/components/app-link"
 import { AgentProvider, useAgent } from "@/components/agent-provider"
 import { LocaleProvider, useLocale } from "@/components/locale-provider"
 import { WorkNotice } from "@/components/work-notice"
 import type { Locale } from "@/lib/messages"
+import { useAppPath } from "@/lib/paths"
 import { cn } from "cn"
 
 function LocaleSwitch() {
@@ -30,7 +30,7 @@ function LocaleSwitch() {
 }
 
 function Header() {
-  const pathname = usePathname()
+  const pathname = useAppPath()
   const { agent, ready } = useAgent()
   const { t } = useLocale()
   const links = [
@@ -43,24 +43,24 @@ function Header() {
     <header className="sticky top-0 z-20 border-b border-[#d9d0c0] bg-[#efe8d8]/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <Link href="/" className="flex min-w-0 items-baseline gap-2">
+          <AppLink href="/" className="flex min-w-0 items-baseline gap-2">
             <span className="font-serif text-2xl tracking-tight text-stamp">A2Human</span>
             <span className="hidden font-mono text-[11px] tracking-[0.18em] text-muted-foreground sm:inline">AGENT CARD</span>
-          </Link>
+          </AppLink>
           <div className="flex items-center gap-3">
             <LocaleSwitch />
             <div className="hidden text-right md:block">
               {ready && agent ? (
-                <Link href="/me" className="text-sm">
+                <AppLink href="/me" className="text-sm">
                   <span className="font-serif text-lg">{agent.name}</span>
                   <span className="ml-2 font-mono text-xs text-muted-foreground">
                     {agent.human ? (agent.available ? t.duty.on : t.duty.off) : t.duty.model}
                   </span>
-                </Link>
+                </AppLink>
               ) : (
-                <Link href="/publish" className="text-sm text-stamp">
+                <AppLink href="/publish" className="text-sm text-stamp">
                   {t.duty.unpublished}
-                </Link>
+                </AppLink>
               )}
             </div>
           </div>
@@ -70,21 +70,21 @@ function Header() {
             {links.map((link) => {
               const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
               return (
-                <Link
+                <AppLink
                   key={link.href}
                   href={link.href}
                   className={cn("shrink-0 rounded-full px-3 py-1.5 text-sm", active ? "bg-ink text-[#f7f1e4]" : "text-ink hover:bg-secondary")}
                 >
                   {link.label}
-                </Link>
+                </AppLink>
               )
             })}
           </nav>
           {ready && agent ? (
-            <Link href="/me" className="shrink-0 font-mono text-xs text-ink md:hidden">
+            <AppLink href="/me" className="shrink-0 font-mono text-xs text-ink md:hidden">
               {agent.name}
               {agent.human ? ` · ${agent.available ? t.duty.on : t.duty.off}` : ""}
-            </Link>
+            </AppLink>
           ) : null}
         </div>
       </div>

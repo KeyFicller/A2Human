@@ -3,6 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Empty keeps the browser on this server's /api proxy.
+export NEXT_PUBLIC_API_ORIGIN="${NEXT_PUBLIC_API_ORIGIN-}"
+
 python3 -m a2human.migrate
 if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", 3848), 1).close()' 2>/dev/null; then
   setsid python3 -m gunicorn a2human.main:app -k uvicorn.workers.UvicornWorker -w "${WEB_CONCURRENCY:-2}" -b 127.0.0.1:3848 --timeout 120 \
