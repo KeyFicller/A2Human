@@ -4,6 +4,15 @@
 
 The skill on the card is the job. One server stays up. Open the site. No account, no install, no port to forward.
 
+**Live market: https://plant-aggregate-trademarks-businesses.trycloudflare.com**
+
+This address is a Cloudflare quick tunnel. It can change when the tunnel restarts.
+
+```text
+discovery   https://plant-aggregate-trademarks-businesses.trycloudflare.com/.well-known/agent-card.json
+mcp         https://plant-aggregate-trademarks-businesses.trycloudflare.com/api/mcp
+```
+
 `A2A 1.0 · 0.3` · `MCP fallback` · `score 1–5` · `60s` · `EN / 中文` · `no accounts`
 
 ```text
@@ -14,12 +23,7 @@ you      submit the work
 model    score 1–5 within 60s, or the score is dropped and the task is still delivered
 ```
 
-```text
-discovery   <origin>/.well-known/agent-card.json
-mcp         <origin>/api/mcp
-```
-
-`<origin>` is the site you are looking at. The page already fills it in.
+The page you are looking at fills in the same origin. The curls below use the live market.
 
 ## See it
 
@@ -58,7 +62,7 @@ mcp         <origin>/api/mcp
 </tr>
 </table>
 
-## People
+## 1. 加入：假装成 agent 上工
 
 You are the tool. This browser is the client.
 
@@ -73,22 +77,27 @@ The header switches between English and Simplified Chinese, and that choice stay
 
 The three numbers on a card use delivered tasks only. Average score skips tasks with no score and keeps one decimal. Average time is seconds from dispatch to delivery.
 
-## Models
+## 2. 接入方式使用说明
 
 You are the caller. Two doors, one person.
 
-Copy the discovery URL if the client speaks A2A. Copy the MCP URL if MCP is all it speaks. Both end at the same person. The curls below use that copied origin.
+A2A clients read the discovery URL. MCP-only clients add the MCP URL. Both end at the same person.
+
+```text
+discovery   https://plant-aggregate-trademarks-businesses.trycloudflare.com/.well-known/agent-card.json
+mcp         https://plant-aggregate-trademarks-businesses.trycloudflare.com/api/mcp
+```
 
 ### A2A
 
 `a2human.onDuty` lists who is on duty, the skills they wrote, and each person's URL. Send `SendMessage` to that URL with `configuration.returnImmediately` set to `true`. The task starts as `TASK_STATE_WORKING`.
 
 ```bash
-curl -s <origin>/.well-known/agent-card.json
+curl -s https://plant-aggregate-trademarks-businesses.trycloudflare.com/.well-known/agent-card.json
 ```
 
 ```bash
-curl -s <origin>/api/a2a/<id> \
+curl -s https://plant-aggregate-trademarks-businesses.trycloudflare.com/api/a2a/<id> \
   -H 'content-type: application/json' \
   -H 'A2A-Version: 1.0' \
   -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-1","parts":[{"text":"Finish this using your skill."}]}}}'
@@ -97,13 +106,13 @@ curl -s <origin>/api/a2a/<id> \
 After the person submits, `GetTask` returns `TASK_STATE_INPUT_REQUIRED`. The result is in `artifacts`. `status.message` is `{"request":"score","taskId":"...","person":"...","artifact":"..."}`. Reply on the same task id with an object whose only field is `score`, as in `{"score":4}`. The state becomes `TASK_STATE_COMPLETED`.
 
 ```bash
-curl -s <origin>/api/a2a/<id> \
+curl -s https://plant-aggregate-trademarks-businesses.trycloudflare.com/api/a2a/<id> \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":2,"method":"GetTask","params":{"id":"<task id>"}}'
 ```
 
 ```bash
-curl -s <origin>/api/a2a/<id> \
+curl -s https://plant-aggregate-trademarks-businesses.trycloudflare.com/api/a2a/<id> \
   -H 'content-type: application/json' \
   -H 'A2A-Version: 1.0' \
   -d '{"jsonrpc":"2.0","id":3,"method":"SendMessage","params":{"configuration":{"returnImmediately":true},"message":{"role":"ROLE_USER","messageId":"msg-2","contextId":"<contextId>","taskId":"<task id>","parts":[{"data":{"score":4}}]}}}'
@@ -119,7 +128,7 @@ curl -s <origin>/api/a2a/<id> \
 
 ### MCP
 
-Add `<origin>/api/mcp`. Each skill of each person on duty becomes a tool. The call still goes to that person's A2A address.
+Add `https://plant-aggregate-trademarks-businesses.trycloudflare.com/api/mcp`. Each skill of each person on duty becomes a tool. The call still goes to that person's A2A address.
 
 The call waits up to 15 seconds. If the person is still working, call the same tool again with `task_id`. After they deliver, call again with `task_id` and `score` (an integer from 1 to 5).
 
