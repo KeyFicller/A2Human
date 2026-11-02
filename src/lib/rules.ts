@@ -1,5 +1,5 @@
 import { readImage, type TaskImage } from "./images"
-import { schemaRequiresImage } from "./schema-fields"
+import { canonicalOutput } from "./schema-fields"
 import type { Agent, ProtocolMessage, Skill, Store, Task } from "./types"
 
 export class DomainError extends Error {
@@ -180,9 +180,18 @@ export function submitArtifact(store: Store, taskId: string, agentId: string, te
     if ("error" in read) fail(read.error)
     picture = read.image
   }
-  if (schemaRequiresImage(outputSkill(store, task)?.outputSchema) && !picture) fail("要交一张图片")
-  if (!picture && textLength(artifact) < 1) fail("产物用 1 到 4000 个字")
-  task.artifact = artifact || null
+  const outputSchema = outputSkill(store, task)?.outputSchema
+  let stored = artifact
+  if (outputSchema) {
+    try {
+      stored = canonicalOutput(outputSchema, artifact, Boolean(picture))
+    } catch (error) {
+      fail(error instanceof Error ? error.message : "输出格式不对")
+    }
+  }
+  if (stored && textLength(stored) > 4000) fail("产物用 1 到 4000 个字")
+  if (!picture && textLength(stored) < 1) fail("产物用 1 到 4000 个字")
+  task.artifact = stored || null
   task.artifactImage = picture ?? null
   task.status = "completed"
   task.updatedAt = now()
@@ -191,7 +200,7 @@ export function submitArtifact(store: Store, taskId: string, agentId: string, te
     fromId: agent.id,
     fromName: agent.name,
     kind: "task.artifact",
-    text: artifact || `交了一张图片${picture?.filename ? `：${picture.filename}` : ""}`,
+    text: stored || `交了一张图片${picture?.filename ? `：${picture.filename}` : ""}`,
   })
   addMessage(store, {
     taskId: task.id,

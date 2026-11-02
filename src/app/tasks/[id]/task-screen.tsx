@@ -9,6 +9,7 @@ import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { KIND_LABEL, STATUS_LABEL, formatWhen } from "@/lib/format"
 import { SchemaSummary } from "@/components/schema-summary"
+import { OutputForm } from "@/components/output-form"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
 import type { Agent, ProtocolMessage, Task, TaskImage } from "@/lib/types"
 
@@ -22,6 +23,14 @@ function imageSrc(image: TaskImage) {
   if (image.url) return image.url
   if (image.raw) return `data:${image.mediaType};base64,${image.raw}`
   return ""
+}
+
+function shownArtifact(text: string) {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch {
+    return text
+  }
 }
 
 function Picture({ image, alt, className }: { image: TaskImage; alt: string; className: string }) {
@@ -73,6 +82,23 @@ export default function TaskScreen() {
       : undefined
   const needsImage = schemaRequiresImage(skill?.outputSchema)
 
+  function handIn(nextText: string, nextImage: TaskImage | null) {
+    if (!agent) return
+    setPending(true)
+    setNotice(null)
+    api<Task>(`/api/tasks/${task.id}`, { action: "artifact", agentId: agent.id, text: nextText, image: nextImage })
+      .then(() => {
+        setText("")
+        setImage(null)
+        setNotice("已交。模型用 GetTask 可以取回。")
+        load()
+      })
+      .catch((caught: unknown) => {
+        setNotice(caught instanceof ApiError ? caught.message : "没有交上去")
+      })
+      .finally(() => setPending(false))
+  }
+
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <section className="sheet p-6">
@@ -102,41 +128,35 @@ export default function TaskScreen() {
         {task.artifact || task.artifactImage ? (
           <div className="mt-6 rounded-2xl bg-[#f7f1e4] p-4">
             <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">产物</p>
-            {task.artifact ? <p className="mt-2 whitespace-pre-wrap leading-7">{task.artifact}</p> : null}
+            {task.artifact ? <p className="mt-2 whitespace-pre-wrap font-mono text-sm leading-7">{shownArtifact(task.artifact)}</p> : null}
             {task.artifactImage ? (
               <Picture image={task.artifactImage} alt={task.artifactImage.filename || "交回的图片"} className="mt-3 max-h-80 rounded-2xl object-contain" />
             ) : null}
           </div>
         ) : null}
-        {mine && task.status === "working" ? (
+        {mine && task.status === "working" && skill?.outputSchema ? (
+          <div className="mt-6 space-y-3">
+            <p className="text-sm leading-6 text-muted-foreground">按这个输出交回：{describeSchema(skill.outputSchema)}</p>
+            <OutputForm
+              schema={skill.outputSchema}
+              pending={pending}
+              onError={(message) => setNotice(message || null)}
+              onSubmit={handIn}
+            />
+          </div>
+        ) : null}
+        {mine && task.status === "working" && !skill?.outputSchema ? (
           <form
             className="mt-6 space-y-3"
             onSubmit={(event) => {
               event.preventDefault()
-              if (!agent) return
-              setPending(true)
-              setNotice(null)
               if (needsImage && !image) {
                 setNotice("要交一张图片")
-                setPending(false)
                 return
               }
-              api<Task>(`/api/tasks/${task.id}`, { action: "artifact", agentId: agent.id, text, image })
-                .then(() => {
-                  setText("")
-                  setImage(null)
-                  setNotice("已交。模型用 GetTask 可以取回。")
-                  load()
-                })
-                .catch((caught: unknown) => {
-                  setNotice(caught instanceof ApiError ? caught.message : "没有交上去")
-                })
-                .finally(() => setPending(false))
+              handIn(text, image)
             }}
           >
-            {skill?.outputSchema ? (
-              <p className="text-sm leading-6 text-muted-foreground">按这个输出交回：{describeSchema(skill.outputSchema)}</p>
-            ) : null}
             <Textarea
               value={text}
               onChange={(event) => setText(event.target.value)}

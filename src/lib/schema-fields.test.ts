@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { describeSchema, draftFromSchema, fieldsToSchema, schemaPayload, schemaToFields } from "./schema-fields"
+import { canonicalOutput, describeSchema, draftFromSchema, fieldsToSchema, schemaPayload, schemaToFields } from "./schema-fields"
 
 test("plain fields become an object schema and read back", () => {
   const schema = fieldsToSchema([
@@ -44,4 +44,22 @@ test("a schema that is not a list of simple fields stays as JSON", () => {
   assert.equal(draft.mode, "json")
   assert.equal(schemaPayload(draft), JSON.stringify(schema, null, 2))
   assert.equal(schemaToFields({ type: "object", properties: { n: { type: "string", minLength: 1 } } }), null)
+})
+
+test("an output has to match the declared schema", () => {
+  const schema = { type: "object", required: ["count"], properties: { count: { type: "integer" } } }
+  assert.equal(canonicalOutput(schema, '{"count": 3}', false), '{"count":3}')
+  assert.throws(() => canonicalOutput(schema, "三个", false), /自由文本/)
+  assert.throws(() => canonicalOutput(schema, '{"count":"3"}', false), /整数/)
+  assert.throws(() => canonicalOutput(schema, '{"count":3,"note":"多的"}', false), /没有 note/)
+  assert.equal(canonicalOutput({ type: "integer" }, "7", false), "7")
+  assert.throws(() => canonicalOutput({ type: "integer" }, "七", false), /自由文本/)
+  assert.equal(
+    canonicalOutput({ type: "object", required: ["ok"], properties: { ok: { type: "boolean" } } }, '{"ok":false}', false),
+    '{"ok":false}',
+  )
+  const image = fieldsToSchema([{ name: "照片", type: "image", required: true }])!
+  assert.equal(canonicalOutput(image, "", true), "")
+  assert.throws(() => canonicalOutput(image, "", false), /图片/)
+  assert.throws(() => canonicalOutput(schema, '{"count":3}', true), /没有图片/)
 })

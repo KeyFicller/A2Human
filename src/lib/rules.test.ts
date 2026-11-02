@@ -62,3 +62,25 @@ test("SendMessage lands on the chosen person and the artifact comes back", () =>
   assert.equal(done.status, "completed")
   assert.equal(done.artifact, "7")
 })
+
+test("a declared output rejects free text", () => {
+  const inputSchema = { type: "object", properties: { scene: { type: "string" } } }
+  const outputSchema = { type: "object", required: ["count"], properties: { count: { type: "integer" } } }
+  const store = createSeed()
+  const human = publishAgent(store, {
+    name: "米粒",
+    bio: "会数。",
+    skills: [{ ...counting, inputSchema, outputSchema }],
+  })
+  setAvailability(store, human.id, true)
+  const task = receiveCommand(store, {
+    humanId: human.id,
+    text: "数一下。",
+    messageId: "msg-format",
+    callerName: "某个大模型",
+    skill: "计数",
+  })
+  assert.throws(() => submitArtifact(store, task.id, human.id, "三个"), /自由文本/)
+  const done = submitArtifact(store, task.id, human.id, '{"count": 3}')
+  assert.equal(done.artifact, '{"count":3}')
+})
