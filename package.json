@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3847",
     "build": "next build",
-    "start": "next start -p 3847",
+    "start": "next start -H 0.0.0.0 -p 3847",
     "lint": "eslint",
     "test": "tsx --test src/lib/rules.test.ts src/lib/a2a.test.ts src/lib/schema-fields.test.ts src/lib/mcp.test.ts src/lib/i18n.test.ts"
   },
