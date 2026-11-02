@@ -22,10 +22,18 @@ export async function POST(request: Request) {
   } catch {
     return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: wire("request.body") } }, 400)
   }
-  const response = await handleMcp(body, {
-    read: () => commitStore((store) => expireScores(store)),
-    update: (fn) => updateStore(fn),
-  })
+  const response = await handleMcp(
+    body,
+    {
+      read: () => commitStore((store) => expireScores(store)),
+      update: (fn) => updateStore(fn),
+    },
+    {
+      protocolVersion: request.headers.get("mcp-protocol-version"),
+      method: request.headers.get("mcp-method"),
+      name: request.headers.get("mcp-name"),
+    },
+  )
   if (response.body == null) return new Response(null, { status: response.status })
   return json(response.body, response.status)
 }
