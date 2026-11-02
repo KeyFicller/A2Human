@@ -1,10 +1,18 @@
 import { DUE_HOURS, SKILLS, type Skill } from "./skills"
 import type { Agent, ProtocolMessage, Review, Store, Task } from "./types"
 
-export class DomainError extends Error {}
+export class DomainError extends Error {
+  readonly code?: number
 
-function fail(message: string): never {
-  throw new DomainError(message)
+  constructor(message: string, code?: number) {
+    super(message)
+    this.name = "DomainError"
+    this.code = code
+  }
+}
+
+function fail(message: string, code?: number): never {
+  throw new DomainError(message, code)
 }
 
 function now() {
@@ -311,6 +319,10 @@ function findCommandTask(store: Store, messageId: string) {
   return store.tasks.find((item) => item.id === noted.taskId)
 }
 
+export function commandForMessage(store: Store, messageId: string) {
+  return findCommandTask(store, messageId)
+}
+
 function commandTitle(text: string) {
   const flat = text.replace(/\s+/g, " ").trim()
   const slice = [...flat].slice(0, 32).join("")
@@ -326,6 +338,7 @@ export function receiveCommand(
     text: string
     messageId: string
     taskId?: string
+    contextId?: string
     callerName: string
     dueHours?: number
   },
@@ -339,14 +352,21 @@ export function receiveCommand(
   }
 
   if (input.taskId) {
-    const task = requireTask(store, input.taskId)
+    const task = store.tasks.find((item) => item.id === input.taskId)
+    if (!task) fail("找不到这张任务", -32001)
     if (input.mode === "direct") {
       const mine = task.targetId === input.humanId || task.claimantId === input.humanId
-      if (!mine) fail("这张任务不在这个人身上")
+      if (!mine) fail("找不到这张任务", -32001)
     } else if (task.source !== "pool") {
-      fail("这张任务不在广场入口")
+      fail("找不到这张任务", -32001)
     }
-    if (task.status === "completed" || task.status === "canceled") fail("任务已经结束")
+    if (task.status === "completed" || task.status === "canceled") {
+      fail("任务已经结束，不能再补消息", -32004)
+    }
+    const actualContext = task.contextId ?? task.id
+    if (input.contextId && input.contextId !== actualContext) {
+      fail("contextId 和这张任务对不上", -32602)
+    }
     const caller = ensureCaller(store)
     addMessage(store, {
       taskId: task.id,
@@ -364,7 +384,7 @@ export function receiveCommand(
   if (input.mode === "direct") {
     if (!input.humanId) fail("缺少要指挥的人")
     human = requireAgent(store, input.humanId)
-    if (!human.human) fail("只能指挥已经发布的人")
+    if (!human.human) fail("只能指挥已经发布的人", -32004)
   }
 
   const caller = ensureCaller(store)
@@ -387,7 +407,7 @@ export function receiveCommand(
     review: null,
     createdAt,
     updatedAt: createdAt,
-    contextId: crypto.randomUUID(),
+    contextId: input.contextId ?? crypto.randomUUID(),
     a2aMessageId: input.messageId,
     source: input.mode,
     targetId: human?.id,
@@ -415,8 +435,8 @@ export function receiveCommand(
 
 export function cancelCommandedTask(store: Store, taskId: string): Task {
   const task = requireTask(store, taskId)
-  if (task.posterId !== CALLER_ID) fail("只有协议派来的任务能从这里取消")
-  if (task.status === "completed" || task.status === "canceled") fail("任务已经结束")
+  if (task.posterId !== CALLER_ID) fail("只有协议派来的任务能从这里取消", -32002)
+  if (task.status === "completed" || task.status === "canceled") fail("任务已经结束，不能取消", -32002)
   const caller = ensureCaller(store)
   caller.points += task.reward
   task.status = "canceled"

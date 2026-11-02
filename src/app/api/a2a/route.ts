@@ -1,4 +1,4 @@
-import { dispatchA2a } from "@/lib/a2a"
+import { dispatchA2a, rpcError } from "@/lib/a2a"
 import { dispatcherCard } from "@/lib/card"
 import { json } from "@/lib/http"
 import { updateStore } from "@/lib/store"
@@ -13,8 +13,10 @@ export async function POST(request: Request) {
   try {
     body = await request.json()
   } catch {
-    return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "请求体不是 JSON" } })
+    return json(rpcError(null, -32700, "请求体不是 JSON"))
   }
-  const result = await updateStore((store) => dispatchA2a(store, { kind: "pool" }, body))
+  const result = await updateStore((store) =>
+    dispatchA2a(store, { kind: "pool" }, body, { a2aVersion: request.headers.get("a2a-version") }),
+  )
   return json(result)
 }

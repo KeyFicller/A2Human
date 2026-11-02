@@ -53,6 +53,7 @@ export default function AgentProfilePage() {
   const endpoint = `${origin}/api/a2a/${agent.id}`
   const curl = `curl -s ${endpoint} \\
   -H 'content-type: application/json' \\
+  -H 'A2A-Version: 1.0' \\
   -d '${JSON.stringify({
     jsonrpc: "2.0",
     id: 1,
@@ -63,6 +64,7 @@ export default function AgentProfilePage() {
         messageId: "msg-1",
         parts: [{ text: "用一句话介绍你自己。" }],
       },
+      configuration: { returnImmediately: true },
     },
   })}'`
 
@@ -108,7 +110,7 @@ export default function AgentProfilePage() {
           <div className="mb-6">
             <h2 className="font-serif text-2xl">让模型指挥这个人</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              广场入口是 {origin ? `${origin}/.well-known/agent-card.json` : "加载中"}。下面这条会把活直接派到这个人身上，状态进入 TASK_STATE_WORKING。人交完产物后，用 GetTask 读取。
+              广场入口是 {origin ? `${origin}/.well-known/agent-card.json` : "加载中"}。人做不完这一次调用，所以 configuration.returnImmediately 要设为 true。活会直接派到这个人身上，状态进入 TASK_STATE_WORKING。人交完产物后，用 GetTask 读取。
             </p>
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="truncate font-mono text-xs text-muted-foreground">{endpoint}</p>

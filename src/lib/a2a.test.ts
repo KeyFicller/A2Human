@@ -17,6 +17,7 @@ function send(text: string, messageId: string, taskId?: string) {
         taskId,
         parts: [{ text }],
       },
+      configuration: { returnImmediately: true },
       metadata: { caller: "某个大模型" },
     },
   }
@@ -38,6 +39,8 @@ test("human card advertises a JSON-RPC interface", () => {
   assert.equal(card.provider.organization, "几B协议")
   assert.equal(card.provider.url, "http://localhost:3847")
   assert.equal(card.capabilities.streaming, false)
+  assert.equal(card.capabilities.extensions[0].required, false)
+  assert.equal(card.capabilities.extensions[0].uri, "http://localhost:3847/extensions/jib/v1")
   assert.equal(card.jib.approvalRate, 1)
   assert.match(card.description, /好评率 100%/)
   assert.ok(card.skills.every((skill) => skill.id && skill.name && skill.description && skill.tags.length > 0))
@@ -87,7 +90,7 @@ test("SendMessage assigns the human and GetTask returns the artifact", () => {
     artifacts: { parts: { text: string }[] }[]
   }
   assert.equal(completed.status.state, "TASK_STATE_COMPLETED")
-  assert.deepEqual(completed.history, [])
+  assert.equal("history" in completed, false)
   assert.equal(completed.artifacts[0].parts[0].text, "我在看什么不该发出去。")
 
   const late = dispatchA2a(
@@ -96,8 +99,18 @@ test("SendMessage assigns the human and GetTask returns the artifact", () => {
     send("再补一句。", "msg-late", task.id),
   )
   assert.ok("error" in late)
-  assert.equal(late.error.code, -32602)
-  assert.equal(late.error.message, "任务已经结束")
+  assert.equal(late.error.code, -32004)
+  assert.equal(late.error.data?.[0].reason, "UNSUPPORTED_OPERATION")
+
+  const cancelDone = dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+    jsonrpc: "2.0",
+    id: 11,
+    method: "CancelTask",
+    params: { id: task.id },
+  })
+  assert.ok("error" in cancelDone)
+  assert.equal(cancelDone.error.code, -32002)
+  assert.equal(cancelDone.error.data?.[0].reason, "TASK_NOT_CANCELABLE")
 })
 
 test("aliases, pool tasks, and protocol errors", () => {
@@ -112,6 +125,7 @@ test("aliases, pool tasks, and protocol errors", () => {
         messageId: "pool-1",
         parts: ["去楼下看一眼快递柜还在不在。"],
       },
+      configuration: { returnImmediately: true },
     },
   })
   assert.ok(!("error" in pooled))
@@ -167,7 +181,7 @@ test("aliases, pool tasks, and protocol errors", () => {
 
   const model = dispatchA2a(store, { kind: "human", agentId: "agent_miscount" }, send("帮我数书。", "nope"))
   assert.ok("error" in model)
-  assert.equal(model.error.code, -32602)
+  assert.equal(model.error.code, -32004)
 
   const canceled = dispatchA2a(store, { kind: "pool" }, {
     jsonrpc: "2.0",
@@ -177,6 +191,15 @@ test("aliases, pool tasks, and protocol errors", () => {
   })
   assert.ok(!("error" in canceled))
   assert.equal((canceled.result as { status: { state: string } }).status.state, "TASK_STATE_CANCELED")
+
+  const again = dispatchA2a(store, { kind: "pool" }, {
+    jsonrpc: "2.0",
+    id: 12,
+    method: "CancelTask",
+    params: { id: task.id },
+  })
+  assert.ok("error" in again)
+  assert.equal(again.error.code, -32002)
 })
 
 test("caller without points still gets a task, just without a reward", () => {
@@ -192,4 +215,149 @@ test("caller without points still gets a task, just without a reward", () => {
   assert.equal(task?.reward, 0)
   assert.equal(task?.claimantId, "agent_mi")
   assert.equal(caller.points, 0)
+})
+
+test("contextId is preserved and a mismatch is rejected", () => {
+  const store = createSeed()
+  const sent = resultOf(
+    dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+      jsonrpc: "2.0",
+      id: "ctx",
+      method: "SendMessage",
+      params: {
+        message: {
+          role: "ROLE_USER",
+          messageId: "ctx-1",
+          contextId: "ctx-pear",
+          parts: [{ text: "记住这个上下文。" }],
+        },
+        configuration: { returnImmediately: true },
+      },
+    }),
+  )
+  const task = sent.task as unknown as { id: string; contextId: string; history: { contextId: string; taskId: string }[] }
+  assert.equal(task.contextId, "ctx-pear")
+  assert.ok(task.history.length > 0)
+  assert.ok(task.history.every((message) => message.contextId === "ctx-pear" && message.taskId === task.id))
+
+  const mismatch = dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+    jsonrpc: "2.0",
+    id: "bad-ctx",
+    method: "SendMessage",
+    params: {
+      message: {
+        role: "ROLE_USER",
+        messageId: "ctx-2",
+        taskId: task.id,
+        contextId: "ctx-other",
+        parts: [{ text: "这是另一个上下文。" }],
+      },
+      configuration: { returnImmediately: true },
+    },
+  })
+  assert.ok("error" in mismatch)
+  assert.equal(mismatch.error.code, -32602)
+
+  const follow = resultOf(
+    dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+      jsonrpc: "2.0",
+      id: "ctx-ok",
+      method: "SendMessage",
+      params: {
+        message: {
+          role: "ROLE_USER",
+          messageId: "ctx-3",
+          taskId: task.id,
+          parts: [{ text: "只给任务号，上下文由服务端补上。" }],
+        },
+        configuration: { returnImmediately: true },
+      },
+    }),
+  )
+  assert.equal(follow.task?.id, task.id)
+  assert.equal((follow.task as unknown as { contextId: string }).contextId, "ctx-pear")
+})
+
+test("blocking SendMessage is refused until the caller asks to return immediately", () => {
+  const store = createSeed()
+  const before = store.tasks.length
+  const blocked = dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "SendMessage",
+    params: {
+      message: {
+        role: "ROLE_USER",
+        messageId: "block-1",
+        parts: [{ text: "现在就做完。" }],
+      },
+      configuration: { returnImmediately: false },
+    },
+  })
+  assert.ok("error" in blocked)
+  assert.equal(blocked.error.code, -32004)
+  assert.equal(store.tasks.length, before)
+
+  const sent = resultOf(dispatchA2a(store, { kind: "human", agentId: "agent_li" }, send("过一会再看。", "block-2")))
+  const replay = resultOf(
+    dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+      jsonrpc: "2.0",
+      id: "replay",
+      method: "SendMessage",
+      params: {
+        message: {
+          role: "ROLE_USER",
+          messageId: "block-2",
+          parts: [{ text: "过一会再看。" }],
+        },
+      },
+    }),
+  )
+  assert.equal(replay.task?.id, sent.task?.id)
+})
+
+test("unsupported version, push, streaming card, and output modes use A2A error codes", () => {
+  const store = createSeed()
+  const version = dispatchA2a(
+    store,
+    { kind: "pool" },
+    { jsonrpc: "2.0", id: 1, method: "GetTask", params: { id: "missing" } },
+    { a2aVersion: "9.9" },
+  )
+  assert.ok("error" in version)
+  assert.equal(version.error.code, -32009)
+
+  const push = dispatchA2a(store, { kind: "pool" }, {
+    jsonrpc: "2.0",
+    id: 2,
+    method: "CreateTaskPushNotificationConfig",
+    params: {},
+  })
+  assert.ok("error" in push)
+  assert.equal(push.error.code, -32003)
+
+  const extended = dispatchA2a(store, { kind: "pool" }, {
+    jsonrpc: "2.0",
+    id: 3,
+    method: "GetExtendedAgentCard",
+  })
+  assert.ok("error" in extended)
+  assert.equal(extended.error.code, -32004)
+
+  const modes = dispatchA2a(store, { kind: "human", agentId: "agent_li" }, {
+    jsonrpc: "2.0",
+    id: 4,
+    method: "SendMessage",
+    params: {
+      message: {
+        role: "ROLE_USER",
+        messageId: "png",
+        parts: [{ text: "画一张图。", mediaType: "image/png" }],
+      },
+      configuration: { returnImmediately: true, acceptedOutputModes: ["image/png"] },
+    },
+  })
+  assert.ok("error" in modes)
+  assert.equal(modes.error.code, -32005)
+  assert.equal(store.tasks.some((task) => task.a2aMessageId === "png"), false)
 })

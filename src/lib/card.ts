@@ -13,8 +13,22 @@ function skillEntry(skill: string) {
 const takeOrders = {
   id: "take-orders",
   name: "接模型派来的活",
-  description: "接收 SendMessage。这个人亲自做完，再把文字产物写回任务，调用方用 GetTask 读取。",
+  description:
+    "接收 SendMessage。人做不完这一次调用，configuration.returnImmediately 必须为 true。任务进入 TASK_STATE_WORKING，调用方用 GetTask 轮询文字产物。",
   tags: ["human"],
+}
+
+function jibExtension(origin: string) {
+  return {
+    uri: `${origin}/extensions/jib/v1`,
+    description:
+      "公开完成率、延迟率、好评率。SendMessage 的 metadata 可带 caller、dueHours、review。人做不完一次调用，必须设 configuration.returnImmediately 为 true，再用 GetTask 轮询。",
+    required: false,
+    params: {
+      returnImmediately: true,
+      metadata: ["caller", "dueHours", "review"],
+    },
+  }
 }
 
 export function toAgentCard(agent: Agent, origin: string) {
@@ -48,6 +62,7 @@ export function toAgentCard(agent: Agent, origin: string) {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
+      extensions: [jibExtension(origin)],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
@@ -91,6 +106,7 @@ export function dispatcherCard(origin: string) {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
+      extensions: [jibExtension(origin)],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
@@ -98,7 +114,8 @@ export function dispatcherCard(origin: string) {
       {
         id: "dispatch-human",
         name: "指挥广场上的人",
-        description: "SendMessage 会挂出一张待领任务。有人领取并提交产物后，GetTask 能读到文字结果。",
+        description:
+          "SendMessage 必须带 configuration.returnImmediately: true，然后在广场挂出 TASK_STATE_SUBMITTED。有人领取并提交产物后，GetTask 能读到文字结果。",
         tags: ["human", "dispatch"],
       },
     ],
