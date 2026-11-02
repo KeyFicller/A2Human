@@ -6,7 +6,14 @@ import type { JsonSchema, Store, Task, TaskStatus } from "./types"
 
 const PROTOCOL_VERSIONS = new Set(["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"])
 const TASKS_PROTOCOL = "2025-11-25"
+const MODERN_PROTOCOL = "2026-07-28"
+const SUPPORTED_VERSIONS = [MODERN_PROTOCOL, ...PROTOCOL_VERSIONS]
 const DEFAULT_PROTOCOL = TASKS_PROTOCOL
+const PROTOCOL_VERSION_KEY = "io.modelcontextprotocol/protocolVersion"
+const CLIENT_CAPABILITIES_KEY = "io.modelcontextprotocol/clientCapabilities"
+const SERVER_INFO_KEY = "io.modelcontextprotocol/serverInfo"
+const TASKS_EXTENSION = "io.modelcontextprotocol/tasks"
+const SERVER_INFO = { name: "a2human", version: "0.1.0" }
 const WAIT_MS = 15_000
 const POLL_MS = 1_000
 export const MCP_TASK_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -67,6 +74,12 @@ type McpTask = {
 }
 
 export type McpResult = { status: number; body: unknown | null }
+
+export type McpHeaders = {
+  protocolVersion?: string | null
+  method?: string | null
+  name?: string | null
+}
 
 function fnv(value: string) {
   let hash = 2166136261
@@ -371,8 +384,11 @@ function rpc(id: unknown, result: unknown) {
   return { jsonrpc: "2.0" as const, id, result }
 }
 
-function protocolError(id: unknown, code: number, message: string): McpResult {
-  return { status: 200, body: { jsonrpc: "2.0", id, error: { code, message } } }
+function protocolError(id: unknown, code: number, message: string, status = 200, data?: unknown): McpResult {
+  return {
+    status,
+    body: { jsonrpc: "2.0", id, error: data === undefined ? { code, message } : { code, message, data } },
+  }
 }
 
 function toolResult(step: Step): McpResult {
@@ -552,20 +568,22 @@ async function callTaskAugmented(id: unknown, name: string, args: Record<string,
   }
 }
 
+function applyScore(store: Store, taskId: string, score: unknown): Step {
+  expireScores(store)
+  if (!Number.isInteger(score) || (score as number) < 1 || (score as number) > 5) return { kind: "error", text: wire("score.range") }
+  const task = store.tasks.find((item) => item.id === taskId)
+  if (!task || expired(task)) return { kind: "error", text: task ? wire("mcp.taskExpired") : wire("mcp.taskMissing") }
+  if (!scorePending(store, task)) return { kind: "error", text: wire("mcp.scoreNotReady") }
+  const agentId = task.claimantId ?? task.targetId
+  if (!agentId) return { kind: "error", text: wire("mcp.taskMissing") }
+  return dispatch(store, agentId, task.skills[0] ?? "", [{ mediaType: "application/json", data: { score } }], taskId)
+}
+
 async function scoreWith(id: unknown, args: Record<string, unknown>, io: McpIo): Promise<McpResult> {
   const step = await io.update((store) => {
-    expireScores(store)
     const taskId = textArg(args.taskId) ?? textArg(args.task_id)
     if (!taskId) return { kind: "error", text: wire("score.needsTask") } satisfies Step
-    if (!Number.isInteger(args.score) || (args.score as number) < 1 || (args.score as number) > 5) {
-      return { kind: "error", text: wire("score.range") } satisfies Step
-    }
-    const task = store.tasks.find((item) => item.id === taskId)
-    if (!task || expired(task)) return { kind: "error", text: task ? wire("mcp.taskExpired") : wire("mcp.taskMissing") } satisfies Step
-    if (!scorePending(store, task)) return { kind: "error", text: wire("mcp.scoreNotReady") } satisfies Step
-    const agentId = task.claimantId ?? task.targetId
-    if (!agentId) return { kind: "error", text: wire("mcp.taskMissing") } satisfies Step
-    return dispatch(store, agentId, task.skills[0] ?? "", [{ mediaType: "application/json", data: { score: args.score } }], taskId)
+    return applyScore(store, taskId, args.score)
   })
   return withId(toolResult(step), id)
 }
@@ -639,11 +657,341 @@ async function resultMcpTask(id: unknown, taskId: string, io: McpIo): Promise<Mc
   }
 }
 
-export async function handleMcp(body: unknown, io: McpIo): Promise<McpResult> {
+function metaRecord(request: Record<string, unknown>) {
+  const params = request.params
+  const sources = [
+    params && typeof params === "object" && !Array.isArray(params) ? (params as Record<string, unknown>)._meta : undefined,
+    request._meta,
+  ]
+  for (const source of sources) {
+    if (source && typeof source === "object" && !Array.isArray(source)) return source as Record<string, unknown>
+  }
+  return undefined
+}
+
+function headerText(value: string | null | undefined) {
+  if (!value) return undefined
+  const encoded = /^=\?base64\?([A-Za-z0-9+/]+={0,2})\?=$/.exec(value)
+  if (!encoded) return value
+  return Buffer.from(encoded[1], "base64").toString("utf8")
+}
+
+function declaredVersion(request: Record<string, unknown>, headers: McpHeaders | undefined) {
+  const meta = metaRecord(request)
+  const fromMeta = typeof meta?.[PROTOCOL_VERSION_KEY] === "string" ? meta[PROTOCOL_VERSION_KEY] : undefined
+  const fromHeader = headers?.protocolVersion?.trim() || undefined
+  return { meta, fromMeta, fromHeader }
+}
+
+function openEra(request: Record<string, unknown>, headers: McpHeaders | undefined): McpResult | "legacy" | "modern" {
+  const id = request.id ?? null
+  const { fromMeta, fromHeader } = declaredVersion(request, headers)
+  if (fromHeader && fromMeta && fromHeader !== fromMeta) {
+    return protocolError(id, -32020, wire("mcp.headerMismatch", { name: "MCP-Protocol-Version", header: fromHeader, body: fromMeta }), 400)
+  }
+  const declared = fromMeta ?? fromHeader
+  if (!declared) return "legacy"
+  if (declared !== MODERN_PROTOCOL) {
+    if (PROTOCOL_VERSIONS.has(declared)) return "legacy"
+    return protocolError(id, -32022, wire("mcp.unsupportedVersion"), 400, { supported: SUPPORTED_VERSIONS, requested: declared })
+  }
+  if (!fromHeader) return protocolError(id, -32020, wire("mcp.headerMissing", { name: "MCP-Protocol-Version" }), 400)
+  if (!fromMeta) return protocolError(id, -32020, wire("mcp.headerMismatch", { name: "MCP-Protocol-Version", header: fromHeader, body: "" }), 400)
+  return "modern"
+}
+
+function serverMeta() {
+  return { [SERVER_INFO_KEY]: SERVER_INFO }
+}
+
+function modernResult(id: unknown, result: Record<string, unknown>, status = 200): McpResult {
+  const meta = { ...(result._meta as Record<string, unknown> | undefined), ...serverMeta() }
+  return { status, body: rpc(id, { ...result, _meta: meta }) }
+}
+
+function hasTasksExtension(capabilities: unknown) {
+  if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) return false
+  const extensions = (capabilities as Record<string, unknown>).extensions
+  if (!extensions || typeof extensions !== "object" || Array.isArray(extensions)) return false
+  return Object.prototype.hasOwnProperty.call(extensions, TASKS_EXTENSION)
+}
+
+function missingTasks(id: unknown): McpResult {
+  return protocolError(id, -32021, wire("mcp.missingTasks"), 400, {
+    requiredCapabilities: { extensions: { [TASKS_EXTENSION]: {} } },
+  })
+}
+
+function namedHeader(method: string, params: Record<string, unknown>) {
+  if (method === "tools/call") return typeof params.name === "string" ? params.name : ""
+  if (method === "tasks/get" || method === "tasks/update" || method === "tasks/cancel") return textArg(params.taskId) ?? ""
+  return undefined
+}
+
+function checkModernHeaders(id: unknown, method: string, params: Record<string, unknown>, headers: McpHeaders): McpResult | undefined {
+  const methodHeader = headerText(headers.method)
+  if (!methodHeader) return protocolError(id, -32020, wire("mcp.headerMissing", { name: "Mcp-Method" }), 400)
+  if (methodHeader !== method) {
+    return protocolError(id, -32020, wire("mcp.headerMismatch", { name: "Mcp-Method", header: methodHeader, body: method }), 400)
+  }
+  const expected = namedHeader(method, params)
+  if (expected === undefined) return undefined
+  const nameHeader = headerText(headers.name)
+  if (!nameHeader) return protocolError(id, -32020, wire("mcp.headerMissing", { name: "Mcp-Name" }), 400)
+  if (nameHeader !== expected) {
+    return protocolError(id, -32020, wire("mcp.headerMismatch", { name: "Mcp-Name", header: nameHeader, body: expected }), 400)
+  }
+  return undefined
+}
+
+function modernToolList(store: Store) {
+  return [...listDutyTools(store), scoreTool()].map(({ name, description, inputSchema }) => ({ name, description, inputSchema }))
+}
+
+function toolPayload(store: Store, task: Task) {
+  const failed = task.status === "failed" || task.status === "rejected"
+  if (failed) return { content: [{ type: "text" as const, text: latestDecision(store, task)?.text || "failed" }], isError: true }
+  const view = projectTask(store, task, { historyLength: 0, includeArtifacts: true }) as TaskView
+  return { content: [{ type: "text" as const, text: artifactText(view) || wire("mcp.emptyArtifact") }], isError: false }
+}
+
+function inputRequestsFor(store: Store, task: Task) {
+  const message = mcpStatusMessage(store, task)
+  if (scorePending(store, task)) {
+    return {
+      score: {
+        method: "elicitation/create",
+        params: {
+          mode: "form",
+          message,
+          requestedSchema: {
+            type: "object",
+            properties: { score: { type: "integer", minimum: 1, maximum: 5 } },
+            required: ["score"],
+          },
+        },
+      },
+    }
+  }
+  return {
+    followUp: {
+      method: "elicitation/create",
+      params: {
+        mode: "form",
+        message,
+        requestedSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+      },
+    },
+  }
+}
+
+function modernTask(store: Store, task: Task) {
+  const a2aFailed = task.status === "failed" || task.status === "rejected"
+  const status = a2aFailed || task.status === "completed" ? "completed" : mcpStatus(task.status)
+  const body: Record<string, unknown> = {
+    resultType: "complete",
+    taskId: task.id,
+    status,
+    statusMessage: mcpStatusMessage(store, task),
+    createdAt: task.createdAt,
+    lastUpdatedAt: task.updatedAt,
+    ttlMs: MCP_TASK_TTL_MS,
+    pollIntervalMs: MCP_TASK_POLL_MS,
+  }
+  if (status === "input_required") body.inputRequests = inputRequestsFor(store, task)
+  if (status === "completed") body.result = toolPayload(store, task)
+  return body
+}
+
+function responseContent(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const content = (value as Record<string, unknown>).content
+  if (!content || typeof content !== "object" || Array.isArray(content)) return undefined
+  return content as Record<string, unknown>
+}
+
+function scoreFromResponse(value: unknown) {
+  const content = responseContent(value)
+  if (!content) return undefined
+  if (Number.isInteger(content.score)) return content.score as number
+  const input = content.input
+  if (Number.isInteger(input)) return input as number
+  if (input && typeof input === "object" && !Array.isArray(input) && Number.isInteger((input as Record<string, unknown>).score)) {
+    return (input as Record<string, unknown>).score as number
+  }
+  return undefined
+}
+
+function textFromResponse(value: unknown) {
+  const content = responseContent(value)
+  if (!content) return undefined
+  if (typeof content.text === "string" && content.text.trim()) return content.text.trim()
+  const input = content.input
+  if (typeof input === "string" && input.trim()) return input.trim()
+  if (input && typeof input === "object" && !Array.isArray(input)) {
+    const text = (input as Record<string, unknown>).text
+    if (typeof text === "string" && text.trim()) return text.trim()
+  }
+  return undefined
+}
+
+function applyFollowUp(store: Store, taskId: string, text: string): Step {
+  expireScores(store)
+  const task = store.tasks.find((item) => item.id === taskId)
+  if (!task || expired(task)) return { kind: "error", text: task ? wire("mcp.taskExpired") : wire("mcp.taskMissing") }
+  if (task.status !== "input-required" || scorePending(store, task)) return { kind: "done", text: "" }
+  const agentId = task.claimantId ?? task.targetId
+  if (!agentId) return { kind: "error", text: wire("mcp.taskMissing") }
+  return dispatch(store, agentId, task.skills[0] ?? "", [{ text }], taskId)
+}
+
+async function discoverModern(id: unknown): Promise<McpResult> {
+  return modernResult(id, {
+    resultType: "complete",
+    supportedVersions: SUPPORTED_VERSIONS,
+    capabilities: { tools: { listChanged: false }, extensions: { [TASKS_EXTENSION]: {} } },
+    instructions: INSTRUCTIONS,
+    ttlMs: 3_600_000,
+    cacheScope: "public",
+  })
+}
+
+async function callModernTask(id: unknown, name: string, args: Record<string, unknown>, io: McpIo): Promise<McpResult> {
+  const outcome = await io.update((store) => {
+    const step = dutyStep(store, name, args)
+    const taskId = step.kind === "pending" ? step.taskId : step.kind === "done" ? textArg(args.task_id) : undefined
+    const task = taskId ? store.tasks.find((item) => item.id === taskId) : undefined
+    return { step, task, store }
+  })
+  if (!outcome.task) {
+    const result = withId(toolResult(outcome.step), id)
+    const body = result.body as { result: Record<string, unknown> }
+    body.result.resultType = "complete"
+    body.result._meta = serverMeta()
+    return result
+  }
+  return modernResult(id, {
+    resultType: "task",
+    taskId: outcome.task.id,
+    status: mcpStatus(outcome.task.status),
+    statusMessage: mcpStatusMessage(outcome.store, outcome.task),
+    createdAt: outcome.task.createdAt,
+    lastUpdatedAt: outcome.task.updatedAt,
+    ttlMs: MCP_TASK_TTL_MS,
+    pollIntervalMs: MCP_TASK_POLL_MS,
+  })
+}
+
+async function updateModernTask(id: unknown, params: Record<string, unknown>, io: McpIo): Promise<McpResult> {
+  const taskId = textArg(params.taskId)
+  if (!taskId) return protocolError(id, -32602, wire("mcp.taskIdParam"))
+  const responses = params.inputResponses
+  if (!responses || typeof responses !== "object" || Array.isArray(responses)) return protocolError(id, -32602, wire("params.object"))
+  const record = responses as Record<string, unknown>
+  const outcome = await io.update((store) => {
+    const loaded = loadTask(store, taskId)
+    if (!loaded.ok) return loaded
+    if ("score" in record && scorePending(store, loaded.task)) {
+      const score = scoreFromResponse(record.score)
+      if (score == null) return { ok: false as const, code: -32602, message: wire("score.range") }
+      const step = applyScore(store, taskId, score)
+      if (step.kind === "error") return { ok: false as const, code: -32602, message: step.text }
+    }
+    if ("followUp" in record && loaded.task.status === "input-required" && !scorePending(store, loaded.task)) {
+      const text = textFromResponse(record.followUp)
+      if (!text) return { ok: false as const, code: -32602, message: wire("mcp.fieldsRequired") }
+      const step = applyFollowUp(store, taskId, text)
+      if (step.kind === "error") return { ok: false as const, code: -32602, message: step.text }
+    }
+    return { ok: true as const }
+  })
+  if (!outcome.ok) return protocolError(id, outcome.code, outcome.message)
+  return modernResult(id, { resultType: "complete" })
+}
+
+async function cancelModernTask(id: unknown, taskId: string, io: McpIo): Promise<McpResult> {
+  const outcome = await io.update((store) => {
+    const loaded = loadTask(store, taskId)
+    if (!loaded.ok) return loaded
+    if (terminalStatus(mcpStatus(loaded.task.status)) || loaded.task.status === "failed" || loaded.task.status === "rejected") {
+      return { ok: true as const }
+    }
+    const agentId = loaded.task.claimantId ?? loaded.task.targetId
+    if (!agentId) return { ok: false as const, code: -32602, message: wire("mcp.taskMissing") }
+    dispatchA2a(
+      store,
+      { kind: "human", agentId },
+      { jsonrpc: "2.0", id: `cancel-${taskId}`, method: "CancelTask", params: { id: taskId } },
+      { a2aVersion: "1.0" },
+    )
+    return { ok: true as const }
+  })
+  if (!outcome.ok) return protocolError(id, outcome.code, outcome.message)
+  return modernResult(id, { resultType: "complete" })
+}
+
+async function handleModern(request: Record<string, unknown>, io: McpIo, headers: McpHeaders): Promise<McpResult> {
+  const id = request.id ?? null
+  const method = request.method
+  if (typeof method !== "string") return protocolError(id, -32600, wire("rpc.not"), 400)
+  if (!("id" in request) && method.startsWith("notifications/")) return { status: 202, body: null }
+  const params = objectParams(request.params)
+  if (!params) return protocolError(id, -32602, wire("params.object"), 400)
+  const meta = metaRecord(request)
+  if (!meta || !Object.prototype.hasOwnProperty.call(meta, CLIENT_CAPABILITIES_KEY)) {
+    return protocolError(id, -32602, wire("mcp.capabilitiesRequired"), 400)
+  }
+  const headerError = checkModernHeaders(id, method, params, headers)
+  if (headerError) return headerError
+  const capabilities = meta[CLIENT_CAPABILITIES_KEY]
+  const tasks = hasTasksExtension(capabilities)
+  if (method === "server/discover") return discoverModern(id)
+  if (method === "tools/list") {
+    const store = await io.read()
+    return modernResult(id, { resultType: "complete", tools: modernToolList(store) })
+  }
+  if (method === "tools/call") {
+    const name = typeof params.name === "string" ? params.name : ""
+    const args = argumentRecord(params)
+    if (name === SCORE_TOOL) {
+      const scored = await scoreWith(id, args, io)
+      const body = scored.body as { result?: Record<string, unknown> }
+      if (body.result) {
+        body.result.resultType = "complete"
+        body.result._meta = { ...(body.result._meta as Record<string, unknown> | undefined), ...serverMeta() }
+      }
+      return scored
+    }
+    if (tasks) return callModernTask(id, name, args, io)
+    const legacy = await callLegacy(id, name, args, io)
+    const body = legacy.body as { result?: Record<string, unknown> }
+    if (body?.result) {
+      body.result.resultType = "complete"
+      body.result._meta = { ...(body.result._meta as Record<string, unknown> | undefined), ...serverMeta() }
+    }
+    return legacy
+  }
+  if (method === "tasks/get" || method === "tasks/update" || method === "tasks/cancel") {
+    if (!tasks) return missingTasks(id)
+    if (method === "tasks/update") return updateModernTask(id, params, io)
+    const taskId = textArg(params.taskId)
+    if (!taskId) return protocolError(id, -32602, wire("mcp.taskIdParam"))
+    if (method === "tasks/cancel") return cancelModernTask(id, taskId, io)
+    const loaded = await io.update((store) => loadTask(store, taskId))
+    if (!loaded.ok) return protocolError(id, loaded.code, loaded.message)
+    return modernResult(id, modernTask(loaded.store, loaded.task))
+  }
+  return protocolError(id, -32601, wire("method.unknown", { method }), 404)
+}
+
+export async function handleMcp(body: unknown, io: McpIo, headers?: McpHeaders): Promise<McpResult> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { status: 400, body: { jsonrpc: "2.0", id: null, error: { code: -32600, message: wire("rpc.not") } } }
   }
   const request = body as Record<string, unknown>
+  const era = openEra(request, headers)
+  if (era !== "legacy" && era !== "modern") return era
+  if (era === "modern") return handleModern(request, io, headers ?? {})
   const method = request.method
   if (typeof method !== "string") {
     return { status: 400, body: { jsonrpc: "2.0", id: request.id ?? null, error: { code: -32600, message: wire("rpc.not") } } }

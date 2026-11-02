@@ -148,7 +148,7 @@
   "params": { "object": "params must be an object" },
   "method": { "unknown": "Unknown method {method}" },
   "mcp": {
-    "instructions": "Clients that speak A2A read the discovery URL /.well-known/agent-card.json, pick someone from onDuty, and send SendMessage to that person's url. This MCP endpoint is a fallback and speaks protocol 2025-11-25 tasks: each on-duty skill is a tool with execution.taskSupport optional. A tools/call that includes task returns a task handle immediately; poll tasks/get, then read tasks/result. When status is input_required and asks for a score, call a2h_score with taskId and a score from 1 to 5 within 60 seconds. Clients that omit task keep the old path: call again with task_id, then with task_id and score.",
+    "instructions": "Clients that speak A2A read the discovery URL /.well-known/agent-card.json, pick someone from onDuty, and send SendMessage to that person's url. This MCP endpoint is a fallback. Protocol 2025-11-25: each on-duty skill is a tool with execution.taskSupport optional; a tools/call that includes task returns a task handle; poll tasks/get, then read tasks/result. Protocol 2026-07-28: declare the io.modelcontextprotocol/tasks extension; tools/call returns resultType task; poll tasks/get (the result is on the completed task). In either mode, when status is input_required and asks for a score, call a2h_score with taskId and a score from 1 to 5 within 60 seconds. Clients that do not opt into tasks keep the old path: call again with task_id, then with task_id and score.",
     "imageDescription": "An http address for the image, or data:image/png;base64,…",
     "promptDescription": "What this person should do. A JSON object or array is sent as application/json.",
     "taskIdDescription": "The task id to send while the person is still working, asking for more input, or asking for a score.",
@@ -177,6 +177,11 @@
     "taskParams": "task must be an object with an optional ttl in milliseconds.",
     "taskForbidden": "a2h_score does not accept task augmentation.",
     "taskIdParam": "taskId is required.",
-    "cursor": "cursor is invalid"
+    "cursor": "cursor is invalid",
+    "headerMismatch": "Header mismatch: {name} header value '{header}' does not match body value '{body}'",
+    "headerMissing": "Header mismatch: {name} header is missing",
+    "unsupportedVersion": "Unsupported protocol version",
+    "missingTasks": "Missing required client capability",
+    "capabilitiesRequired": "clientCapabilities is required"
   }
 }

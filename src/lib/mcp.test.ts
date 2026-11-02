@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { handleMcp, listDutyTools, MCP_TASK_POLL_MS, MCP_TASK_TTL_MS, type McpIo } from "./mcp"
+import { handleMcp, listDutyTools, MCP_TASK_POLL_MS, MCP_TASK_TTL_MS, type McpHeaders, type McpIo } from "./mcp"
 import { decideTask, publishAgent, setAvailability, submitArtifact } from "./rules"
 import { createSeed } from "./seed"
 import type { Store } from "./types"
@@ -376,4 +376,206 @@ test("tasks/result waits out a working task until it leaves working", async () =
   assert.equal(bodyOf(result).error, undefined)
   assert.match((bodyOf(result).result as { content: { text: string }[] }).content[0].text, /a2h_score/)
   assert.equal(store.tasks[0].status, "input-required")
+})
+
+function modernCall(
+  store: Store,
+  method: string,
+  params: Record<string, unknown>,
+  id: unknown = 1,
+  capabilities: Record<string, unknown> = { extensions: { "io.modelcontextprotocol/tasks": {} } },
+  io?: McpIo,
+) {
+  const name = typeof params.name === "string" ? params.name : typeof params.taskId === "string" ? params.taskId : null
+  const headers: McpHeaders = { protocolVersion: "2026-07-28", method, name }
+  return handleMcp(
+    {
+      jsonrpc: "2.0",
+      id,
+      method,
+      params: {
+        ...params,
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientInfo": { name: "cursor", version: "1" },
+          "io.modelcontextprotocol/clientCapabilities": capabilities,
+        },
+      },
+    },
+    io ?? memory(store),
+    headers,
+  )
+}
+
+test("2026-07-28 discover, task handle, and a2h_score share the A2A task with the legacy mode", async () => {
+  const { store, on } = world()
+  const [tool] = listDutyTools(store)
+  const discovered = await modernCall(store, "server/discover", {})
+  const discovery = bodyOf(discovered).result as {
+    resultType: string
+    supportedVersions: string[]
+    capabilities: { extensions: Record<string, unknown> }
+  }
+  assert.equal(discovery.resultType, "complete")
+  assert.ok(discovery.supportedVersions.includes("2026-07-28"))
+  assert.ok(discovery.supportedVersions.includes("2025-11-25"))
+  assert.deepEqual(discovery.capabilities.extensions["io.modelcontextprotocol/tasks"], {})
+  const opened = await modernCall(store, "tools/call", { name: tool.name, arguments: { scene: "三个圆" }, task: { ttl: 1000 } })
+  const created = bodyOf(opened).result as { resultType: string; taskId: string; status: string; ttlMs: number; pollIntervalMs: number; task?: unknown }
+  assert.equal(created.resultType, "task")
+  assert.equal(created.status, "working")
+  assert.equal(created.task, undefined)
+  assert.equal(created.ttlMs, MCP_TASK_TTL_MS)
+  assert.equal(created.pollIntervalMs, MCP_TASK_POLL_MS)
+  assert.equal(created.taskId, store.tasks[0].id)
+  const legacy = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tasks/get", params: { taskId: created.taskId } }, memory(store))
+  assert.equal(taskOf(legacy).status, "working")
+  assert.equal((bodyOf(legacy).result as { resultType?: string }).resultType, undefined)
+  assert.equal(taskOf(legacy).pollInterval, MCP_TASK_POLL_MS)
+  submitArtifact(store, created.taskId, on.id, '{"count":3}')
+  const scoring = await modernCall(store, "tasks/get", { taskId: created.taskId }, 3)
+  const ask = bodyOf(scoring).result as {
+    resultType: string
+    status: string
+    inputRequests: { score: { method: string } }
+    statusMessage: string
+  }
+  assert.equal(ask.resultType, "complete")
+  assert.equal(ask.status, "input_required")
+  assert.equal(ask.inputRequests.score.method, "elicitation/create")
+  assert.match(ask.statusMessage, /a2h_score/)
+  assert.match(ask.statusMessage, /60/)
+  const removed = await modernCall(store, "tasks/result", { taskId: created.taskId }, 4)
+  assert.equal(removed.status, 404)
+  assert.equal(bodyOf(removed).error?.code, -32601)
+  const scored = await modernCall(store, "tools/call", { name: "a2h_score", arguments: { taskId: created.taskId, score: 4 } }, 5, {})
+  const scoreResult = bodyOf(scored).result as { resultType: string; content: { text: string }[]; isError?: boolean }
+  assert.equal(scoreResult.resultType, "complete")
+  assert.equal(scoreResult.isError, undefined)
+  assert.equal(scoreResult.content[0].text, '{"count":3}')
+  assert.equal(store.tasks[0].workScore, 4)
+  const legacyResult = await handleMcp({ jsonrpc: "2.0", id: 6, method: "tasks/result", params: { taskId: created.taskId } }, memory(store))
+  assert.equal((bodyOf(legacyResult).result as { content: { text: string }[] }).content[0].text, '{"count":3}')
+  const done = await modernCall(store, "tasks/get", { taskId: created.taskId }, 7)
+  const finished = bodyOf(done).result as { status: string; result: { content: { text: string }[]; isError: boolean } }
+  assert.equal(finished.status, "completed")
+  assert.equal(finished.result.isError, false)
+  assert.equal(finished.result.content[0].text, '{"count":3}')
+})
+
+test("2026-07-28 drops a missed score after 60s and still returns the artifact", async () => {
+  const { store, on } = world()
+  const [tool] = listDutyTools(store)
+  const opened = await modernCall(store, "tools/call", { name: tool.name, arguments: { scene: "三个圆" } })
+  const taskId = (bodyOf(opened).result as { taskId: string }).taskId
+  submitArtifact(store, taskId, on.id, '{"count":3}')
+  const request = store.messages.find((item) => item.taskId === taskId && item.kind === "task.scoreRequest")
+  assert.ok(request)
+  request.createdAt = new Date(Date.now() - 61_000).toISOString()
+  const got = await modernCall(store, "tasks/get", { taskId }, 2)
+  const view = bodyOf(got).result as { status: string; result: { content: { text: string }[]; isError: boolean } }
+  assert.equal(view.status, "completed")
+  assert.equal(view.result.isError, false)
+  assert.equal(view.result.content[0].text, '{"count":3}')
+  assert.equal(store.tasks[0].workScore, undefined)
+  const late = await modernCall(store, "tools/call", { name: "a2h_score", arguments: { taskId, score: 4 } }, 3)
+  assert.equal((bodyOf(late).result as { isError?: boolean }).isError, true)
+  assert.equal(store.tasks[0].workScore, undefined)
+})
+
+test("2026-07-28 tasks/update scores, tasks/cancel acks, and a client without the extension keeps the fallback", async () => {
+  const { store, on } = world()
+  const [tool] = listDutyTools(store)
+  const io = memory(store)
+  io.maxWaitMs = 30_000
+  io.sleep = async () => {
+    throw new Error("modern task call waited")
+  }
+  const opened = await modernCall(store, "tools/call", { name: tool.name, arguments: { scene: "三个圆" } }, 1, undefined, io)
+  const taskId = (bodyOf(opened).result as { taskId: string }).taskId
+  submitArtifact(store, taskId, on.id, '{"count":3}')
+  const updated = await modernCall(
+    store,
+    "tasks/update",
+    { taskId, inputResponses: { score: { action: "accept", content: { score: 5 } } } },
+    2,
+  )
+  assert.equal((bodyOf(updated).result as { resultType: string }).resultType, "complete")
+  assert.equal(store.tasks[0].workScore, 5)
+  assert.equal(store.tasks[0].status, "completed")
+  const again = await modernCall(store, "tools/call", { name: tool.name, arguments: { scene: "四个圆" } }, 3)
+  const second = (bodyOf(again).result as { taskId: string }).taskId
+  const cancelled = await modernCall(store, "tasks/cancel", { taskId: second }, 4)
+  assert.equal((bodyOf(cancelled).result as { resultType: string; status?: string }).resultType, "complete")
+  assert.equal((bodyOf(cancelled).result as { status?: string }).status, undefined)
+  assert.equal(store.tasks.find((item) => item.id === second)?.status, "canceled")
+  const listed = await modernCall(store, "tasks/list", {}, 5)
+  assert.equal(listed.status, 404)
+  const failed = await modernCall(store, "tasks/get", { taskId: second }, 6)
+  assert.equal((bodyOf(failed).result as { status: string }).status, "cancelled")
+  const third = await modernCall(store, "tools/call", { name: tool.name, arguments: { scene: "五个圆" } }, 7)
+  const thirdId = (bodyOf(third).result as { taskId: string }).taskId
+  decideTask(store, thirdId, on.id, "fail", "做不到")
+  const toolError = await modernCall(store, "tasks/get", { taskId: thirdId }, 8)
+  const failedView = bodyOf(toolError).result as { status: string; result: { isError: boolean; content: { text: string }[] } }
+  assert.equal(failedView.status, "completed")
+  assert.equal(failedView.result.isError, true)
+  assert.match(failedView.result.content[0].text, /做不到/)
+  const fallback = await modernCall(
+    store,
+    "tools/call",
+    { name: tool.name, arguments: { scene: "六个圆" }, task: {} },
+    9,
+    {},
+    memory(store),
+  )
+  const fallbackResult = bodyOf(fallback).result as { resultType: string; content: { text: string }[]; taskId?: string }
+  assert.equal(fallbackResult.resultType, "complete")
+  assert.equal(fallbackResult.taskId, undefined)
+  assert.match(fallbackResult.content[0].text, /task_id/)
+  const bare = await modernCall(store, "tasks/get", { taskId: thirdId }, 10, {})
+  assert.equal(bare.status, 400)
+  assert.equal(bodyOf(bare).error?.code, -32021)
+})
+
+test("2026-07-28 rejects a protocol header that does not match _meta", async () => {
+  const { store } = world()
+  const mismatch = await handleMcp(
+    {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/list",
+      params: {
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2025-11-25",
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+      },
+    },
+    memory(store),
+    { protocolVersion: "2026-07-28", method: "tools/list" },
+  )
+  assert.equal(mismatch.status, 400)
+  assert.equal(bodyOf(mismatch).error?.code, -32020)
+  const unsupported = await handleMcp(
+    {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/list",
+      params: {
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "1900-01-01",
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+      },
+    },
+    memory(store),
+    { protocolVersion: "1900-01-01", method: "tools/list" },
+  )
+  assert.equal(unsupported.status, 400)
+  assert.equal(bodyOf(unsupported).error?.code, -32022)
+  const supported = (bodyOf(unsupported).error as { data?: { supported?: string[]; requested?: string } } | undefined)?.data
+  assert.equal(supported?.requested, "1900-01-01")
+  assert.ok(supported?.supported?.includes("2026-07-28"))
+  assert.ok(supported?.supported?.includes("2025-11-25"))
 })

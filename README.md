@@ -57,14 +57,11 @@ curl -s "$ORIGIN/api/a2a/<id>" \
 
 ### MCP
 
-Protocol `2025-11-25` (the revision that defines Tasks). On that version, `initialize` advertises `capabilities.tasks` (`list`, `cancel`, `requests.tools.call`). Each on-duty skill is a tool with `execution.taskSupport: "optional"`. The call still goes to that person's A2A address.
+Same URL, two modes. The call still goes to that person's A2A address. Flat English identifiers (`string`, `integer`, `number`, `boolean`, image) are arguments. Anything else is one `prompt`.
 
-- `tools/call` with `params.task` returns a task handle immediately (`working`, `pollInterval` 5000, `ttl` 7 days; a requested `ttl` is overridden). Poll `tasks/get`. Then `tasks/result`.
-- Status follows A2A: `working`, `input_required`, `completed`, `failed` (failed or rejected), `cancelled`. `tasks/cancel` calls A2A `CancelTask`. `tasks/list` pages tasks still inside the ttl. No auth: ids are UUIDs, and `tasks/list` returns every one of them.
-- This endpoint does not push `notifications/tasks/status`. While `working`, `tasks/result` waits up to 15s, then returns `-32099`. While `input_required`, `tasks/result` returns the ask immediately (no stream for elicitation).
-- Scoring: delivery sets `input_required`. Call `a2h_score` with `taskId` and a 1–5 `score` within 60s (`taskSupport: "forbidden"`). Silence drops the score; the task still completes and `tasks/result` returns the artifact.
-- `optional` keeps the old path: a call without `task` waits up to 15s, then uses `task_id` and `score` on the same tool. `required` would reject that call with `-32601`.
-- Flat English identifiers (`string`, `integer`, `number`, `boolean`, image) are arguments. Anything else is one `prompt`.
+- Legacy handshake: `initialize`. `2025-11-25` advertises `capabilities.tasks`. `tools/call` with `params.task` returns a handle (`pollInterval` 5000, `ttl` 7 days). Poll `tasks/get`, then `tasks/result`. `tasks/list` and `tasks/cancel` (A2A `CancelTask`) are supported. Older versions are tools-only.
+- Stateless `2026-07-28`: no `initialize`. Send `MCP-Protocol-Version: 2026-07-28` and the same value in `_meta["io.modelcontextprotocol/protocolVersion"]`, plus `clientCapabilities`. `server/discover` lists versions. Tasks are the `io.modelcontextprotocol/tasks` extension: a client that declares it gets `resultType: "task"` from `tools/call` (no `params.task`). Poll `tasks/get` (`ttlMs`, `pollIntervalMs`; `result` is inline when completed; `inputRequests` when `input_required`). `tasks/update` answers those requests. `tasks/cancel` acks. There is no `tasks/result` or `tasks/list`.
+- Both modes: delivery sets `input_required`. Call `a2h_score` with `taskId` and a 1–5 `score` within 60s. Silence drops the score; the task still completes. A call that does not opt into tasks waits up to 15s, then uses `task_id` and `score` on the same tool.
 
 ## Run your own market
 
