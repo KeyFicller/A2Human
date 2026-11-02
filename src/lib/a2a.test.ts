@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { dispatchA2a } from "./a2a"
 import { dispatcherCard, toAgentCard } from "./card"
-import { decideTask, publishAgent, setAvailability, submitArtifact } from "./rules"
+import { decideTask, publishAgent, scoreDispatch, setAvailability, submitArtifact } from "./rules"
 import { createSeed } from "./seed"
 
 const counting = { name: "计数", description: "数清画面或文字里的东西，只交回数字。" }
@@ -238,6 +238,33 @@ test("a task can be refused, ask for input, fail, or be canceled", () => {
   })
   assert.ok("error" in again)
   assert.equal(again.error.code, -32002)
+})
+
+test("a dispatch score is sent to the caller as input required", () => {
+  const { store, on } = world()
+  const opened = dispatchA2a(store, { kind: "human", agentId: on.id }, send("数一下。", "score-1", { skill: "计数" }))
+  const task = resultOf(opened).task
+  assert.ok(task)
+  assert.throws(() => scoreDispatch(store, task.id, on.id, 6), /1 到 5/)
+  scoreDispatch(store, task.id, on.id, 4)
+  const asked = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "get-score",
+    method: "GetTask",
+    params: { id: task.id },
+  })
+  assert.ok(!("error" in asked))
+  const body = asked.result as {
+    status: { state: string; message?: { parts: { text: string }[] } }
+    metadata?: { dispatchScore?: number; dispatchCaller?: string }
+  }
+  assert.equal(body.status.state, "TASK_STATE_INPUT_REQUIRED")
+  assert.deepEqual(JSON.parse(body.status.message?.parts[0].text ?? ""), { score: 4, caller: "某个大模型" })
+  assert.equal(body.metadata?.dispatchScore, 4)
+  assert.equal(body.metadata?.dispatchCaller, "某个大模型")
+  const resumed = dispatchA2a(store, { kind: "human", agentId: on.id }, send("收到。", "score-2", { taskId: task.id }))
+  assert.equal(resultOf(resumed).task?.status.state, "TASK_STATE_WORKING")
+  assert.equal(store.tasks.find((item) => item.id === task.id)?.dispatchScore, 4)
 })
 
 test("application/json input is kept for the person and returned as data", () => {

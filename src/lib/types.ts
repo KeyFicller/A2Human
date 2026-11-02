@@ -20,6 +20,7 @@ export type MessageKind =
   | "task.reject"
   | "task.fail"
   | "task.input"
+  | "task.score"
 
 export type JsonSchema = Record<string, unknown>
 
@@ -51,6 +52,7 @@ export type Task = {
   claimantId: string | null
   claimantName: string | null
   artifact: string | null
+  dispatchScore?: number
   images?: TaskImage[]
   artifactImage?: TaskImage | null
   createdAt: string

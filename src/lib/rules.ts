@@ -376,6 +376,25 @@ export function decideTask(store: Store, taskId: string, agentId: string, action
   return task
 }
 
+export function scoreDispatch(store: Store, taskId: string, agentId: string, score: unknown): Task {
+  const task = requireTask(store, taskId)
+  const agent = requireAgent(store, agentId)
+  if (task.claimantId !== agent.id) fail("只有被派到这单的人能打分")
+  if (!taskOpenStatus(task.status)) fail("任务已经结束")
+  if (typeof score !== "number" || !Number.isInteger(score) || score < 1 || score > 5) fail("分数要是 1 到 5 的整数")
+  task.dispatchScore = score
+  task.status = "input-required"
+  task.updatedAt = now()
+  addMessage(store, {
+    taskId: task.id,
+    fromId: agent.id,
+    fromName: agent.name,
+    kind: "task.score",
+    text: `给${task.posterName}打了 ${score} 分`,
+  })
+  return task
+}
+
 export function cancelCommandedTask(store: Store, taskId: string): Task {
   const task = requireTask(store, taskId)
   if (task.posterId !== CALLER_ID) fail("只有协议派来的任务能从这里取消", -32002)

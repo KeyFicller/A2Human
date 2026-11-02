@@ -133,6 +133,25 @@ class ProtocolTest(unittest.TestCase):
             client.dispatch("https://example.test/api/a2a/person", "计数", "数一下")
         self.assertIn("这单不接", str(caught.exception))
 
+        def scored(method, url, payload, headers, timeout):
+            return {
+                "result": {
+                    "task": {
+                        "id": "task-score",
+                        "status": {
+                            "state": "TASK_STATE_INPUT_REQUIRED",
+                            "message": {"parts": [{"text": '{"score":4,"caller":"LangGraph"}'}]},
+                        },
+                    }
+                }
+            }
+
+        client = Client("https://example.test", transport=scored, interval=0)
+        self.assertEqual(
+            client.dispatch("https://example.test/api/a2a/person", "计数", "数一下"),
+            '{"score":4,"caller":"LangGraph"}',
+        )
+
 
 class StructuredDispatchTest(unittest.TestCase):
     def test_flat_schema_becomes_fields_and_an_image_part(self):

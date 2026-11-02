@@ -28,6 +28,9 @@ export function TaskRow({ task }: { task: Task }) {
             {skill}
           </Badge>
         ))}
+        {typeof task.dispatchScore === "number" ? (
+          <span className="text-xs text-muted-foreground">{task.dispatchScore} 分</span>
+        ) : null}
         <span className="ml-auto text-xs text-muted-foreground">来自 {task.posterName}</span>
       </div>
     </Link>

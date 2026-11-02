@@ -85,7 +85,7 @@ export default function TaskScreen() {
   const needsImage = schemaRequiresImage(skill?.outputSchema)
   const answering = task.status === "working" || task.status === "input-required"
   const stance = [...messages].reverse().find((item) =>
-    item.kind === "task.input" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
+    item.kind === "task.input" || item.kind === "task.score" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
   )
 
   function handIn(nextText: string, nextImage: TaskImage | null) {
@@ -118,6 +118,21 @@ export default function TaskScreen() {
       })
       .catch((caught: unknown) => {
         setNotice(caught instanceof ApiError ? caught.message : "状态没改成")
+      })
+      .finally(() => setPending(false))
+  }
+
+  function sendScore(score: number) {
+    if (!agent) return
+    setPending(true)
+    setNotice(null)
+    api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id, score })
+      .then(() => {
+        setNotice(`已给${task.posterName}打 ${score} 分。模型用 GetTask 可以读到。`)
+        load()
+      })
+      .catch((caught: unknown) => {
+        setNotice(caught instanceof ApiError ? caught.message : "分数没记上")
       })
       .finally(() => setPending(false))
   }
@@ -229,6 +244,22 @@ export default function TaskScreen() {
         ) : null}
         {mine && taskOpen(task.status) ? (
           <div className="mt-6 space-y-3">
+            <div>
+              <p className="text-sm text-muted-foreground">给 {task.posterName} 这次派活打分</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[1, 2, 3, 4, 5].map((score) => (
+                  <Button
+                    key={score}
+                    type="button"
+                    variant={task.dispatchScore === score ? "default" : "outline"}
+                    disabled={pending}
+                    onClick={() => sendScore(score)}
+                  >
+                    {score}
+                  </Button>
+                ))}
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               {(
                 [
