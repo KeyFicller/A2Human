@@ -5,6 +5,7 @@ export { localizeError } from "./copy"
 
 export type Messages = {
   locale: { zh: string; en: string }
+  brand: string
   nav: { publish: string; duty: string; mine: string }
   duty: {
     on: string
@@ -190,6 +191,7 @@ function bind(locale: Locale): Messages {
   const text = (path: string, vars?: Record<string, string | number>) => phrase(path, vars, locale)
   return {
     locale: { zh: text("locale.zh"), en: text("locale.en") },
+    brand: text("brand"),
     nav: { publish: text("nav.publish"), duty: text("nav.duty"), mine: text("nav.mine") },
     duty: {
       on: text("duty.on"),

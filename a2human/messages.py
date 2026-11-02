@@ -13,6 +13,7 @@ def bind(locale: str) -> dict:
 
     return {
         "locale": {"zh": text("locale.zh"), "en": text("locale.en")},
+        "brand": text("brand"),
         "nav": {"publish": text("nav.publish"), "duty": text("nav.duty"), "mine": text("nav.mine")},
         "duty": {
             "on": text("duty.on"),
