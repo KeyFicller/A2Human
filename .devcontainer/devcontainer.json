@@ -1,0 +1,14 @@
+{
+  "name": "A2Human",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "forwardPorts": [3847],
+  "portsAttributes": {
+    "3847": {
+      "label": "A2Human",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "npm install",
+  "postStartCommand": "bash .devcontainer/start.sh"
+}

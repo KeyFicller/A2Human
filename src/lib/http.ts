@@ -1,5 +1,14 @@
 import { DomainError } from "./rules"
 
+export function requestOrigin(request: Request) {
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
+  if (forwardedHost) {
+    const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https"
+    return `${proto}://${forwardedHost}`
+  }
+  return new URL(request.url).origin
+}
+
 export function json(data: unknown, status = 200) {
   return Response.json(data, {
     status,

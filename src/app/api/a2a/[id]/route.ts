@@ -1,6 +1,6 @@
 import { dispatchA2a, rpcError } from "@/lib/a2a"
 import { toAgentCard } from "@/lib/card"
-import { json } from "@/lib/http"
+import { json, requestOrigin } from "@/lib/http"
 import { readStore, updateStore } from "@/lib/store"
 
 function rpcFail(code: number, message: string) {
@@ -12,7 +12,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   const store = await readStore()
   const agent = store.agents.find((item) => item.id === id)
   if (!agent) return json({ error: "找不到这个 Agent" }, 404)
-  const origin = new URL(request.url).origin
+  const origin = requestOrigin(request)
   return json(toAgentCard(agent, origin))
 }
 

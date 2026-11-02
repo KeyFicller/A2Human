@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
-  allowedDevOrigins: ["127.0.0.1"],
+  allowedDevOrigins: ["127.0.0.1", "**.app.github.dev"],
   async rewrites() {
     return [{ source: "/.well-known/agent-card.json", destination: "/api/a2a" }]
   },
