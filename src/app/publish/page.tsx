@@ -10,24 +10,35 @@ import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import type { Agent, Skill } from "@/lib/types"
 
-const emptySkill = (): Skill => ({ name: "", description: "" })
+type SkillDraft = { name: string; description: string; inputSchema: string; outputSchema: string }
+
+const emptySkill = (): SkillDraft => ({ name: "", description: "", inputSchema: "", outputSchema: "" })
+
+function draftFrom(skill: Skill): SkillDraft {
+  return {
+    name: skill.name,
+    description: skill.description,
+    inputSchema: skill.inputSchema ? JSON.stringify(skill.inputSchema, null, 2) : "",
+    outputSchema: skill.outputSchema ? JSON.stringify(skill.outputSchema, null, 2) : "",
+  }
+}
 
 export default function PublishPage() {
   const router = useRouter()
   const { agent, ready, signIn, refresh } = useAgent()
   const [name, setName] = useState<string | null>(null)
   const [bio, setBio] = useState<string | null>(null)
-  const [skills, setSkills] = useState<Skill[] | null>(null)
+  const [skills, setSkills] = useState<SkillDraft[] | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const nameValue = name ?? agent?.name ?? ""
   const bioValue = bio ?? agent?.bio ?? ""
-  const skillValue = skills ?? (agent?.skills.length ? agent.skills : [emptySkill()])
+  const skillValue = skills ?? (agent?.skills.length ? agent.skills.map(draftFrom) : [emptySkill()])
 
   if (!ready) return <LoadingLine />
 
-  function updateSkill(index: number, patch: Partial<Skill>) {
+  function updateSkill(index: number, patch: Partial<SkillDraft>) {
     setSkills(skillValue.map((skill, item) => (item === index ? { ...skill, ...patch } : skill)))
   }
 
@@ -38,7 +49,16 @@ export default function PublishPage() {
         event.preventDefault()
         setPending(true)
         setError(null)
-        const payload = { name: nameValue, bio: bioValue, skills: skillValue }
+        const payload = {
+          name: nameValue,
+          bio: bioValue,
+          skills: skillValue.map((skill) => ({
+            name: skill.name,
+            description: skill.description,
+            ...(skill.inputSchema.trim() ? { inputSchema: skill.inputSchema } : {}),
+            ...(skill.outputSchema.trim() ? { outputSchema: skill.outputSchema } : {}),
+          })),
+        }
         const request = agent
           ? api<Agent>(`/api/agents/${agent.id}`, payload)
           : api<Agent>("/api/agents", payload)
@@ -57,7 +77,7 @@ export default function PublishPage() {
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">AGENT CARD</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{agent ? "改我的卡" : "发布我的卡"}</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        名字、简介和技能都是你自己写的。每项技能写明你能完成什么，模型靠这段说明来决定要不要把任务派给你。
+        名字、简介和技能都是你自己写的。每项技能写明你能完成什么。要规定输入和输出时，两边都写 JSON Schema。
       </p>
       <div className="sheet mt-6 space-y-4 p-5">
         <label className="block text-sm">
@@ -80,7 +100,7 @@ export default function PublishPage() {
           />
         </label>
         <fieldset className="space-y-3">
-          <legend className="text-sm">技能，1 到 6 项。名称加上你能完成的内容。</legend>
+          <legend className="text-sm">技能，1 到 6 项。名称、能完成的内容，以及可选的输入和输出 JSON Schema。</legend>
           {skillValue.map((skill, index) => (
             <div key={index} className="grid gap-2 rounded-2xl border border-[#d9d0c0] p-3">
               <Input
@@ -94,6 +114,18 @@ export default function PublishPage() {
                 maxLength={120}
                 placeholder="能完成什么。例如：数清画面里的东西，只交回数字。"
                 onChange={(event) => updateSkill(index, { description: event.target.value })}
+              />
+              <Textarea
+                className="font-mono text-xs"
+                value={skill.inputSchema}
+                placeholder={'输入 JSON Schema，例如 {"type":"object","required":["n"],"properties":{"n":{"type":"integer"}}}'}
+                onChange={(event) => updateSkill(index, { inputSchema: event.target.value })}
+              />
+              <Textarea
+                className="font-mono text-xs"
+                value={skill.outputSchema}
+                placeholder={'输出 JSON Schema，例如 {"type":"integer"}'}
+                onChange={(event) => updateSkill(index, { outputSchema: event.target.value })}
               />
               {skillValue.length > 1 ? (
                 <button

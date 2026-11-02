@@ -2,9 +2,13 @@ export type TaskStatus = "submitted" | "working" | "completed" | "canceled"
 
 export type MessageKind = "task.submit" | "task.artifact" | "task.complete" | "task.cancel" | "task.note"
 
+export type JsonSchema = Record<string, unknown>
+
 export type Skill = {
   name: string
   description: string
+  inputSchema?: JsonSchema
+  outputSchema?: JsonSchema
 }
 
 export type Agent = {

@@ -61,6 +61,31 @@ function cleanBio(bio: unknown) {
   return trimmed
 }
 
+const SCHEMA_MAX = 2000
+
+function cleanSchema(value: unknown, label: string): Record<string, unknown> | undefined {
+  if (value == null || value === "") return undefined
+  let parsed = value
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      fail(`${label}要是 JSON Schema`)
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) fail(`${label}要是 JSON 对象`)
+  let encoded: string
+  try {
+    encoded = JSON.stringify(parsed)
+  } catch {
+    fail(`${label}要是 JSON Schema`)
+  }
+  if (textLength(encoded) > SCHEMA_MAX) fail(`${label}最多 ${SCHEMA_MAX} 字`)
+  return JSON.parse(encoded) as Record<string, unknown>
+}
+
 function cleanSkills(skills: unknown): Skill[] {
   if (!Array.isArray(skills) || skills.length < 1) fail("至少写一项技能")
   if (skills.length > 6) fail("最多 6 项技能")
@@ -77,7 +102,10 @@ function cleanSkills(skills: unknown): Skill[] {
     if (textLength(description) < 1 || textLength(description) > 120) fail("技能说明用 1 到 120 个字")
     if (seen.has(name)) fail("技能名不能重复")
     seen.add(name)
-    return { name, description }
+    const inputSchema = cleanSchema(record.inputSchema, "输入 Schema")
+    const outputSchema = cleanSchema(record.outputSchema, "输出 Schema")
+    if (Boolean(inputSchema) !== Boolean(outputSchema)) fail("输入和输出的 JSON Schema 要一起写")
+    return inputSchema && outputSchema ? { name, description, inputSchema, outputSchema } : { name, description }
   })
 }
 

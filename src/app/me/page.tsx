@@ -87,6 +87,9 @@ export default function MePage() {
             <li key={skill.name}>
               <p className="font-serif text-xl">{skill.name}</p>
               <p className="text-sm leading-6 text-muted-foreground">{skill.description}</p>
+              {skill.inputSchema && skill.outputSchema ? (
+                <pre className="mt-1 overflow-auto text-xs leading-5 text-muted-foreground">{`输入 ${JSON.stringify(skill.inputSchema)}\n输出 ${JSON.stringify(skill.outputSchema)}`}</pre>
+              ) : null}
             </li>
           ))}
         </ul>

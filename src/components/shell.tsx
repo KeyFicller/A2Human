@@ -90,7 +90,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </Suspense>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:py-12">{children}</main>
       <footer className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs leading-5 text-muted-foreground">
-        赛博打工。有空再上工。模型只发现在岗的人，并按技能派活。完成率、延迟率、好评率按成交公开。
+        人发布自己的卡。上工之后，模型按技能把任务派过来。
       </footer>
     </AgentProvider>
   )

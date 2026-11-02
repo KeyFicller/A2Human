@@ -113,7 +113,7 @@ export function projectTask(
           {
             artifactId: `${task.id}:artifact`,
             name: "产物",
-            parts: [{ text: task.artifact, mediaType: "text/plain" }],
+            parts: [artifactPart(store, task, task.artifact)],
           },
         ]
       : []
@@ -158,6 +158,36 @@ function requireVisible(store: Store, scope: Scope, id: string) {
   return task
 }
 
+function outputSchemaFor(store: Store, task: Task) {
+  const agent = store.agents.find((item) => item.id === task.claimantId)
+  if (!agent) return undefined
+  const named = task.skills.length === 1 ? task.skills[0] : undefined
+  const skill = named
+    ? agent.skills.find((item) => item.name === named)
+    : agent.skills.length === 1
+      ? agent.skills[0]
+      : undefined
+  return skill?.outputSchema
+}
+
+function artifactPart(store: Store, task: Task, text: string) {
+  if (!outputSchemaFor(store, task)) return { text, mediaType: "text/plain" }
+  try {
+    return { data: JSON.parse(text) as unknown, mediaType: "application/json" }
+  } catch {
+    return { text, mediaType: "text/plain" }
+  }
+}
+
+function encodeData(data: unknown) {
+  if (typeof data === "string") return data
+  try {
+    return JSON.stringify(data)
+  } catch {
+    throw new DomainError("data 要是 JSON", -32602)
+  }
+}
+
 function textFromParts(parts: unknown) {
   if (!Array.isArray(parts) || parts.length === 0) throw new DomainError("parts 里需要一段文字", -32602)
   const chunks: string[] = []
@@ -169,11 +199,25 @@ function textFromParts(parts: unknown) {
     if (!part || typeof part !== "object") throw new DomainError("part 格式不对", -32602)
     const record = part as Record<string, unknown>
     const media = record.mediaType ?? record.media_type
-    if (typeof media === "string" && media !== "text/plain" && media !== "text/*" && media !== "*/*") {
-      throw new DomainError(`不支持的内容类型 ${media}`, -32005)
+    if ("raw" in record || "url" in record || "file" in record) {
+      throw new DomainError("只接受 text/plain 或 application/json", -32005)
     }
-    if ("raw" in record || "url" in record || "data" in record || "file" in record) {
-      throw new DomainError("只接受 text/plain", -32005)
+    if ("data" in record && record.data !== undefined) {
+      if (typeof media === "string" && media !== "application/json" && media !== "*/*") {
+        throw new DomainError(`不支持的内容类型 ${media}`, -32005)
+      }
+      const encoded = encodeData(record.data)
+      if (encoded.trim()) chunks.push(encoded)
+      continue
+    }
+    if (
+      typeof media === "string" &&
+      media !== "text/plain" &&
+      media !== "text/*" &&
+      media !== "*/*" &&
+      media !== "application/json"
+    ) {
+      throw new DomainError(`不支持的内容类型 ${media}`, -32005)
     }
     if (typeof record.text === "string") chunks.push(record.text)
   }
@@ -237,8 +281,10 @@ function assertSendable(config: Record<string, unknown>) {
   if (!Array.isArray(modes) || modes.some((mode) => typeof mode !== "string")) {
     throw new DomainError("acceptedOutputModes 要是字符串数组", -32602)
   }
-  const supported = modes.some((mode) => mode === "text/plain" || mode === "text/*" || mode === "*/*")
-  if (!supported) throw new DomainError("只输出 text/plain", -32005)
+  const supported = modes.some(
+    (mode) => mode === "text/plain" || mode === "text/*" || mode === "*/*" || mode === "application/json",
+  )
+  if (!supported) throw new DomainError("只输出 text/plain 或 application/json", -32005)
 }
 
 function readContextId(record: Record<string, unknown>) {

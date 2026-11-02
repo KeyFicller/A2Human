@@ -57,6 +57,8 @@ test("human card advertises the skills the person wrote", () => {
   assert.equal(card.a2human.available, true)
   assert.equal(card.skills[0].name, "计数")
   assert.equal(card.skills[0].description, counting.description)
+  assert.equal("inputModes" in card.skills[0], false)
+  assert.equal("inputSchema" in card.skills[0], false)
   assert.match(card.description, /现在在岗/)
   const hidden = toAgentCard(off, "http://localhost:3847")
   assert.equal(hidden.a2human.available, false)
@@ -66,6 +68,29 @@ test("human card advertises the skills the person wrote", () => {
   assert.equal(dispatcher.a2human.onDuty.length, 1)
   assert.equal(dispatcher.a2human.onDuty[0].url, `http://localhost:3847/api/a2a/${on.id}`)
   assert.equal(dispatcher.a2human.onDuty[0].skills[0].name, "计数")
+})
+
+test("a skill schema stays beside the official modes, not inside AgentSkill", () => {
+  const inputSchema = { type: "object", required: ["scene"], properties: { scene: { type: "string" } } }
+  const outputSchema = { type: "object", required: ["count"], properties: { count: { type: "integer" } } }
+  const store = createSeed()
+  const on = publishAgent(store, {
+    name: "米粒",
+    bio: "会数。",
+    skills: [{ ...counting, inputSchema, outputSchema }],
+  })
+  setAvailability(store, on.id, true)
+  const card = toAgentCard(on, "http://localhost:3847")
+  assert.deepEqual(card.skills[0].inputModes, ["application/json"])
+  assert.deepEqual(card.skills[0].outputModes, ["application/json"])
+  assert.equal("inputSchema" in card.skills[0], false)
+  const params = card.capabilities.extensions[0].params as {
+    skillSchemas: Record<string, { inputSchema: unknown; outputSchema: unknown }>
+  }
+  assert.deepEqual(params.skillSchemas["计数"], { inputSchema, outputSchema })
+  const dispatcher = dispatcherCard("http://localhost:3847", store.agents)
+  assert.deepEqual(dispatcher.a2human.onDuty[0].skills[0].inputSchema, inputSchema)
+  assert.deepEqual(dispatcher.a2human.onDuty[0].skills[0].outputSchema, outputSchema)
 })
 
 test("SendMessage assigns the chosen person and GetTask returns the artifact", () => {
@@ -86,6 +111,46 @@ test("SendMessage assigns the chosen person and GetTask returns the artifact", (
   const loaded = got.result as { status: { state: string }; artifacts?: { parts: { text: string }[] }[] }
   assert.equal(loaded.status.state, "TASK_STATE_COMPLETED")
   assert.equal(loaded.artifacts?.[0].parts[0].text, "7")
+})
+
+test("application/json input is kept for the person and returned as data", () => {
+  const inputSchema = { type: "object", required: ["scene"], properties: { scene: { type: "string" } } }
+  const outputSchema = { type: "object", required: ["count"], properties: { count: { type: "integer" } } }
+  const store = createSeed()
+  const on = publishAgent(store, {
+    name: "米粒",
+    bio: "会数。",
+    skills: [{ ...counting, inputSchema, outputSchema }],
+  })
+  setAvailability(store, on.id, true)
+  const sent = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "msg-json",
+    method: "SendMessage",
+    params: {
+      configuration: { returnImmediately: true, acceptedOutputModes: ["application/json"] },
+      metadata: { skill: "计数" },
+      message: {
+        role: "ROLE_USER",
+        messageId: "msg-json",
+        parts: [{ mediaType: "application/json", data: { scene: "三个圆" } }],
+      },
+    },
+  })
+  const task = resultOf(sent).task
+  assert.ok(task)
+  assert.equal(store.tasks.find((item) => item.id === task.id)?.brief, '{"scene":"三个圆"}')
+  submitArtifact(store, task.id, on.id, '{"count":3}')
+  const got = dispatchA2a(store, { kind: "human", agentId: on.id }, {
+    jsonrpc: "2.0",
+    id: "get-json",
+    method: "GetTask",
+    params: { id: task.id },
+  })
+  assert.ok(!("error" in got))
+  const loaded = got.result as { artifacts?: { parts: { data?: { count: number }; mediaType?: string }[] }[] }
+  assert.equal(loaded.artifacts?.[0].parts[0].mediaType, "application/json")
+  assert.deepEqual(loaded.artifacts?.[0].parts[0].data, { count: 3 })
 })
 
 test("the directory does not assign, and an off-duty person rejects the call", () => {

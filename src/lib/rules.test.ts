@@ -18,6 +18,23 @@ test("publish records the card the person wrote", () => {
   assert.equal(store.agents.includes(created), true)
 })
 
+test("a skill can declare JSON Schema for the input and the output", () => {
+  const inputSchema = { type: "object", required: ["n"], properties: { n: { type: "integer" } } }
+  const outputSchema = { type: "integer" }
+  const store = createSeed()
+  const created = publishAgent(store, {
+    name: "阿梨",
+    bio: "",
+    skills: [{ ...counting, inputSchema, outputSchema: JSON.stringify(outputSchema) }],
+  })
+  assert.deepEqual(created.skills[0].inputSchema, inputSchema)
+  assert.deepEqual(created.skills[0].outputSchema, outputSchema)
+  assert.throws(
+    () => publishAgent(store, { name: "老周", bio: "", skills: [{ ...counting, inputSchema }] }),
+    /要一起写/,
+  )
+})
+
 test("a person is discoverable only after going on duty", () => {
   const store = createSeed()
   const created = publishAgent(store, { name: "阿梨", bio: "", skills: [counting] })

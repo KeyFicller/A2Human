@@ -1,5 +1,5 @@
 import { onDuty } from "./rules"
-import type { Agent, Skill } from "./types"
+import type { Agent, JsonSchema, Skill } from "./types"
 
 function skillEntry(skill: Skill) {
   return {
@@ -7,22 +7,42 @@ function skillEntry(skill: Skill) {
     name: skill.name,
     description: skill.description,
     tags: ["human"],
+    ...(skill.inputSchema && skill.outputSchema
+      ? { inputModes: ["application/json"], outputModes: ["application/json"] }
+      : {}),
   }
+}
+
+function skillSchemas(skills: Skill[]) {
+  const schemas: Record<string, { inputSchema: JsonSchema; outputSchema: JsonSchema }> = {}
+  for (const skill of skills) {
+    if (!skill.inputSchema || !skill.outputSchema) continue
+    schemas[skill.name] = { inputSchema: skill.inputSchema, outputSchema: skill.outputSchema }
+  }
+  return schemas
 }
 
 function a2humanExtension(
   origin: string,
-  roster?: { name: string; skills: Skill[]; url: string }[],
+  options?: {
+    roster?: { name: string; skills: Skill[]; url: string }[]
+    skills?: Skill[]
+  },
 ) {
+  const schemas = skillSchemas(options?.skills ?? [])
+  const schemaNote = Object.keys(schemas).length
+    ? " params.skillSchemas 写每项技能要的输入和会交回的输出，都是 JSON Schema。对应 skills 的 inputModes 和 outputModes 是 application/json。"
+    : ""
   return {
     uri: `${origin}/extensions/a2human/v1`,
-    description: roster
+    description: options?.roster
       ? "onDuty 列出正在上工的人、他们自己写的技能，以及各自的调用地址。模型自己选一个人，把 SendMessage 打到那个 url。configuration.returnImmediately 必须为 true。"
-      : "这个人自己写的技能说明能完成什么。上工之后才会出现在发现名单里。SendMessage 要设 configuration.returnImmediately 为 true，产物用 GetTask 取。",
+      : `这个人自己写的技能说明能完成什么。上工之后才会出现在发现名单里。SendMessage 要设 configuration.returnImmediately 为 true，产物用 GetTask 取。${schemaNote}`,
     required: false,
     params: {
       returnImmediately: true,
-      ...(roster ? { onDuty: roster } : {}),
+      ...(options?.roster ? { onDuty: options.roster } : {}),
+      ...(Object.keys(schemas).length ? { skillSchemas: schemas } : {}),
     },
   }
 }
@@ -50,7 +70,7 @@ export function toAgentCard(agent: Agent, origin: string) {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
-      extensions: [a2humanExtension(origin)],
+      extensions: [a2humanExtension(origin, { skills: agent.skills })],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
@@ -87,7 +107,7 @@ export function dispatcherCard(origin: string, agents: Agent[]) {
       streaming: false,
       pushNotifications: false,
       extendedAgentCard: false,
-      extensions: [a2humanExtension(origin, roster)],
+      extensions: [a2humanExtension(origin, { roster })],
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],

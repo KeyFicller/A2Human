@@ -5,6 +5,19 @@ import type { Skill, Store } from "./types"
 
 const file = path.join(process.cwd(), "data", "store.json")
 
+function schemaOf(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  try {
+    const encoded = JSON.stringify(value)
+    if ([...encoded].length > 2000) return undefined
+    const parsed = JSON.parse(encoded) as unknown
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined
+    return parsed as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
 function skillOf(value: unknown): Skill | null {
   if (typeof value === "string" && value.trim()) {
     const name = value.trim()
@@ -16,7 +29,9 @@ function skillOf(value: unknown): Skill | null {
   const name = record.name.trim()
   const description =
     typeof record.description === "string" && record.description.trim() ? record.description.trim() : name
-  return { name, description }
+  const inputSchema = schemaOf(record.inputSchema)
+  const outputSchema = schemaOf(record.outputSchema)
+  return inputSchema && outputSchema ? { name, description, inputSchema, outputSchema } : { name, description }
 }
 
 function normalize(store: Store): Store {
