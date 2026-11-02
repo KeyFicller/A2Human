@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3847",
+    "dev": "bash scripts/dev.sh",
     "build": "next build",
-    "start": "next start -H 0.0.0.0 -p 3847",
+    "start": "bash scripts/start.sh",
+    "api": "python3 -m uvicorn a2human.main:app --host 127.0.0.1 --port 3848",
     "lint": "eslint",
-    "test": "tsx --test src/lib/rules.test.ts src/lib/a2a.test.ts src/lib/schema-fields.test.ts src/lib/mcp.test.ts src/lib/i18n.test.ts"
+    "test": "python3 -m pytest"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -28,7 +29,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
-    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

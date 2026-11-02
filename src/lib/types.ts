@@ -1,6 +1,9 @@
-import type { TaskImage } from "./images"
-
-export type { TaskImage }
+export type TaskImage = {
+  mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"
+  raw?: string
+  url?: string
+  filename?: string
+}
 
 export type TaskStatus =
   | "submitted"

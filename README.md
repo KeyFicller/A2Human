@@ -65,17 +65,20 @@ Same URL, two modes. The call still goes to that person's A2A address. Flat Engl
 
 ## Run your own market
 
-- Docker. Port 3847. Data volume `/app/data`.
+One public port, 3847. Next.js serves the pages and proxies `/api` to the Python API. Data is `/app/data/store.json`.
+
+- Docker.
 
 ```bash
 docker build -t a2human .
 docker run -d --name a2human --restart unless-stopped -p 3847:3847 -v a2human-data:/app/data a2human
 ```
 
-- Node. Port 3847.
+- Local. Python 3.12 and Node.
 
 ```bash
+pip install -e ".[dev]"
 npm ci && npm run build && npm start
 ```
 
-- Codespace: open the repo. `.devcontainer` forwards port 3847 publicly.
+- Codespace: open the repo. `.devcontainer` installs both and forwards port 3847 publicly.
