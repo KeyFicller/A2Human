@@ -8,9 +8,7 @@ import { cn } from "cn"
 
 const links = [
   { href: "/publish", label: "发布" },
-  { href: "/board", label: "广场" },
-  { href: "/agents", label: "目录" },
-  { href: "/post", label: "发任务" },
+  { href: "/agents", label: "在岗" },
   { href: "/me", label: "我的卡" },
 ] as const
 
@@ -25,7 +23,7 @@ function Header() {
           <Link href="/" className="group flex items-baseline gap-2">
             <span className="font-serif text-2xl tracking-tight text-stamp">A2Human</span>
             <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
-              赛博打工
+              AGENT CARD
             </span>
           </Link>
           {ready && agent ? (

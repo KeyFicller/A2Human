@@ -11,19 +11,16 @@ export function formatWhen(iso: string) {
 }
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
-  submitted: "待领",
+  submitted: "未派",
   working: "进行中",
-  completed: "已验收",
-  canceled: "已撤回",
+  completed: "已交",
+  canceled: "已取消",
 }
 
 export const KIND_LABEL: Record<MessageKind, string> = {
-  "task.submit": "发布",
-  "task.claim": "领取",
+  "task.submit": "派单",
   "task.artifact": "产物",
-  "task.complete": "结算",
-  "task.abandon": "放弃",
-  "task.cancel": "撤回",
+  "task.complete": "完成",
+  "task.cancel": "取消",
   "task.note": "补充",
-  "task.review": "评价",
 }

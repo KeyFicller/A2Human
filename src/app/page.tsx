@@ -1,86 +1,70 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { AgentCard } from "@/components/agent-card"
 import { useAgent } from "@/components/agent-provider"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { api } from "@/lib/client"
-import { CALLER_ID } from "@/lib/rules"
-import type { Agent, Task } from "@/lib/types"
+import type { Agent } from "@/lib/types"
 import { cn } from "cn"
 
 const steps = [
   {
     n: "01",
     title: "发布",
-    body: "自己写名字、简介和技能。技能是模型找你的依据。",
+    body: "自己写名字、简介，以及每项技能能完成什么。",
   },
   {
     n: "02",
     title: "上工",
-    body: "有空就上工。没上工，模型发现不到，也派不进来。",
+    body: "上工之后，你的卡才会出现在发现名单里。",
   },
   {
     n: "03",
-    title: "被指派",
-    body: "模型按技能找到在岗的人，任务立刻派过来。交完产物，对方用 GetTask 取走。",
+    title: "被委派",
+    body: "模型读你的技能，把对得上的任务派到你的地址。交完产物，对方用 GetTask 取走。",
   },
 ]
 
 export default function HomePage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
-  const [tasks, setTasks] = useState<Task[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { agent: me, ready } = useAgent()
 
-  const load = useCallback(() => {
-    Promise.all([api<Agent[]>("/api/agents"), api<Task[]>("/api/tasks")])
-      .then(([nextAgents, nextTasks]) => {
-        setAgents(nextAgents)
-        setTasks(nextTasks)
+  useEffect(() => {
+    api<Agent[]>("/api/agents")
+      .then((next) => {
+        setAgents(next)
         setError(null)
       })
       .catch((caught: unknown) => {
-        setError(caught instanceof Error ? caught.message : "广场暂时读不出来")
+        setError(caught instanceof Error ? caught.message : "在岗名单暂时读不出来")
       })
   }, [])
 
-  useEffect(() => {
-    load()
-  }, [load])
-
-  const humans = agents?.filter((agent) => agent.human) ?? []
-  const onDuty = humans.filter((agent) => agent.available)
-  const models = agents?.filter((agent) => !agent.human && agent.id !== CALLER_ID) ?? []
-  const open = tasks?.filter((task) => task.status === "submitted").length ?? 0
-  const featured = onDuty.find((agent) => agent.id === "agent_li") ?? onDuty[0] ?? humans[0]
+  const onDuty = agents?.filter((agent) => agent.available) ?? []
 
   return (
     <div className="grid items-start gap-10 lg:grid-cols-[1.3fr_0.7fr]">
       <div>
         <p className="font-mono text-[11px] tracking-[0.22em] text-stamp">A2HUMAN</p>
-        <div className="mt-4 flex items-start justify-between gap-6">
-          <h1 className="max-w-xl font-serif text-5xl leading-[1.05] tracking-tight md:text-7xl">
-            赛博打工
-          </h1>
-          <div className="seal mt-2 hidden sm:grid" aria-hidden>
-            工
-          </div>
-        </div>
+        <h1 className="mt-4 max-w-xl font-serif text-5xl leading-[1.05] tracking-tight md:text-7xl">
+          人的 agent card
+        </h1>
         <p className="mt-6 max-w-xl text-lg leading-8">
-          有空就上工。模型按技能把活派过来，干完把产物交回去。完成率、延迟率、好评率都算在你头上。
+          发布一张符合 A2A 的卡。技能里写明你能完成什么。模型发现在岗的人，自己选一个，把任务派过来。
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href={ready && me ? "/me" : "/publish"} className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
-            {ready && me?.available ? "正在干" : "上工"}
+            {ready && me?.available ? "正在上工" : "发布我的卡"}
           </Link>
           <Link
             href="/agents"
             className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-11 bg-paper px-5")}
           >
-            看谁在干
+            看谁在岗
           </Link>
         </div>
         <ol className="mt-10 grid gap-3 sm:grid-cols-3">
@@ -92,25 +76,17 @@ export default function HomePage() {
             </li>
           ))}
         </ol>
-        <p className="mt-6 font-mono text-xs tracking-wide text-muted-foreground">
-          submitted → working → completed
-        </p>
       </div>
       <aside className="space-y-4">
-        {error ? <ErrorNote text={error} onRetry={load} /> : null}
-        {!agents && !error ? <LoadingLine text="正在清点在册 Agent…" /> : null}
-        {agents && tasks ? (
-          <p className="font-mono text-xs text-muted-foreground">
-            在岗 {onDuty.length} · 人类 {humans.length} · 模型方 {models.length} · 待领 {open}
-          </p>
+        {error ? <ErrorNote text={error} /> : null}
+        {!agents && !error ? <LoadingLine text="正在读取在岗名单…" /> : null}
+        {agents ? (
+          <p className="font-mono text-xs text-muted-foreground">在岗 {onDuty.length}</p>
         ) : null}
-        {featured ? <AgentCard agent={featured} /> : null}
-        <div className="sheet p-5 text-sm leading-6">
-          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">公开评价</p>
-          <p className="mt-2">
-            完成率看接过的单有没有做完，延迟率看有没有过截止，好评率看发布方点了多少次好评。这三样改不了，只能做出来。
-          </p>
-        </div>
+        {onDuty[0] ? <AgentCard agent={onDuty[0]} /> : null}
+        {agents && onDuty.length === 0 ? (
+          <div className="sheet p-5 text-sm leading-6">现在没有人上工。发布一张卡并上工之后，模型才能发现你。</div>
+        ) : null}
       </aside>
     </div>
   )

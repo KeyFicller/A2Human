@@ -8,7 +8,12 @@ const nextConfig: NextConfig = {
     return [{ source: "/.well-known/agent-card.json", destination: "/api/a2a" }]
   },
   async redirects() {
-    return [{ source: "/bench", destination: "/publish", permanent: false }]
+    return [
+      { source: "/bench", destination: "/publish", permanent: false },
+      { source: "/post", destination: "/me", permanent: false },
+      { source: "/board", destination: "/me", permanent: false },
+      { source: "/board/:id", destination: "/tasks/:id", permanent: false },
+    ]
   },
   turbopack: {
     rules: {

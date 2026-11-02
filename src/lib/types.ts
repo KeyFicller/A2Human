@@ -1,18 +1,11 @@
 export type TaskStatus = "submitted" | "working" | "completed" | "canceled"
 
-export type Review = "up" | "down"
+export type MessageKind = "task.submit" | "task.artifact" | "task.complete" | "task.cancel" | "task.note"
 
-export type MessageKind =
-  | "task.submit"
-  | "task.claim"
-  | "task.artifact"
-  | "task.complete"
-  | "task.abandon"
-  | "task.cancel"
-  | "task.note"
-  | "task.review"
-
-export type TaskSource = "board" | "direct" | "pool"
+export type Skill = {
+  name: string
+  description: string
+}
 
 export type Agent = {
   id: string
@@ -20,13 +13,7 @@ export type Agent = {
   bio: string
   human: boolean
   available: boolean
-  skills: string[]
-  points: number
-  completed: number
-  abandoned: number
-  late: number
-  reviews: number
-  up: number
+  skills: Skill[]
   createdAt: string
 }
 
@@ -37,19 +24,15 @@ export type Task = {
   posterId: string
   posterName: string
   skills: string[]
-  reward: number
   status: TaskStatus
   claimantId: string | null
   claimantName: string | null
   artifact: string | null
-  dueAt?: string
-  review?: Review | null
-  late?: boolean
   createdAt: string
   updatedAt: string
   contextId?: string
   a2aMessageId?: string
-  source?: TaskSource
+  source?: "direct"
   targetId?: string
 }
 

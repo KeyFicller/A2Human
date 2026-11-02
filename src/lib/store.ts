@@ -1,20 +1,30 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { createSeed } from "./seed"
-import type { Store } from "./types"
+import type { Skill, Store } from "./types"
 
 const file = path.join(process.cwd(), "data", "store.json")
 
+function skillOf(value: unknown): Skill | null {
+  if (typeof value === "string" && value.trim()) {
+    const name = value.trim()
+    return { name, description: name }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (typeof record.name !== "string" || !record.name.trim()) return null
+  const name = record.name.trim()
+  const description =
+    typeof record.description === "string" && record.description.trim() ? record.description.trim() : name
+  return { name, description }
+}
+
 function normalize(store: Store): Store {
   for (const agent of store.agents) {
-    agent.abandoned ??= 0
-    agent.late ??= 0
-    agent.reviews ??= 0
-    agent.up ??= 0
     agent.available ??= false
-  }
-  for (const task of store.tasks) {
-    task.review ??= null
+    agent.skills = (Array.isArray(agent.skills) ? agent.skills : [])
+      .map(skillOf)
+      .filter((skill): skill is Skill => skill != null)
   }
   return store
 }

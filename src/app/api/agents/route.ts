@@ -4,7 +4,7 @@ import { readStore, updateStore } from "@/lib/store"
 
 export async function GET() {
   const store = await readStore()
-  return json(store.agents)
+  return json(store.agents.filter((agent) => agent.human))
 }
 
 export async function POST(request: Request) {

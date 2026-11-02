@@ -1,5 +1,5 @@
 import { domainError, json, readBody } from "@/lib/http"
-import { DomainError, abandonTask, cancelTask, claimTask, rateTask, submitArtifact } from "@/lib/rules"
+import { DomainError, submitArtifact } from "@/lib/rules"
 import { readStore, updateStore } from "@/lib/store"
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -23,20 +23,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (typeof agentId !== "string") return json({ error: "缺少 Agent" }, 400)
 
     const task = await updateStore((store) => {
-      switch (body.action) {
-        case "claim":
-          return claimTask(store, id, agentId)
-        case "artifact":
-          return submitArtifact(store, id, agentId, body.text)
-        case "abandon":
-          return abandonTask(store, id, agentId)
-        case "cancel":
-          return cancelTask(store, id, agentId)
-        case "rate":
-          return rateTask(store, id, agentId, body.vote)
-        default:
-          throw new DomainError("未知动作")
-      }
+      if (body.action !== "artifact") throw new DomainError("未知动作")
+      return submitArtifact(store, id, agentId, body.text)
     })
     return json(task)
   } catch (error) {

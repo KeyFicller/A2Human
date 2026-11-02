@@ -8,32 +8,27 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
-import { SKILLS } from "@/lib/skills"
-import type { Agent } from "@/lib/types"
-import { cn } from "cn"
+import type { Agent, Skill } from "@/lib/types"
+
+const emptySkill = (): Skill => ({ name: "", description: "" })
 
 export default function PublishPage() {
   const router = useRouter()
   const { agent, ready, signIn, refresh } = useAgent()
   const [name, setName] = useState<string | null>(null)
   const [bio, setBio] = useState<string | null>(null)
-  const [skills, setSkills] = useState<string[] | null>(null)
+  const [skills, setSkills] = useState<Skill[] | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const nameValue = name ?? agent?.name ?? ""
   const bioValue = bio ?? agent?.bio ?? ""
-  const skillValue = skills ?? agent?.skills ?? []
+  const skillValue = skills ?? (agent?.skills.length ? agent.skills : [emptySkill()])
 
   if (!ready) return <LoadingLine />
 
-  function toggle(skill: string) {
-    setSkills((current) => {
-      const base = current ?? agent?.skills ?? []
-      if (base.includes(skill)) return base.filter((item) => item !== skill)
-      if (base.length >= 4) return base
-      return [...base, skill]
-    })
+  function updateSkill(index: number, patch: Partial<Skill>) {
+    setSkills(skillValue.map((skill, item) => (item === index ? { ...skill, ...patch } : skill)))
   }
 
   return (
@@ -62,7 +57,7 @@ export default function PublishPage() {
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">AGENT CARD</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{agent ? "改我的卡" : "发布我的卡"}</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        名字、简介、技能都是你自己写的。完成率、延迟率、好评率不在这里填，市场按你接过的单公开。
+        名字、简介和技能都是你自己写的。每项技能写明你能完成什么，模型靠这段说明来决定要不要把任务派给你。
       </p>
       <div className="sheet mt-6 space-y-4 p-5">
         <label className="block text-sm">
@@ -84,30 +79,42 @@ export default function PublishPage() {
             placeholder="你接什么，不接什么。"
           />
         </label>
-        <fieldset>
-          <legend className="text-sm">你会什么，1 到 4 项。这是自报，不是考试结果。</legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {SKILLS.map((skill) => {
-              const on = skillValue.includes(skill)
-              return (
+        <fieldset className="space-y-3">
+          <legend className="text-sm">技能，1 到 6 项。名称加上你能完成的内容。</legend>
+          {skillValue.map((skill, index) => (
+            <div key={index} className="grid gap-2 rounded-2xl border border-[#d9d0c0] p-3">
+              <Input
+                value={skill.name}
+                maxLength={24}
+                placeholder="技能名"
+                onChange={(event) => updateSkill(index, { name: event.target.value })}
+              />
+              <Textarea
+                value={skill.description}
+                maxLength={120}
+                placeholder="能完成什么。例如：数清画面里的东西，只交回数字。"
+                onChange={(event) => updateSkill(index, { description: event.target.value })}
+              />
+              {skillValue.length > 1 ? (
                 <button
-                  key={skill}
                   type="button"
-                  onClick={() => toggle(skill)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-sm",
-                    on ? "border-ink bg-ink text-[#f7f1e4]" : "border-[#d9d0c0] bg-paper",
-                  )}
+                  className="text-left text-sm text-stamp"
+                  onClick={() => setSkills(skillValue.filter((_, item) => item !== index))}
                 >
-                  {skill}
+                  去掉这项
                 </button>
-              )
-            })}
-          </div>
+              ) : null}
+            </div>
+          ))}
+          {skillValue.length < 6 ? (
+            <button type="button" className="text-sm text-stamp" onClick={() => setSkills([...skillValue, emptySkill()])}>
+              再加一项
+            </button>
+          ) : null}
         </fieldset>
         {error ? <ErrorNote text={error} /> : null}
         <Button type="submit" className="h-11 px-5" disabled={pending}>
-          {pending ? "正在写入…" : agent ? "保存" : "发布到目录"}
+          {pending ? "正在写入…" : agent ? "保存" : "发布"}
         </Button>
       </div>
     </form>

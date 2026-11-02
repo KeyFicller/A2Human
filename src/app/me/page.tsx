@@ -3,13 +3,10 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useAgent } from "@/components/agent-provider"
-import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
-import { Reputation } from "@/components/reputation"
-import { CALLER_ID } from "@/lib/rules"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -52,8 +49,7 @@ export default function MePage() {
     )
   }
 
-  const mine = (tasks ?? []).filter((task) => task.posterId === agent.id)
-  const claimed = (tasks ?? []).filter((task) => task.claimantId === agent.id)
+  const assigned = (tasks ?? []).filter((task) => task.claimantId === agent.id)
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[0.8fr_1.2fr]">
@@ -64,7 +60,7 @@ export default function MePage() {
         <h1 className="mt-4 font-serif text-4xl">{agent.name}</h1>
         <p className="mt-4 leading-7">
           {agent.available
-            ? "赛博打工进行中。模型按你的技能把活派过来。"
+            ? "模型可以在发现名单里看到你，并把任务派到你的地址。"
             : "还没上工。上工之后，模型才发现得到你。"}
         </p>
         <Button
@@ -75,45 +71,25 @@ export default function MePage() {
             setDutyPending(true)
             api<typeof agent>(`/api/agents/${agent.id}`, { available: !agent.available })
               .then(() => refresh())
-              .then(() => {
-                setDutyError(null)
-              })
+              .then(() => setDutyError(null))
               .catch((caught: unknown) => {
                 setDutyError(caught instanceof Error ? caught.message : "在岗状态没改成")
               })
-              .finally(() => {
-                setDutyPending(false)
-              })
+              .finally(() => setDutyPending(false))
           }}
         >
           {agent.available ? "收工" : "上工"}
         </Button>
         {dutyError ? <p className="mt-3 text-sm text-stamp">{dutyError}</p> : null}
         <p className="mt-4 leading-7">{agent.bio}</p>
-        <div className="mt-6">
-          <Reputation agent={agent} />
-        </div>
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {agent.skills.length === 0 ? (
-            <Badge variant="outline">未标技能</Badge>
-          ) : (
-            agent.skills.map((skill) => (
-              <Badge key={skill} variant="secondary">
-                {skill}
-              </Badge>
-            ))
-          )}
-        </div>
-        <dl className="mt-6 grid grid-cols-2 gap-3">
-          <div>
-            <dt className="text-sm text-muted-foreground">参数点</dt>
-            <dd className="font-serif text-3xl">{agent.points}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">已结算</dt>
-            <dd className="font-serif text-3xl">{agent.completed}</dd>
-          </div>
-        </dl>
+        <ul className="mt-6 space-y-3">
+          {agent.skills.map((skill) => (
+            <li key={skill.name}>
+              <p className="font-serif text-xl">{skill.name}</p>
+              <p className="text-sm leading-6 text-muted-foreground">{skill.description}</p>
+            </li>
+          ))}
+        </ul>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
           <Link href="/publish" className="text-stamp">
             改我的卡
@@ -121,45 +97,19 @@ export default function MePage() {
           <Link href={`/agents/${agent.id}`} className="text-stamp">
             看公开卡
           </Link>
-          <Link href="/post" className="text-stamp">
-            发任务
-          </Link>
         </div>
       </section>
-      <section className="space-y-6">
+      <section>
+        <h2 className="font-serif text-2xl">派来的任务</h2>
         {taskError ? <ErrorNote text={taskError} /> : null}
         {!tasks && !taskError ? <LoadingLine text="正在整理你的任务…" /> : null}
-        <div>
-          <h2 className="font-serif text-2xl">我接的</h2>
-          <div className="mt-3 grid gap-3">
-            {claimed.length === 0 && tasks ? (
-              <p className="text-sm text-muted-foreground">还没有。广场上标了「可以领」的单，直接进。</p>
-            ) : null}
-            {claimed.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                note={
-                  task.posterId === CALLER_ID && task.source === "direct"
-                    ? "模型发现你在岗，直接指派给你。交完产物后，对方用 GetTask 就能读到。"
-                    : task.posterId === CALLER_ID && task.source === "pool"
-                      ? "模型按你挂着的技能指派的。交完产物后，对方用 GetTask 就能读到。"
-                      : undefined
-                }
-              />
-            ))}
-          </div>
-        </div>
-        <div>
-          <h2 className="font-serif text-2xl">我发的</h2>
-          <div className="mt-3 grid gap-3">
-            {mine.length === 0 && tasks ? (
-              <p className="text-sm text-muted-foreground">挂出去的悬赏会先从参数点里划走。</p>
-            ) : null}
-            {mine.map((task) => (
-              <TaskRow key={task.id} task={task} />
-            ))}
-          </div>
+        <div className="mt-3 grid gap-3">
+          {assigned.length === 0 && tasks ? (
+            <p className="text-sm text-muted-foreground">还没有。上工之后，模型会把对得上的任务派到这里。</p>
+          ) : null}
+          {assigned.map((task) => (
+            <TaskRow key={task.id} task={task} />
+          ))}
         </div>
       </section>
     </div>
