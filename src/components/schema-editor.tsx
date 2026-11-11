@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { FieldControl } from "@/components/field-control"
 import { useLocale } from "@/components/locale-provider"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { formatEnum, parseEnumText } from "@/lib/field-control"
 import {
   FIELD_TYPES,
   fieldTypeLabel,
@@ -47,6 +47,7 @@ function FieldList({
   onChange: (next: SchemaDraft) => void
 }) {
   const { locale, t } = useLocale()
+  const [enumText, setEnumText] = useState<Record<number, string>>({})
   function updateField(index: number, patch: Partial<SchemaField>) {
     onChange({
       ...draft,
@@ -88,7 +89,11 @@ function FieldList({
                   className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm text-foreground"
                   value={field.type}
                   aria-label={t.schema.ariaType(label)}
-                  onChange={(event) => updateField(index, { type: event.target.value as SchemaField["type"] })}
+                  onChange={(event) => {
+                    const type = event.target.value as SchemaField["type"]
+                    setEnumText((current) => ({ ...current, [index]: "" }))
+                    updateField(index, { type, enum: undefined })
+                  }}
                 >
                   {FIELD_TYPES.map((type) => (
                     <option key={type} value={type}>
@@ -108,7 +113,10 @@ function FieldList({
               <button
                 type="button"
                 className="h-8 text-left text-sm text-stamp"
-                onClick={() => onChange({ ...draft, fields: draft.fields.filter((_, item) => item !== index) })}
+                onClick={() => {
+                  setEnumText({})
+                  onChange({ ...draft, fields: draft.fields.filter((_, item) => item !== index) })
+                }}
               >
                 {t.schema.remove}
               </button>
@@ -124,17 +132,26 @@ function FieldList({
                 onChange={(event) => updateField(index, { description: event.target.value })}
               />
             </label>
-            <label className="ml-4 block border-l border-[#e4dccb] pl-3 text-xs text-muted-foreground">
-              {t.schema.try}
-              <FieldControl
-                key={field.type}
-                compact
-                preview
-                type={field.type}
-                name={field.name}
-                ariaLabel={t.schema.ariaTry(field.name.trim() || label)}
-              />
-            </label>
+            {field.type === "string" || field.type === "integer" || field.type === "number" ? (
+              <label className="ml-4 block border-l border-[#e4dccb] pl-3 text-xs text-muted-foreground">
+                {t.schema.enum}
+                <Textarea
+                  className="mt-1"
+                  value={enumText[index] ?? formatEnum(field.enum)}
+                  placeholder={t.schema.enumPlaceholder}
+                  aria-label={t.schema.ariaEnum(label)}
+                  onChange={(event) => {
+                    const next = event.target.value
+                    setEnumText((current) => ({ ...current, [index]: next }))
+                    const parsed = parseEnumText(next, field.type as "string" | "integer" | "number")
+                    updateField(index, { enum: parsed.ok && parsed.values.length ? parsed.values : undefined })
+                  }}
+                />
+                {enumText[index]?.trim() && !parseEnumText(enumText[index] ?? "", field.type as "string" | "integer" | "number").ok ? (
+                  <p className="mt-1 text-stamp">{t.schema.enumInvalid}</p>
+                ) : null}
+              </label>
+            ) : null}
           </div>
         ))}
       </div>
@@ -181,7 +198,6 @@ export function SchemaEditor({
       ) : (
         <>
           <p className="text-xs leading-5 text-muted-foreground">{t.schema.identifierHint}</p>
-          <p className="text-xs leading-5 text-muted-foreground">{t.schema.tryHint}</p>
           <FieldList label={t.schema.input} draft={input} onChange={(next) => onChange({ input: next, output })} />
           <FieldList label={t.schema.output} draft={output} onChange={(next) => onChange({ input, output: next })} />
         </>

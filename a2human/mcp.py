@@ -28,6 +28,7 @@ from a2human.clock import now_ms, parse_ms
 from a2human.copy import wire
 from a2human.format import record_line
 from a2human.jsonutil import dumps, loads
+from a2human.schema_fields import enum_values
 from a2human.rules import SCORE_WAIT_MS, expire_scores, on_duty, work_record
 
 PROTOCOL_VERSIONS = {"2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"}
@@ -116,7 +117,17 @@ def _flat_fields(schema: dict[str, Any] | None) -> list[dict[str, Any]] | None:
             kind = value["type"]
         else:
             return None
-        fields.append({"name": name, "kind": kind, "required": name in required, "description": description})
+        choices = None
+        if "enum" in value:
+            if kind in {"image", "boolean"}:
+                return None
+            choices = enum_values(kind, value.get("enum"))
+            if choices is None:
+                return None
+        field = {"name": name, "kind": kind, "required": name in required, "description": description}
+        if choices:
+            field["enum"] = choices
+        fields.append(field)
     return fields
 
 
@@ -131,6 +142,8 @@ def _input_schema(fields: list[dict[str, Any]] | None) -> dict[str, Any]:
                 prop: dict[str, Any] = {"type": field["kind"]}
                 if field["description"]:
                     prop["description"] = field["description"]
+                if field.get("enum"):
+                    prop["enum"] = field["enum"]
                 properties[field["name"]] = prop
             if field["required"]:
                 required.append(field["name"])
@@ -334,6 +347,9 @@ def _field_parts(fields: list[dict[str, Any]], args: dict[str, Any]) -> dict[str
             return {"error": wire("must.number", {"label": field["name"]})}
         if field["kind"] == "boolean" and not isinstance(value, bool):
             return {"error": wire("must.boolean", {"label": field["name"]})}
+        allowed = field.get("enum")
+        if isinstance(allowed, list) and value not in allowed:
+            return {"error": wire("must.enum", {"label": field["name"]})}
         data[field["name"]] = value
     if data:
         parts.insert(0, {"mediaType": "application/json", "data": data})

@@ -7,10 +7,11 @@ import {
   acceptIntegerDraft,
   controlSpec,
   imageFromDataUrl,
+  parseEnumText,
   parseFieldValue,
 } from "./field-control.ts"
 
-test("each field type maps to the matching try-it control", () => {
+test("each field type maps to the matching control", () => {
   assert.deepEqual(controlSpec("string", { name: "scene" }), { kind: "text", inputMode: "text" })
   assert.deepEqual(controlSpec("string", { name: "tone" }), { kind: "text", inputMode: "text" })
   assert.deepEqual(controlSpec("string", { name: "direction" }), { kind: "text", inputMode: "text" })
@@ -19,7 +20,8 @@ test("each field type maps to the matching try-it control", () => {
   assert.deepEqual(controlSpec("string"), { kind: "text", inputMode: "text" })
   assert.deepEqual(controlSpec("integer"), { kind: "integer", step: 1, inputMode: "numeric" })
   assert.deepEqual(controlSpec("number"), { kind: "number", step: "any", inputMode: "decimal" })
-  assert.deepEqual(controlSpec("boolean"), { kind: "boolean" })
+  assert.deepEqual(controlSpec("boolean"), { kind: "boolean", widget: "checkbox" })
+  assert.deepEqual(controlSpec("boolean", { enum: ["yes", "no"] }), { kind: "boolean", widget: "checkbox" })
   assert.deepEqual(controlSpec("image"), { kind: "image", accept: IMAGE_ACCEPT, maxBytes: IMAGE_MAX_BYTES })
   assert.equal(IMAGE_ACCEPT, "image/png,image/jpeg,image/webp,image/gif")
   assert.equal(IMAGE_MAX_BYTES, 1_000_000)
@@ -43,6 +45,26 @@ test("an integer draft stays on whole numbers", () => {
   assert.equal(acceptIntegerDraft("abc"), false)
 })
 
+test("an enum is a radio group until it is longer than five, then a select", () => {
+  const short = ["zh", "en", "ja", "ko", "fr"]
+  assert.deepEqual(controlSpec("string", { name: "direction", enum: short }), { kind: "enum", widget: "radio", options: short })
+  const long = ["zh", "en", "ja", "ko", "fr", "de"]
+  assert.equal(controlSpec("string", { enum: long }).kind, "enum")
+  assert.equal(controlSpec("integer", { enum: long.map((_, index) => index) }).widget, "select")
+  assert.equal(controlSpec("number", { enum: [1.5, 2] }).widget, "radio")
+  assert.equal(controlSpec("image", { enum: ["png", "gif"] }).kind, "image")
+})
+
+test("allowed values can be written with commas or new lines and have to match the type", () => {
+  assert.deepEqual(parseEnumText("zh, en\nja", "string"), { ok: true, values: ["zh", "en", "ja"] })
+  assert.deepEqual(parseEnumText("1, 1, 2", "integer"), { ok: true, values: [1, 2] })
+  assert.deepEqual(parseEnumText("1.5\n2", "number"), { ok: true, values: [1.5, 2] })
+  assert.deepEqual(parseEnumText("  ", "string"), { ok: true, values: [] })
+  assert.equal(parseEnumText("1.5", "integer").ok, false)
+  assert.equal(parseEnumText("a, b", "number").ok, false)
+  assert.equal(parseEnumText(Array.from({ length: 21 }, (_, index) => `v${index}`).join(","), "string").ok, false)
+})
+
 test("a filled value is parsed the way the delivery form submits it", () => {
   assert.deepEqual(parseFieldValue("string", "  "), { state: "empty" })
   assert.deepEqual(parseFieldValue("string", " hello "), { state: "value", value: "hello" })
@@ -53,7 +75,10 @@ test("a filled value is parsed the way the delivery form submits it", () => {
   assert.deepEqual(parseFieldValue("number", "nope"), { state: "bad" })
   assert.deepEqual(parseFieldValue("boolean", "true"), { state: "value", value: true })
   assert.deepEqual(parseFieldValue("boolean", "false"), { state: "value", value: false })
-  assert.deepEqual(parseFieldValue("boolean", "yes"), { state: "bad" })
+  assert.deepEqual(parseFieldValue("boolean", ""), { state: "value", value: false })
+  assert.deepEqual(parseFieldValue("string", "en", ["zh", "en"]), { state: "value", value: "en" })
+  assert.deepEqual(parseFieldValue("string", "fr", ["zh", "en"]), { state: "bad" })
+  assert.deepEqual(parseFieldValue("integer", "2", [1, 2]), { state: "value", value: 2 })
 })
 
 test("an image preview only accepts the existing picture types and size", () => {

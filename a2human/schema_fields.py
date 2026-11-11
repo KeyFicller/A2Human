@@ -7,12 +7,15 @@ someone submits work, ``canonical_output`` is the only shape that is kept.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 from a2human.copy import phrase, wire
 from a2human.jsonutil import dumps, loads
 
 FIELD_TYPES = ("string", "integer", "number", "boolean", "image")
+ENUM_MAX = 20
+ENUM_ITEM_MAX = 80
 IMAGE_MODES = ("image/png", "image/jpeg", "image/webp", "image/gif")
 SCHEMA_KEYS = {
     "type",
@@ -53,11 +56,44 @@ def _read_description(record: dict[str, Any]) -> str | None:
     return text or None
 
 
+def enum_values(kind: str, value: object) -> list | None:
+    """Allowed values, ``[]`` when the field has no enum, or None when this enum cannot be a field list."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or not value or len(value) > ENUM_MAX:
+        return None
+    found: list = []
+    for item in value:
+        if kind == "string":
+            if not isinstance(item, str) or not item or len(item) > ENUM_ITEM_MAX:
+                return None
+            token: object = item
+        elif kind == "integer":
+            if isinstance(item, bool) or not isinstance(item, int):
+                return None
+            token = item
+        elif kind == "number":
+            if isinstance(item, bool) or not isinstance(item, (int, float)) or not math.isfinite(item):
+                return None
+            token = item
+        else:
+            return None
+        if token in found:
+            return None
+        found.append(token)
+    return found
+
+
 def _property_schema(field: dict[str, Any]) -> JsonSchema:
     description = (field.get("description") or "").strip()
     base: JsonSchema = (
         {"type": "string", "contentMediaType": "image/*"} if field["type"] == "image" else {"type": field["type"]}
     )
+    kind = field.get("type")
+    if kind in {"string", "integer", "number"} and field.get("enum") is not None:
+        choices = enum_values(str(kind), field.get("enum"))
+        if choices:
+            base = {**base, "enum": choices}
     if not description:
         return base
     return {**base, "description": description[:120]}
@@ -108,12 +144,21 @@ def schema_to_fields(schema: JsonSchema | None) -> list[dict[str, Any]] | None:
                 return None
             fields.append({"name": name, "type": "image", "required": name in required, **described})
             continue
-        if any(key not in {"type", "description"} for key in keys):
+        if any(key not in {"type", "description", "enum"} for key in keys):
             return None
         kind = value.get("type")
         if kind not in FIELD_TYPES or kind == "image":
             return None
-        fields.append({"name": name, "type": kind, "required": name in required, **described})
+        if kind == "boolean":
+            if "enum" in value:
+                return None
+            fields.append({"name": name, "type": kind, "required": name in required, **described})
+            continue
+        choices = enum_values(kind, value.get("enum") if "enum" in value else None)
+        if choices is None:
+            return None
+        listed = {"enum": choices} if choices else {}
+        fields.append({"name": name, "type": kind, "required": name in required, **described, **listed})
     return fields
 
 
@@ -186,7 +231,11 @@ def describe_schema(schema: JsonSchema, locale: str = "zh") -> str:
     colon = phrase("schema.colon", None, locale)
     parts = []
     for field in fields:
-        head = f"{field['name']} {labels[field['type']]}{required if field['required'] else ''}"
+        enum_mark = ""
+        if field.get("enum"):
+            values = phrase("schema.enumJoin", None, locale).join(str(item) for item in field["enum"])
+            enum_mark = phrase("schema.enumMark", {"values": values}, locale)
+        head = f"{field['name']} {labels[field['type']]}{required if field['required'] else ''}{enum_mark}"
         parts.append(f"{head}{colon}{field['description']}" if field.get("description") else head)
     return joiner.join(parts)
 
@@ -332,7 +381,10 @@ def _canonical_fields(fields: list[dict[str, Any]], text: str, has_image: bool) 
             if field.get("required"):
                 raise ValueError(wire("field.required", {"name": field["name"]}))
             continue
-        _check_value({"type": field["type"]}, value, field["name"])
+        check: JsonSchema = {"type": field["type"]}
+        if field.get("enum"):
+            check["enum"] = field["enum"]
+        _check_value(check, value, field["name"])
         out[field["name"]] = value
     image_name = image["name"] if image else None
     for key in parsed:

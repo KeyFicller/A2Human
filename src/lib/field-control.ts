@@ -32,12 +32,17 @@ const PASSAGE_NAMES = new Set([
   "text",
 ])
 
+export const ENUM_RADIO_MAX = 5
+
+export type EnumValue = string | number
+
 export type ControlSpec =
   | { kind: "text"; inputMode: "text" }
   | { kind: "textarea" }
   | { kind: "integer"; step: 1; inputMode: "numeric" }
   | { kind: "number"; step: "any"; inputMode: "decimal" }
-  | { kind: "boolean" }
+  | { kind: "boolean"; widget: "checkbox" }
+  | { kind: "enum"; widget: "radio" | "select"; options: EnumValue[] }
   | { kind: "image"; accept: string; maxBytes: number }
 
 export function stringIsPassage(name: string | undefined, longString = false) {
@@ -48,14 +53,54 @@ export function stringIsPassage(name: string | undefined, longString = false) {
   return PASSAGE_NAMES.has(trimmed.toLowerCase())
 }
 
-export function controlSpec(type: FieldType, options?: { name?: string; longString?: boolean }): ControlSpec {
+export function controlSpec(
+  type: FieldType,
+  options?: { name?: string; longString?: boolean; enum?: EnumValue[] },
+): ControlSpec {
+  const choices = options?.enum ?? []
+  if (choices.length > 0 && type !== "boolean" && type !== "image") {
+    return { kind: "enum", widget: choices.length <= ENUM_RADIO_MAX ? "radio" : "select", options: choices }
+  }
   if (type === "string") {
     return stringIsPassage(options?.name, options?.longString) ? { kind: "textarea" } : { kind: "text", inputMode: "text" }
   }
   if (type === "integer") return { kind: "integer", step: 1, inputMode: "numeric" }
   if (type === "number") return { kind: "number", step: "any", inputMode: "decimal" }
-  if (type === "boolean") return { kind: "boolean" }
+  if (type === "boolean") return { kind: "boolean", widget: "checkbox" }
   return { kind: "image", accept: IMAGE_ACCEPT, maxBytes: IMAGE_MAX_BYTES }
+}
+
+export function parseEnumText(raw: string, type: "string" | "integer" | "number"): { ok: true; values: EnumValue[] } | { ok: false } {
+  const parts = raw
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+  if (parts.length === 0) return { ok: true, values: [] }
+  if (parts.length > 20) return { ok: false }
+  const values: EnumValue[] = []
+  for (const part of parts) {
+    if ([...part].length > 80) return { ok: false }
+    if (type === "string") {
+      if (!values.includes(part)) values.push(part)
+      continue
+    }
+    if (type === "integer") {
+      if (!/^-?\d+$/.test(part)) return { ok: false }
+      const number = Number(part)
+      if (!Number.isSafeInteger(number)) return { ok: false }
+      if (!values.includes(number)) values.push(number)
+      continue
+    }
+    if (!/^-?\d+(?:\.\d+)?$/.test(part)) return { ok: false }
+    const number = Number(part)
+    if (!Number.isFinite(number)) return { ok: false }
+    if (!values.includes(number)) values.push(number)
+  }
+  return { ok: true, values }
+}
+
+export function formatEnum(values: EnumValue[] | undefined) {
+  return values?.join(", ") ?? ""
 }
 
 export function acceptIntegerDraft(raw: string) {
@@ -67,12 +112,19 @@ export type ParsedField =
   | { state: "bad" }
   | { state: "value"; value: string | number | boolean }
 
-export function parseFieldValue(type: "string" | "integer" | "number" | "boolean", raw: string): ParsedField {
+export function parseFieldValue(
+  type: "string" | "integer" | "number" | "boolean",
+  raw: string,
+  choices?: EnumValue[],
+): ParsedField {
   const text = raw.trim()
+  if (type === "boolean") return { state: "value", value: text === "true" }
   if (!text) return { state: "empty" }
-  if (type === "boolean") {
-    if (text !== "true" && text !== "false") return { state: "bad" }
-    return { state: "value", value: text === "true" }
+  if (choices?.length) {
+    if (type === "string") return choices.some((item) => item === text) ? { state: "value", value: text } : { state: "bad" }
+    const number = Number(text)
+    if (!Number.isFinite(number) || (type === "integer" && !Number.isInteger(number))) return { state: "bad" }
+    return choices.some((item) => item === number) ? { state: "value", value: number } : { state: "bad" }
   }
   if (type === "integer" || type === "number") {
     if (type === "integer" && !/^-?\d+$/.test(text)) return { state: "bad" }

@@ -49,6 +49,27 @@ def test_a_schema_that_is_not_a_list_of_simple_fields_stays_as_json():
     assert schema_to_fields({"type": "object", "properties": {"n": {"type": "string", "minLength": 1}}}) is None
 
 
+def test_enum_values_round_trip_and_reject_anything_outside_the_list():
+    schema = fields_to_schema([
+        {"name": "direction", "type": "string", "required": True, "enum": ["zh", "en"]},
+        {"name": "count", "type": "integer", "required": False, "enum": [1, 2]},
+    ])
+    assert schema["properties"]["direction"] == {"type": "string", "enum": ["zh", "en"]}
+    assert schema_to_fields(schema) == [
+        {"name": "direction", "type": "string", "required": True, "enum": ["zh", "en"]},
+        {"name": "count", "type": "integer", "required": False, "enum": [1, 2]},
+    ]
+    assert describe_schema(schema) == "direction 文字，必填，只能是 zh、en；count 整数，只能是 1、2"
+    assert describe_schema(schema, "en") == "direction text, required, one of zh, en; count integer, one of 1, 2"
+    assert canonical_output(schema, '{"direction":"zh","count":1}', False) == '{"direction":"zh","count":1}'
+    with pytest.raises(ValueError, match="不在允许的值里"):
+        canonical_output(schema, '{"direction":"fr"}', False)
+    assert schema_to_fields({"type": "object", "properties": {"n": {"type": "string", "enum": ["a", "a"]}}}) is None
+    assert schema_to_fields({"type": "object", "properties": {"ok": {"type": "boolean", "enum": [True, False]}}}) is None
+    plain = {"type": "object", "properties": {"scene": {"type": "string"}}, "required": ["scene"]}
+    assert schema_to_fields(plain) == [{"name": "scene", "type": "string", "required": True}]
+
+
 def test_an_output_has_to_match_the_declared_schema():
     schema = {"type": "object", "required": ["count"], "properties": {"count": {"type": "integer"}}}
     assert canonical_output(schema, '{"count": 3}', False) == '{"count":3}'

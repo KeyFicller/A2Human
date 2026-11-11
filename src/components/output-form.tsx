@@ -28,10 +28,10 @@ export function OutputForm({
 
   function fileInput(label: string) {
     return (
-      <label className="block text-sm">
+      <div className="block text-sm">
         {label}
-        <FieldControl type="image" onImage={setImage} onImageError={onError} />
-      </label>
+        <FieldControl type="image" ariaLabel={label} onImage={setImage} onImageError={onError} />
+      </div>
     )
   }
 
@@ -55,21 +55,24 @@ export function OutputForm({
     const label = fieldTypeLabel(shape.type, locale)
     return (
       <div className="space-y-3">
-        <label className="block text-sm">
+        <div className="block text-sm">
           {label}
           <FieldControl
             type={shape.type}
             longString={shape.type === "string"}
+            choices={shape.enum}
+            choiceName="value"
             value={values.value ?? ""}
             blank={t.output.choose}
+            ariaLabel={label}
             onChange={(next) => setValues({ value: next })}
           />
-        </label>
+        </div>
         <Button
           type="button"
           disabled={pending}
           onClick={() => {
-            const parsed = parseFieldValue(shape.type, values.value ?? "")
+            const parsed = parseFieldValue(shape.type, values.value ?? "", shape.enum)
             if (parsed.state === "empty") {
               onError(t.output.mustFill(label))
               return
@@ -105,7 +108,7 @@ export function OutputForm({
     <div className="space-y-3">
       {images.length > 1 ? <p className="text-sm text-stamp">{t.output.oneImage}</p> : null}
       {dataFields.map((field) => (
-        <label key={field.name} className="block text-sm">
+        <div key={field.name} className="block text-sm">
           {field.name}
           <span className="ml-2 text-xs text-muted-foreground">
             {fieldTypeLabel(field.type, locale)}
@@ -115,11 +118,14 @@ export function OutputForm({
           <FieldControl
             type={field.type}
             name={field.name}
+            choices={field.enum}
+            choiceName={field.name}
             value={values[field.name] ?? ""}
             blank={field.required ? t.output.choose : t.output.skip}
+            ariaLabel={field.name}
             onChange={(next) => setValues({ ...values, [field.name]: next })}
           />
-        </label>
+        </div>
       ))}
       {images.length === 1 ? fileInput(images[0].name) : null}
       <Button
@@ -129,7 +135,7 @@ export function OutputForm({
           const data: Record<string, unknown> = {}
           for (const field of dataFields) {
             if (field.type === "image") continue
-            const parsed = parseFieldValue(field.type, values[field.name] ?? "")
+            const parsed = parseFieldValue(field.type, values[field.name] ?? "", field.enum)
             if (parsed.state === "empty") continue
             if (parsed.state === "bad") {
               onError(t.output.fieldMustBe(field.name, fieldTypeLabel(field.type, locale)))

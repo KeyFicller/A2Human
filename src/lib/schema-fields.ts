@@ -3,6 +3,10 @@ import type { JsonSchema } from "./types"
 
 export const FIELD_TYPES = ["string", "integer", "number", "boolean", "image"] as const
 
+export const ENUM_MAX = 20
+
+export const ENUM_ITEM_MAX = 80
+
 export const IMAGE_MODES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const
 
 export type FieldType = (typeof FIELD_TYPES)[number]
@@ -12,6 +16,7 @@ export type SchemaField = {
   type: FieldType
   required: boolean
   description?: string
+  enum?: Array<string | number>
 }
 
 export type SchemaDraft = {
@@ -40,11 +45,32 @@ function readDescription(record: Record<string, unknown>) {
   return text || undefined
 }
 
+export function enumList(type: "string" | "integer" | "number", value: unknown): Array<string | number> | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length === 0 || value.length > ENUM_MAX) return null
+  const found: Array<string | number> = []
+  for (const item of value) {
+    if (type === "string") {
+      if (typeof item !== "string" || !item || [...item].length > ENUM_ITEM_MAX || found.includes(item)) return null
+      found.push(item)
+      continue
+    }
+    if (typeof item !== "number" || !Number.isFinite(item) || (type === "integer" && !Number.isInteger(item)) || found.includes(item)) {
+      return null
+    }
+    found.push(item)
+  }
+  return found
+}
+
 function propertySchema(field: SchemaField): JsonSchema {
   const description = field.description?.trim()
   const base: JsonSchema = field.type === "image" ? { type: "string", contentMediaType: "image/*" } : { type: field.type }
-  if (!description) return base
-  return { ...base, description: [...description].slice(0, 120).join("") }
+  const choices =
+    field.type === "string" || field.type === "integer" || field.type === "number" ? enumList(field.type, field.enum) : []
+  const listed = choices && choices.length ? { enum: choices } : {}
+  if (!description) return { ...base, ...listed }
+  return { ...base, ...listed, description: [...description].slice(0, 120).join("") }
 }
 
 export function fieldsToSchema(fields: SchemaField[]): JsonSchema | undefined {
@@ -84,9 +110,16 @@ export function schemaToFields(schema: JsonSchema): SchemaField[] | null {
       fields.push({ name, type: "image", required: required.has(name), ...described })
       continue
     }
-    if (keys.some((key) => key !== "type" && key !== "description")) return null
+    if (keys.some((key) => key !== "type" && key !== "description" && key !== "enum")) return null
     if (!isFieldType(record.type) || record.type === "image") return null
-    fields.push({ name, type: record.type, required: required.has(name), ...described })
+    if (record.type === "boolean") {
+      if ("enum" in record) return null
+      fields.push({ name, type: record.type, required: required.has(name), ...described })
+      continue
+    }
+    const choices = enumList(record.type, "enum" in record ? record.enum : undefined)
+    if (!choices) return null
+    fields.push({ name, type: record.type, required: required.has(name), ...described, ...(choices.length ? { enum: choices } : {}) })
   }
   return fields
 }
@@ -150,7 +183,9 @@ export function describeSchema(schema: JsonSchema, locale: Locale = "zh") {
   const colon = phrase("schema.colon", undefined, locale)
   return fields
     .map((field) => {
-      const head = `${field.name} ${labels[field.type]}${field.required ? required : ""}`
+      const values = field.enum?.map(String).join(phrase("schema.enumJoin", undefined, locale))
+      const enumMark = values ? phrase("schema.enumMark", { values }, locale) : ""
+      const head = `${field.name} ${labels[field.type]}${field.required ? required : ""}${enumMark}`
       return field.description ? `${head}${colon}${field.description}` : head
     })
     .join(joiner)
@@ -177,7 +212,7 @@ const VALUE_TYPES = new Set(["string", "integer", "number", "boolean"])
 
 export type OutputShape =
   | { kind: "fields"; fields: SchemaField[] }
-  | { kind: "value"; type: "string" | "integer" | "number" | "boolean" }
+  | { kind: "value"; type: "string" | "integer" | "number" | "boolean"; enum?: Array<string | number> }
   | { kind: "image" }
   | { kind: "json" }
 
@@ -192,7 +227,13 @@ export function outputShape(schema: JsonSchema): OutputShape {
   if (typeof schema.type === "string" && VALUE_TYPES.has(schema.type)) {
     const keys = Object.keys(schema)
     if (keys.every((key) => ["type", "description", "minimum", "maximum", "minLength", "maxLength", "enum"].includes(key))) {
-      return { kind: "value", type: schema.type as "string" | "integer" | "number" | "boolean" }
+      const type = schema.type as "string" | "integer" | "number" | "boolean"
+      if (type !== "boolean" && "enum" in schema) {
+        const choices = enumList(type, schema.enum)
+        if (!choices) return { kind: "json" }
+        return choices.length ? { kind: "value", type, enum: choices } : { kind: "value", type }
+      }
+      return { kind: "value", type }
     }
   }
   return { kind: "json" }
@@ -295,7 +336,7 @@ function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean)
       if (field.required) throw new Error(wire("field.required", { name: field.name }))
       continue
     }
-    checkValue({ type: field.type }, value, field.name)
+    checkValue(field.enum?.length ? { type: field.type, enum: field.enum } : { type: field.type }, value, field.name)
     out[field.name] = value
   }
   for (const key of Object.keys(record)) {
