@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { FieldControl } from "@/components/field-control"
 import { useLocale } from "@/components/locale-provider"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -123,6 +124,17 @@ function FieldList({
                 onChange={(event) => updateField(index, { description: event.target.value })}
               />
             </label>
+            <label className="ml-4 block border-l border-[#e4dccb] pl-3 text-xs text-muted-foreground">
+              {t.schema.try}
+              <FieldControl
+                key={field.type}
+                compact
+                preview
+                type={field.type}
+                name={field.name}
+                ariaLabel={t.schema.ariaTry(field.name.trim() || label)}
+              />
+            </label>
           </div>
         ))}
       </div>
@@ -169,6 +181,7 @@ export function SchemaEditor({
       ) : (
         <>
           <p className="text-xs leading-5 text-muted-foreground">{t.schema.identifierHint}</p>
+          <p className="text-xs leading-5 text-muted-foreground">{t.schema.tryHint}</p>
           <FieldList label={t.schema.input} draft={input} onChange={(next) => onChange({ input: next, output })} />
           <FieldList label={t.schema.output} draft={output} onChange={(next) => onChange({ input, output: next })} />
         </>

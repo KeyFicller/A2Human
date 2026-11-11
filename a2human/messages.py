@@ -148,6 +148,9 @@ def bind(locale: str) -> dict:
             "cannotSplit": text("schema.cannotSplit"),
             "useForm": text("schema.useForm"),
             "useJson": text("schema.useJson"),
+            "try": text("schema.try"),
+            "tryHint": text("schema.tryHint"),
+            "ariaTry": lambda label, *_rest: text("schema.ariaTry", {"label": label}),
             "line": lambda label, body, *_rest: text("schema.line", {"label": label, "body": body}),
         },
         "notice": {

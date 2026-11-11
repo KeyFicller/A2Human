@@ -132,6 +132,9 @@
     "cannotSplit": "This schema does not split into fields. Keep writing JSON.",
     "useForm": "Use the form",
     "useJson": "Use JSON Schema",
+    "try": "Try it",
+    "tryHint": "Trying it here is not saved when you publish.",
+    "ariaTry": "Try {label}",
     "line": "{label} {body}",
     "types": {
       "string": "text",

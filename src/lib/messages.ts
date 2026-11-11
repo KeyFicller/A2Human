@@ -135,6 +135,9 @@ export type Messages = {
     cannotSplit: string
     useForm: string
     useJson: string
+    try: string
+    tryHint: string
+    ariaTry: (label: string) => string
     line: (label: string, body: string) => string
   }
   notice: {
@@ -335,6 +338,9 @@ function bind(locale: Locale): Messages {
       cannotSplit: text("schema.cannotSplit"),
       useForm: text("schema.useForm"),
       useJson: text("schema.useJson"),
+      try: text("schema.try"),
+      tryHint: text("schema.tryHint"),
+      ariaTry: (label) => text("schema.ariaTry", { label }),
       line: (label, body) => text("schema.line", { label, body }),
     },
     notice: {

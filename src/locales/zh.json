@@ -132,6 +132,9 @@
     "cannotSplit": "这份 Schema 拆不成单项，继续用 JSON 写。",
     "useForm": "改用表单填写",
     "useJson": "改用 JSON Schema",
+    "try": "试填",
+    "tryHint": "试填不会写进发布的内容。",
+    "ariaTry": "{label}试填",
     "line": "{label} {body}",
     "types": {
       "string": "文字",
