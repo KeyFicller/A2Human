@@ -1,4 +1,5 @@
 import { phrase, wire, type Locale } from "./copy"
+import { blankDeliveryText } from "./publish-skills"
 import type { JsonSchema } from "./types"
 
 export const FIELD_TYPES = ["string", "integer", "number", "boolean", "image"] as const
@@ -330,19 +331,25 @@ function checkValue(schema: JsonSchema, value: unknown, label: string) {
   }
 }
 
+function fieldLabel(field: SchemaField) {
+  return field.description?.trim() || field.name
+}
+
 function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean) {
   const images = fields.filter((field) => field.type === "image")
   if (images.length > 1) throw new Error(wire("output.oneImage"))
   const image = images[0]
-  if (image?.required && !hasImage) throw new Error(wire("output.needImage"))
   if (!image && hasImage) throw new Error(wire("output.noImage"))
   const dataFields = fields.filter((field) => field.type !== "image")
+  const missing: string[] = []
+  if (image?.required && !hasImage) missing.push(wire("output.needImage"))
   if (dataFields.length === 0) {
-    if (text.trim()) throw new Error(wire("output.imageOnly"))
+    if (!blankDeliveryText(text)) throw new Error(wire("output.imageOnly"))
+    if (missing.length) throw new Error(missing.join("\n"))
     return ""
   }
   let parsed: unknown = {}
-  if (text.trim()) {
+  if (!blankDeliveryText(text)) {
     try {
       parsed = JSON.parse(text)
     } catch {
@@ -355,12 +362,13 @@ function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean)
   for (const field of dataFields) {
     const value = record[field.name]
     if (value == null || value === "") {
-      if (field.required) throw new Error(wire("field.required", { name: field.name }))
+      if (field.required) missing.push(wire("field.required", { name: fieldLabel(field) }))
       continue
     }
-    checkValue(field.enum?.length ? { type: field.type, enum: field.enum } : { type: field.type }, value, field.name)
+    checkValue(field.enum?.length ? { type: field.type, enum: field.enum } : { type: field.type }, value, fieldLabel(field))
     out[field.name] = value
   }
+  if (missing.length) throw new Error(missing.join("\n"))
   for (const key of Object.keys(record)) {
     if (image && key === image.name) continue
     if (!dataFields.some((field) => field.name === key)) throw new Error(wire("output.missing", { key }))

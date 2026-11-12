@@ -84,8 +84,13 @@ def test_catalog_delivery_uses_the_duty_output_check():
     by_name = {item["name"]: item for item in skill_catalog()}
     image = by_name["hand_draw"]["outputSchema"]
     assert canonical_output(image, "", True) == ""
+    assert canonical_output(image, "{}", True) == ""
     with pytest.raises(ValueError):
         canonical_output(image, "", False)
+    with pytest.raises(ValueError) as missing:
+        canonical_output(by_name["paper_think"]["outputSchema"], "", False)
+    assert "算出来的答案" in str(missing.value)
+    assert "要交一张图片" in str(missing.value)
     both = by_name["paper_think"]["outputSchema"]
     assert canonical_output(both, '{"answer":"42"}', True) == '{"answer":"42"}'
     with pytest.raises(ValueError):

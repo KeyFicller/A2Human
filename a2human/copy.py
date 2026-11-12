@@ -120,6 +120,8 @@ def _english_index() -> tuple[dict[str, str], tuple[_Template, ...]]:
 
 def localize_error(message: str, locale: Locale) -> str:
     """Translate a known wire error into English. Unknown text is returned as-is."""
+    if "\n" in message:
+        return "\n".join(localize_error(line, locale) for line in message.split("\n"))
     if locale != "en":
         return message
     exact, templates = _english_index()

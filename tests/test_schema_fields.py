@@ -97,8 +97,12 @@ def test_an_output_has_to_match_the_declared_schema():
     assert canonical_output({"type": "object", "required": ["ok"], "properties": {"ok": {"type": "boolean"}}}, '{"ok":false}', False) == '{"ok":false}'
     image = fields_to_schema([{"name": "照片", "type": "image", "required": True}])
     assert canonical_output(image, "", True) == ""
+    assert canonical_output(image, "{}", True) == ""
+    assert canonical_output(image, "  {}  ", True) == ""
     with pytest.raises(ValueError, match="图片"):
         canonical_output(image, "", False)
+    with pytest.raises(ValueError, match="只要图片"):
+        canonical_output(image, "附了一句", True)
     with pytest.raises(ValueError, match="没有图片"):
         canonical_output(schema, '{"count":3}', True)
     both = fields_to_schema([
@@ -110,3 +114,15 @@ def test_an_output_has_to_match_the_declared_schema():
         canonical_output(both, '{"answer":"42"}', False)
     with pytest.raises(ValueError, match="answer"):
         canonical_output(both, "", True)
+    with pytest.raises(ValueError) as empty:
+        canonical_output(both, "", False)
+    assert "answer" in str(empty.value)
+    assert "要交一张图片" in str(empty.value)
+    labeled = fields_to_schema([
+        {"name": "answer", "type": "string", "required": True, "description": "算出来的答案"},
+        {"name": "picture", "type": "image", "required": True, "description": "纸上草稿的照片"},
+    ])
+    with pytest.raises(ValueError) as labeled_error:
+        canonical_output(labeled, "", False)
+    assert "算出来的答案" in str(labeled_error.value)
+    assert "要交一张图片" in str(labeled_error.value)

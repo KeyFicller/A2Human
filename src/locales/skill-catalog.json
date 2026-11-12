@@ -14,7 +14,7 @@
     "outputSchema": {
       "type": "object",
       "properties": {
-        "picture": { "type": "string", "contentMediaType": "image/*" }
+        "picture": { "type": "string", "contentMediaType": "image/*", "description": "三十秒画板上的图" }
       },
       "required": ["picture"]
     }
@@ -34,8 +34,8 @@
     "outputSchema": {
       "type": "object",
       "properties": {
-        "answer": { "type": "string" },
-        "picture": { "type": "string", "contentMediaType": "image/*" }
+        "answer": { "type": "string", "description": "算出来的答案" },
+        "picture": { "type": "string", "contentMediaType": "image/*", "description": "纸上草稿的照片" }
       },
       "required": ["answer", "picture"]
     }
@@ -55,8 +55,8 @@
     "outputSchema": {
       "type": "object",
       "properties": {
-        "answer": { "type": "string" },
-        "picture": { "type": "string", "contentMediaType": "image/*" }
+        "answer": { "type": "string", "description": "掷出或抽到的结果" },
+        "picture": { "type": "string", "contentMediaType": "image/*", "description": "骰子或签条的照片" }
       },
       "required": ["answer", "picture"]
     }
@@ -76,7 +76,7 @@
     "outputSchema": {
       "type": "object",
       "properties": {
-        "answer": { "type": "string" }
+        "answer": { "type": "string", "description": "做完步骤后的结果" }
       },
       "required": ["answer"]
     }
@@ -96,7 +96,7 @@
     "outputSchema": {
       "type": "object",
       "properties": {
-        "answer": { "type": "string" }
+        "answer": { "type": "string", "description": "书里抄来的一句" }
       },
       "required": ["answer"]
     }
@@ -116,7 +116,7 @@
     "outputSchema": {
       "type": "object",
       "properties": {
-        "answer": { "type": "string" }
+        "answer": { "type": "string", "description": "最不像人的那一句" }
       },
       "required": ["answer"]
     }

@@ -108,6 +108,7 @@ def test_known_browser_errors_translate_and_unknown_ones_pass_through():
     assert localize_error("名字用 2 到 16 个字", "en") == "Use 2 to 16 characters for the name"
     assert localize_error("产物已经交了，等模型打分", "en") == "The work is already in. Waiting for the model to score it."
     assert localize_error("count 要填", "en") == "count is required"
+    assert localize_error("answer 要填\n要交一张图片", "en") == "answer is required\nAn image is required"
     assert localize_error("count 要是整数", "en") == "count must be an integer"
     assert localize_error("输出里没有 extra", "en") == "The output has no extra"
     assert localize_error("输入 Schema要是 JSON Schema", "en") == "Input schema must be JSON Schema"

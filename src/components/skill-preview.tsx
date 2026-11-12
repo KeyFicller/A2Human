@@ -5,7 +5,7 @@ import { OutputForm } from "@/components/output-form"
 import { useLocale } from "@/components/locale-provider"
 import { localizeError } from "@/lib/copy"
 import { fieldTypeLabel, outputShape, schemaPayload, canonicalOutput } from "@/lib/schema-fields"
-import { deliveryOf, fieldPill } from "@/lib/publish-skills"
+import { activePlay, deliveryOf, fieldPill, playHintKey, previewFields, usesTimedBoard, type PlayMode } from "@/lib/publish-skills"
 import type { SchemaDraft } from "@/lib/schema-fields"
 import type { JsonSchema, TaskImage } from "@/lib/types"
 
@@ -42,13 +42,55 @@ function capsule(selected: boolean) {
     : "rounded-full border border-[#d9d0c0] px-3 py-1 text-sm"
 }
 
-export function SkillPreview({ skill }: { skill: PreviewSkill | null }) {
+function WorkerCheck({ skill, schema, play }: { skill: PreviewSkill; schema: JsonSchema; play: PlayMode | null }) {
+  const { locale, t } = useLocale()
+  const [notice, setNotice] = useState<string | null>(null)
+  const shown = previewFields(skill)
+  const image = showsImage(schema)
+  const delivery = deliveryOf(schema)
+  const board = delivery !== "custom" && usesTimedBoard(skill.name, delivery)
+
+  return (
+    <div className="mt-6 space-y-4">
+      <p className="inline-flex rounded-full bg-[#f3e6c8] px-2 py-0.5 font-mono text-[11px] tracking-[0.08em] text-stamp">{t.publish.workerMark}</p>
+      {shown.title ? <h3 className="font-serif text-3xl">{shown.title}</h3> : <p className="text-sm text-muted-foreground">{t.publish.previewNoName}</p>}
+      {shown.description ? <p className="text-sm leading-6">{shown.description}</p> : null}
+      {shown.task ? (
+        <p className="whitespace-pre-wrap leading-7">{shown.task}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t.publish.previewNoTask}</p>
+      )}
+      {image && !board ? <p className="text-xs leading-5 text-muted-foreground">{t.publish.localOnly}</p> : null}
+      <OutputForm
+        schema={schema}
+        pending={false}
+        submitLabel={t.publish.simulate}
+        hint={play ? t.output[playHintKey(play)] : undefined}
+        board={board}
+        onDirty={() => setNotice(null)}
+        onError={(message) => setNotice(message || null)}
+        onSubmit={(text, picture: TaskImage | null) => {
+          try {
+            canonicalOutput(schema, text, Boolean(picture))
+            setNotice(t.publish.simulateOk)
+          } catch (caught) {
+            const message = caught instanceof Error ? caught.message : t.publish.saveError
+            setNotice(localizeError(message, locale))
+          }
+        }}
+      />
+      {notice ? <p className="whitespace-pre-wrap text-sm leading-6">{notice}</p> : null}
+    </div>
+  )
+}
+
+export function SkillPreview({ skill, resetKey }: { skill: PreviewSkill | null; resetKey?: string }) {
   const { locale, t } = useLocale()
   const [tab, setTab] = useState<"agent" | "worker">("worker")
-  const [notice, setNotice] = useState<string | null>(null)
   const schema = skill ? readSchema(skill.output) : null
+  const shown = previewFields(skill)
   const inputFields = skill?.input.mode === "fields" ? skill.input.fields.filter((field) => field.name.trim() || field.description?.trim()) : []
-  const image = Boolean(schema && showsImage(schema))
+  const play = skill && schema ? activePlay(skill.name, deliveryOf(schema)) : null
 
   return (
     <aside className="sheet p-5 lg:sticky lg:top-24">
@@ -65,9 +107,9 @@ export function SkillPreview({ skill }: { skill: PreviewSkill | null }) {
       {skill && tab === "agent" ? (
         <div className="mt-6 space-y-3">
           <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{t.publish.agentSees}</p>
-          <h3 className="font-serif text-3xl">{skill.title.trim() || t.publish.displayPlaceholder}</h3>
-          <p className="text-sm leading-6">{skill.description.trim() || t.publish.callHint}</p>
-          <p className="font-mono text-xs text-muted-foreground">{skill.name}</p>
+          {shown.title ? <h3 className="font-serif text-3xl">{shown.title}</h3> : <p className="text-sm text-muted-foreground">{t.publish.previewNoName}</p>}
+          {shown.description ? <p className="text-sm leading-6">{shown.description}</p> : <p className="text-sm text-muted-foreground">{t.publish.previewNoCall}</p>}
+          {skill.name ? <p className="font-mono text-xs text-muted-foreground">{skill.name}</p> : null}
           {inputFields.length ? (
             <div className="flex flex-wrap gap-2">
               {inputFields.map((field, index) => (
@@ -79,34 +121,8 @@ export function SkillPreview({ skill }: { skill: PreviewSkill | null }) {
           ) : null}
         </div>
       ) : null}
-      {skill && tab === "worker" ? (
-        <div className="mt-6 space-y-4">
-          <p className="inline-flex rounded-full bg-[#f3e6c8] px-2 py-0.5 font-mono text-[11px] tracking-[0.08em] text-stamp">{t.publish.workerMark}</p>
-          <p className="whitespace-pre-wrap leading-7">{skill.sample.trim() || t.publish.samplePlaceholder}</p>
-          {image ? <p className="text-xs leading-5 text-muted-foreground">{t.publish.localOnly}</p> : null}
-          {schema ? (
-            <OutputForm
-              key={schemaPayload(skill.output)}
-              schema={schema}
-              pending={false}
-              submitLabel={t.publish.simulate}
-              onError={(message) => setNotice(message || null)}
-              onSubmit={(text, picture: TaskImage | null) => {
-                try {
-                  canonicalOutput(schema, text, Boolean(picture))
-                  setNotice(t.publish.simulateOk)
-                } catch (caught) {
-                  const message = caught instanceof Error ? caught.message : t.publish.saveError
-                  setNotice(localizeError(message, locale))
-                }
-              }}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">{t.publish.outputUnread}</p>
-          )}
-          {notice ? <p className="text-sm leading-6">{notice}</p> : null}
-        </div>
-      ) : null}
+      {skill && schema && tab === "worker" ? <WorkerCheck key={resetKey ?? schemaPayload(skill.output)} skill={skill} schema={schema} play={play} /> : null}
+      {skill && !schema && tab === "worker" ? <p className="mt-6 text-sm text-muted-foreground">{t.publish.outputUnread}</p> : null}
       <p className="mt-6 text-xs leading-5 text-muted-foreground">{t.publish.deliveryHint}</p>
     </aside>
   )

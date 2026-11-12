@@ -135,6 +135,16 @@ export type Messages = {
     needDescription: string
     pair: string
     removeSkill: string
+    previewNoName: string
+    previewNoCall: string
+    previewNoTask: string
+    toolIdEmpty: string
+    toolIdInvalid: string
+    editingBanner: (name: string) => string
+    editingTitle: (name: string) => string
+    newCard: string
+    freshLead: string
+    backToCard: string
     customInvalid: string
     customReserved: string
     needSkill: string
@@ -238,6 +248,17 @@ export type Messages = {
     mustFill: (label: string) => string
     mustBe: (label: string) => string
     fieldMustBe: (name: string, label: string) => string
+    playTimed: string
+    playPaper: string
+    playRoll: string
+    playWetware: string
+    playBook: string
+    playHuman: string
+    drawStart: string
+    drawLeft: (seconds: number) => string
+    drawFrozen: string
+    drawIdle: string
+    drawLabel: string
   }
   status: { loading: string; retry: string }
 }
@@ -381,6 +402,16 @@ function bind(locale: Locale): Messages {
       needDescription: text("publish.needDescription"),
       pair: text("publish.pair"),
       removeSkill: text("publish.removeSkill"),
+      previewNoName: text("publish.previewNoName"),
+      previewNoCall: text("publish.previewNoCall"),
+      previewNoTask: text("publish.previewNoTask"),
+      toolIdEmpty: text("publish.toolIdEmpty"),
+      toolIdInvalid: text("publish.toolIdInvalid"),
+      editingBanner: (name) => text("publish.editingBanner", { name }),
+      editingTitle: (name) => text("publish.editingTitle", { name }),
+      newCard: text("publish.newCard"),
+      freshLead: text("publish.freshLead"),
+      backToCard: text("publish.backToCard"),
       customInvalid: text("publish.customInvalid"),
       customReserved: text("publish.customReserved"),
       needSkill: text("publish.needSkill"),
@@ -484,6 +515,17 @@ function bind(locale: Locale): Messages {
       mustFill: (label) => text("output.mustFill", { label }),
       mustBe: (label) => text("output.mustBe", { label }),
       fieldMustBe: (name, label) => text("output.fieldMustBe", { name, label }),
+      playTimed: text("output.playTimed"),
+      playPaper: text("output.playPaper"),
+      playRoll: text("output.playRoll"),
+      playWetware: text("output.playWetware"),
+      playBook: text("output.playBook"),
+      playHuman: text("output.playHuman"),
+      drawStart: text("output.drawStart"),
+      drawLeft: (seconds) => text("output.drawLeft", { seconds }),
+      drawFrozen: text("output.drawFrozen"),
+      drawIdle: text("output.drawIdle"),
+      drawLabel: text("output.drawLabel"),
     },
     status: { loading: text("status.loading"), retry: text("status.retry") },
   }
