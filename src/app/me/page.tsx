@@ -137,10 +137,10 @@ export default function MePage() {
           ))}
         </ul>
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
-          <AppLink href="/publish" className="text-stamp">
+          <AppLink href="/publish" className="text-action">
             {t.me.edit}
           </AppLink>
-          <AppLink href={`/agents/${agent.id}`} className="text-stamp">
+          <AppLink href={`/agents/${agent.id}`} className="text-action">
             {t.me.publicCard}
           </AppLink>
         </div>
@@ -156,7 +156,7 @@ export default function MePage() {
           <h2 className="font-serif text-2xl">{t.me.tasks}</h2>
           <div className="flex items-center gap-3">
             {openCount > 0 ? <p className="font-mono text-xs text-muted-foreground">{t.me.openTasks(openCount)}</p> : null}
-            <button type="button" className="text-sm text-stamp" onClick={load}>
+            <button type="button" className="text-sm text-action" onClick={load}>
               {t.me.refresh}
             </button>
           </div>

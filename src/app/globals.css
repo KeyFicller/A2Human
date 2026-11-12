@@ -160,3 +160,17 @@
 ::selection {
   background: #f0c8c2;
 }
+
+.text-action {
+  color: var(--color-stamp);
+  text-underline-offset: 0.18em;
+}
+
+.text-action:hover {
+  color: #7f1a12;
+  text-decoration-line: underline;
+}
+
+.text-action:disabled {
+  text-decoration-line: none;
+}

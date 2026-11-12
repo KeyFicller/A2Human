@@ -10,6 +10,7 @@ from typing import Any
 
 from a2human.copy import wire
 from a2human.dispatch import route_dispatch
+from a2human.audio import read_audio
 from a2human.images import read_image
 from a2human.jsonutil import dumps, loads
 from a2human.rules import (
@@ -123,6 +124,8 @@ def _artifact_parts(store: dict[str, Any], task: dict[str, Any]) -> list[dict[st
                 parts.append({"kind": "text", "text": task["artifact"], "mediaType": "text/plain"})
     if task.get("artifactImage"):
         parts.append(_image_part(task["artifactImage"]))
+    if task.get("artifactAudio"):
+        parts.append(_image_part(task["artifactAudio"]))
     return parts
 
 
@@ -250,6 +253,7 @@ def _read_parts(parts: object) -> dict[str, Any]:
         raise DomainError(wire("parts.required"), -32602)
     chunks: list[str] = []
     images: list[dict[str, Any]] = []
+    audios: list[dict[str, Any]] = []
     for part in parts:
         if isinstance(part, str):
             chunks.append(part)
@@ -278,6 +282,23 @@ def _read_parts(parts: object) -> dict[str, Any]:
                 raise DomainError(read["error"], -32602)
             images.append(read["image"])
             continue
+        if isinstance(media, str) and media.startswith("audio/"):
+            source = dict(part)
+            source["mediaType"] = media
+            if file_part:
+                if not isinstance(source.get("raw"), str) and isinstance(file_part.get("bytes"), str):
+                    source["raw"] = file_part["bytes"]
+                if not isinstance(source.get("url"), str) and isinstance(file_part.get("uri"), str):
+                    source["url"] = file_part["uri"]
+                if not source.get("filename") and isinstance(file_part.get("name"), str):
+                    source["filename"] = file_part["name"]
+            if not isinstance(source.get("raw"), str) and isinstance(part.get("bytes"), str):
+                source["raw"] = part["bytes"]
+            heard = read_audio(source)
+            if "error" in heard:
+                raise DomainError(heard["error"], -32602)
+            audios.append(heard["audio"])
+            continue
         if "raw" in part or "url" in part or "file" in part or "bytes" in part:
             raise DomainError(wire("part.kind"), -32005)
         if "data" in part and part.get("data") is not None:
@@ -292,11 +313,13 @@ def _read_parts(parts: object) -> dict[str, Any]:
         if isinstance(part.get("text"), str):
             chunks.append(part["text"])
     text = "\n".join(chunks).strip()
-    if not text and not images:
+    if not text and not images and not audios:
         raise DomainError(wire("parts.required"), -32602)
     if len(images) > 4:
         raise DomainError(wire("images.max"), -32602)
-    return {"text": text, "images": images}
+    if len(audios) > 4:
+        raise DomainError(wire("audios.max"), -32602)
+    return {"text": text, "images": images, "audios": audios}
 
 
 def _metadata_value(params: dict[str, Any], message: dict[str, Any], key: str) -> object:
@@ -378,7 +401,9 @@ def _assert_sendable(config: dict[str, Any]) -> None:
     if not isinstance(modes, list) or any(not isinstance(mode, str) for mode in modes):
         raise DomainError(wire("modes.type"), -32602)
     supported = any(
-        mode in {"text/plain", "text/*", "*/*", "application/json", "image/*"} or mode.startswith("image/")
+        mode in {"text/plain", "text/*", "*/*", "application/json", "image/*", "audio/*"}
+        or mode.startswith("image/")
+        or mode.startswith("audio/")
         for mode in modes
     )
     if not supported:
@@ -460,6 +485,7 @@ def _send_message(store: dict[str, Any], scope: dict[str, Any], params: dict[str
         "humanId": human_id,
         "text": parts["text"],
         "images": parts["images"],
+        "audios": parts.get("audios") or [],
         "messageId": message_id,
         "taskId": task_id,
         "contextId": context_id,

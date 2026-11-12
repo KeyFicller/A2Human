@@ -9,13 +9,21 @@ import {
   blankIdentity,
   canAddCustomSkill,
   canStartAnother,
+  catalogText,
+  relocalizeFields,
   defaultTaskInput,
   deliveryOf,
   deliverySchema,
   DRAW_LIMIT_MS,
   drawClock,
   fieldPill,
+  installedLabel,
+  isBlankDraft,
   mergePresetCatalog,
+  MIC_LIMIT_MS,
+  micClock,
+  promisesOpenMic,
+  usesTimedMic,
   personNameIssue,
   playMode,
   presetIdentity,
@@ -69,11 +77,11 @@ test("preset capsules replace the skill being edited instead of stacking", () =>
   assert.equal(slots[0].template, "hand_draw")
   for (const item of SKILL_CATALOG) slots = applyToSlot(slots, 0, presetIdentity(item, []))
   assert.equal(slots.length, 1)
-  assert.equal(slots[0].template, "human_check")
-  assert.equal(slots[0].title, "人类兼容性测试")
-  assert.equal(slots[0].description, SKILL_CATALOG[5].description)
-  assert.equal(slots[0].sample, SKILL_CATALOG[5].sample)
-  assert.equal(deliveryOf(SKILL_CATALOG[5].outputSchema), "text")
+  assert.equal(slots[0].template, "open_mic")
+  assert.equal(slots[0].title, "一展歌喉")
+  assert.equal(slots[0].description, SKILL_CATALOG[6].description)
+  assert.equal(slots[0].sample, SKILL_CATALOG[6].sample)
+  assert.equal(deliveryOf(SKILL_CATALOG[6].outputSchema), "audio_text")
   const cleared = applyToSlot(slots, 0, blankIdentity())
   assert.equal(cleared.length, 1)
   assert.equal(cleared[0].name, "")
@@ -198,7 +206,7 @@ test("the six presets are distinct play modes and only carbon drawing uses the t
   assert.equal(answer.description, "算出来的答案")
   assert.equal(photo.description, "纸上草稿的照片")
   assert.equal(roll.description, "骰子或签条的照片")
-  assert.equal(steps.description, "做完步骤后的结果")
+  assert.equal(steps.description, "看见的天气")
   assert.equal(book.description, "书里抄来的一句")
   assert.equal(line.description, "最不像人的那一句")
   const stale = [{ name: "hand_draw", title: "旧" }]
@@ -212,13 +220,13 @@ const OFFICE = ["translate", "summarize", "rewrite", "proofread", "brainstorm", 
 test("the first screen lists the carbon presets and drops the office catalog", () => {
   assert.deepEqual(
     SKILL_CATALOG.map((skill) => skill.name),
-    ["hand_draw", "paper_think", "human_roll", "wetware_run", "offline_lookup", "human_check"],
+    ["hand_draw", "paper_think", "human_roll", "wetware_run", "offline_lookup", "human_check", "open_mic"],
   )
   for (const name of OFFICE) assert.equal(SKILL_CATALOG.some((skill) => skill.name === name), false)
   assert.equal(SKILL_CATALOG.find((skill) => skill.name === "hand_draw")?.title, "碳基图像生成")
   assert.equal(SKILL_CATALOG.find((skill) => skill.name === "paper_think")?.title, "物理深度思考")
   assert.equal(SKILL_CATALOG.find((skill) => skill.name === "human_roll")?.title, "人肉随机数")
-  assert.equal(SKILL_CATALOG.find((skill) => skill.name === "wetware_run")?.title, "湿件代码执行")
+  assert.equal(SKILL_CATALOG.find((skill) => skill.name === "wetware_run")?.title, "碳基气象台")
   assert.equal(SKILL_CATALOG.find((skill) => skill.name === "offline_lookup")?.title, "离线知识检索")
   assert.equal(SKILL_CATALOG.find((skill) => skill.name === "human_check")?.title, "人类兼容性测试")
   for (const skill of SKILL_CATALOG) {
@@ -234,9 +242,10 @@ test("the first screen lists the carbon presets and drops the office catalog", (
   assert.equal(deliveryOf(SKILL_CATALOG.find((skill) => skill.name === "wetware_run")?.outputSchema), "text")
   assert.equal(deliveryOf(SKILL_CATALOG.find((skill) => skill.name === "offline_lookup")?.outputSchema), "text")
   assert.equal(deliveryOf(SKILL_CATALOG.find((skill) => skill.name === "human_check")?.outputSchema), "text")
+  assert.equal(deliveryOf(SKILL_CATALOG.find((skill) => skill.name === "open_mic")?.outputSchema), "audio_text")
   const roll = SKILL_CATALOG.find((skill) => skill.name === "human_roll")
   assert.ok(roll?.outputSchema)
-  assert.equal(roll.description, "掷骰或抽一张签，交回结果。也可以拍下这次动作。")
+  assert.equal(roll.description, "需要一个无法被模型预测或复现的随机结果时调用。真人掷骰或抽签，只交文字结果即可，也可附上现场照片。这不是伪随机函数，是手气本身。")
   assert.deepEqual(roll.outputSchema.required, ["answer"])
   assert.equal(roll.outputSchema.properties?.picture?.contentMediaType, "image/*")
   assert.equal(roll.outputSchema.properties?.picture?.description, "骰子或签条的照片")
@@ -334,4 +343,69 @@ test("switching delivery type changes the schema the duty preview checks", () =>
     }),
     "custom",
   )
+})
+
+test("installed skills show a title or a tool id, and a blank start does not load an existing skill", () => {
+  assert.equal(installedLabel({ title: "碳基气象台", name: "wetware_run" }), "碳基气象台")
+  assert.equal(installedLabel({ title: "  ", name: "do_anything" }), "do_anything")
+  assert.equal(installedLabel({ title: "", name: "" }), "")
+  assert.notEqual(installedLabel({ title: "", name: "" }), "自己写")
+  assert.equal(isBlankDraft({ template: null, title: "", name: "", description: "" }), true)
+  assert.equal(isBlankDraft({ template: null, title: "", name: "do_anything", description: "接目录外的活。" }), false)
+  const hidden = mergePresetCatalog(
+    [{ name: "do_anything", title: "自己写" }, { name: "hand_draw", title: "旧" }],
+    [{ name: "hand_draw", title: "碳基图像生成" }],
+  )
+  assert.deepEqual(hidden.map((item) => item.name), ["hand_draw"])
+  assert.equal(hidden[0].title, "碳基图像生成")
+})
+
+test("catalog presets follow the publish locale and keep a customized field", () => {
+  const hand = SKILL_CATALOG.find((skill) => skill.name === "hand_draw")
+  assert.ok(hand && "en" in hand)
+  const localized = hand as typeof hand & { en: { title: string; description: string; sample: string } }
+  const zh = catalogText(localized, "zh")
+  const en = catalogText(localized, "en")
+  assert.equal(zh.title, "碳基图像生成")
+  assert.equal(en.title, "Carbon image generation")
+  assert.equal(en.sample, "Draw a cat drinking tea. 30 seconds, and whatever you finish is the picture.")
+  const refreshed = relocalizeFields({ title: zh.title, description: "我改过", sample: zh.sample }, zh, en)
+  assert.equal(refreshed.title, en.title)
+  assert.equal(refreshed.description, "我改过")
+  assert.equal(refreshed.sample, en.sample)
+  const weather = SKILL_CATALOG.find((skill) => skill.name === "wetware_run")
+  assert.equal(weather?.title, "碳基气象台")
+  assert.equal(weather?.name, "wetware_run")
+  assert.equal((weather as { en?: { title: string } } | undefined)?.en?.title, "Carbon weather desk")
+  for (const skill of SKILL_CATALOG) {
+    const english = (skill as { en?: { title: string; description: string; sample: string } }).en
+    assert.ok(english)
+    assert.ok(english.title.trim())
+    assert.ok(english.description.length <= 320)
+    assert.ok(english.sample.trim())
+    assert.equal(skill.description.includes("人肉") && skill.name === "wetware_run", false)
+  }
+})
+
+test("audio delivery and the open mic stay attached to a custom tool id", () => {
+  const audio = deliverySchema("audio")
+  const both = deliverySchema("audio_text")
+  assert.equal(deliveryOf(audio), "audio")
+  assert.equal(deliveryOf(both), "audio_text")
+  assert.equal(audio.properties.audio.contentMediaType, "audio/*")
+  assert.deepEqual(both.required, ["answer", "audio"])
+  assert.equal(playMode("open_mic"), "open_mic")
+  assert.equal(activePlay("open_mic", "audio_text"), "open_mic")
+  assert.equal(activePlay("my_song", "audio_text", "open_mic"), "open_mic")
+  assert.equal(activePlay("my_song", "text", "open_mic"), null)
+  assert.equal(usesTimedMic("my_song", "audio_text", "open_mic"), true)
+  assert.equal(usesTimedMic("open_mic", "text"), false)
+  assert.equal(promisesOpenMic("十五秒，唱到哪算哪。"), true)
+  assert.equal(promisesOpenMic("写一段说明。"), false)
+  assert.equal(MIC_LIMIT_MS, 15_000)
+  assert.deepEqual(micClock(null, 1_000), { phase: "idle", leftMs: 15_000 })
+  assert.deepEqual(micClock(1_000, 16_000), { phase: "frozen", leftMs: 0 })
+  const mic = SKILL_CATALOG.find((skill) => skill.name === "open_mic")
+  assert.equal(deliveryOf(mic?.outputSchema), "audio_text")
+  assert.deepEqual(mic?.outputSchema?.required, ["answer", "audio"])
 })

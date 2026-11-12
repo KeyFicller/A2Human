@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { DrawBoard } from "@/components/draw-board"
+import { MicBoard } from "@/components/mic-board"
 import { FieldControl } from "@/components/field-control"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -9,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { phrase } from "@/lib/copy"
 import { parseFieldValue } from "@/lib/field-control"
 import { fieldTypeLabel, outputShape, type SchemaField } from "@/lib/schema-fields"
-import type { JsonSchema, TaskImage } from "@/lib/types"
+import type { JsonSchema, TaskAudio, TaskImage } from "@/lib/types"
 
 function fieldLabel(field: SchemaField) {
   return field.description?.trim() || field.name
@@ -24,16 +25,18 @@ export function OutputForm({
   submitLabel,
   hint,
   board,
+  mic,
   submitVariant = "default",
 }: {
   schema: JsonSchema
   pending: boolean
-  onSubmit: (text: string, image: TaskImage | null) => void
+  onSubmit: (text: string, image: TaskImage | null, audio: TaskAudio | null) => void
   onError: (message: string) => void
   onDirty?: () => void
   submitLabel?: string
   hint?: string
   board?: boolean
+  mic?: boolean
   submitVariant?: "default" | "outline"
 }) {
   const shape = outputShape(schema)
@@ -41,12 +44,15 @@ export function OutputForm({
   const [values, setValues] = useState<Record<string, string>>({})
   const [json, setJson] = useState("")
   const imageRef = useRef<TaskImage | null>(null)
+  const audioRef = useRef<TaskAudio | null>(null)
   const shapeKey = JSON.stringify(schema)
 
   useEffect(() => {
     const next = outputShape(JSON.parse(shapeKey) as JsonSchema)
     const wantsImage = next.kind === "image" || (next.kind === "fields" && next.fields.some((field) => field.type === "image"))
+    const wantsAudio = next.kind === "audio" || (next.kind === "fields" && next.fields.some((field) => field.type === "audio"))
     if (!wantsImage) imageRef.current = null
+    if (!wantsAudio) audioRef.current = null
   }, [shapeKey])
 
   function takeImage(next: TaskImage | null) {
@@ -69,9 +75,14 @@ export function OutputForm({
     )
   }
 
+  function takeAudio(next: TaskAudio | null) {
+    audioRef.current = next
+    onDirty?.()
+  }
+
   function submit(text: string) {
     onError("")
-    onSubmit(text, imageRef.current)
+    onSubmit(text, imageRef.current, audioRef.current)
   }
 
   const note = hint ? <p className="text-sm leading-6">{hint}</p> : null
@@ -81,6 +92,18 @@ export function OutputForm({
       <div className="space-y-3">
         {note}
         {board ? <DrawBoard onImage={takeImage} /> : fileInput(t.output.image)}
+        <Button type="button" variant={submitVariant} disabled={pending} onClick={() => submit("")}>
+          {pending ? t.output.submitting : submitLabel || t.output.submit}
+        </Button>
+      </div>
+    )
+  }
+
+  if (shape.kind === "audio") {
+    return (
+      <div className="space-y-3">
+        {note}
+        <MicBoard limitMs={mic ? 15_000 : undefined} onAudio={takeAudio} />
         <Button type="button" variant={submitVariant} disabled={pending} onClick={() => submit("")}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
@@ -150,7 +173,8 @@ export function OutputForm({
   }
 
   const images = shape.fields.filter((field) => field.type === "image")
-  const dataFields = shape.fields.filter((field) => field.type !== "image")
+  const audios = shape.fields.filter((field) => field.type === "audio")
+  const dataFields = shape.fields.filter((field) => field.type !== "image" && field.type !== "audio")
 
   const imageOnly = dataFields.length === 0 && images.length === 1
 
@@ -158,6 +182,7 @@ export function OutputForm({
     <div className="space-y-3">
       {note}
       {images.length > 1 ? <p className="text-sm text-stamp">{t.output.oneImage}</p> : null}
+      {audios.length > 1 ? <p className="text-sm text-stamp">{t.output.oneAudio}</p> : null}
       {dataFields.map((field) => {
         const label = fieldLabel(field)
         return (
@@ -184,14 +209,15 @@ export function OutputForm({
         )
       })}
       {images.length === 1 ? (board && imageOnly ? <DrawBoard onImage={takeImage} /> : fileInput(fieldLabel(images[0]), !images[0].required)) : null}
+      {audios.length === 1 ? <MicBoard limitMs={mic ? 15_000 : undefined} onAudio={takeAudio} /> : null}
       <Button
         type="button"
         variant={submitVariant}
-        disabled={pending || images.length > 1}
+        disabled={pending || images.length > 1 || audios.length > 1}
         onClick={() => {
           const data: Record<string, unknown> = {}
           for (const field of dataFields) {
-            if (field.type === "image") continue
+            if (field.type !== "string" && field.type !== "integer" && field.type !== "number" && field.type !== "boolean") continue
             const parsed = parseFieldValue(field.type, values[field.name] ?? "", field.enum)
             if (parsed.state === "empty") continue
             if (parsed.state === "bad") {

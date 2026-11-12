@@ -215,7 +215,7 @@ async def post_task(task_id: str, request: Request) -> Response:
 
         def run(store: dict) -> dict:
             if body.get("action") == "artifact":
-                return submit_artifact(store, task_id, agent_id, body.get("text"), body.get("image"))
+                return submit_artifact(store, task_id, agent_id, body.get("text"), body.get("image"), body.get("audio"))
             if body.get("action") == "progress":
                 return set_progress(store, task_id, agent_id, body.get("text"))
             if body.get("action") == "score":

@@ -5,7 +5,7 @@ import { OutputForm } from "@/components/output-form"
 import { useLocale } from "@/components/locale-provider"
 import { localizeError } from "@/lib/copy"
 import { fieldTypeLabel, outputShape, schemaPayload, canonicalOutput } from "@/lib/schema-fields"
-import { activePlay, deliveryOf, fieldPill, playHintKey, previewFields, usesTimedBoard, type PlayMode } from "@/lib/publish-skills"
+import { activePlay, deliveryOf, fieldPill, playHintKey, previewFields, usesTimedBoard, usesTimedMic, type PlayMode } from "@/lib/publish-skills"
 import type { SchemaDraft } from "@/lib/schema-fields"
 import type { JsonSchema, TaskImage } from "@/lib/types"
 
@@ -50,6 +50,7 @@ function WorkerCheck({ skill, schema, play }: { skill: PreviewSkill; schema: Jso
   const image = showsImage(schema)
   const delivery = deliveryOf(schema)
   const board = delivery !== "custom" && usesTimedBoard(skill.name, delivery, skill.play)
+  const mic = delivery !== "custom" && usesTimedMic(skill.name, delivery, skill.play)
   const schemaKey = JSON.stringify(schema)
 
   useEffect(() => {
@@ -74,11 +75,12 @@ function WorkerCheck({ skill, schema, play }: { skill: PreviewSkill; schema: Jso
         submitVariant="outline"
         hint={play ? t.output[playHintKey(play)] : undefined}
         board={board}
+        mic={mic}
         onDirty={() => setNotice(null)}
         onError={(message) => setNotice(message || null)}
-        onSubmit={(text, picture: TaskImage | null) => {
+        onSubmit={(text, picture: TaskImage | null, audio) => {
           try {
-            canonicalOutput(schema, text, Boolean(picture))
+            canonicalOutput(schema, text, Boolean(picture), Boolean(audio))
             setNotice(t.publish.simulateOk)
           } catch (caught) {
             const message = caught instanceof Error ? caught.message : t.publish.saveError

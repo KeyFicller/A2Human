@@ -5,6 +5,7 @@ import {
   IMAGE_ACCEPT,
   IMAGE_MAX_BYTES,
   acceptIntegerDraft,
+  audioFromDataUrl,
   controlSpec,
   imageFromDataUrl,
   parseEnumText,
@@ -89,4 +90,15 @@ test("an image preview only accepts the existing picture types and size", () => 
   assert.deepEqual(imageFromDataUrl("data:image/svg+xml;base64,aGVsbG8=", "a.svg", 12), { error: "type" })
   assert.deepEqual(imageFromDataUrl("data:text/plain;base64,aGVsbG8=", "a.txt", 12), { error: "type" })
   assert.deepEqual(imageFromDataUrl(png, "a.png", 1_000_001), { error: "tooBig" })
+})
+
+test("an audio clip accepts webm, wav, and mpeg, including a codec parameter", () => {
+  assert.deepEqual(audioFromDataUrl("data:audio/webm;codecs=opus;base64,abc=", "take.webm", 12), {
+    audio: { mediaType: "audio/webm", raw: "abc=", filename: "take.webm" },
+  })
+  assert.deepEqual(audioFromDataUrl("data:audio/wav;base64,abc=", "take.wav", 12).audio?.mediaType, "audio/wav")
+  assert.deepEqual(audioFromDataUrl("data:audio/mpeg;base64,abc=", "take.mp3", 12).audio?.mediaType, "audio/mpeg")
+  assert.deepEqual(audioFromDataUrl("data:audio/mp3;base64,abc=", "take.mp3", 12).audio?.mediaType, "audio/mpeg")
+  assert.deepEqual(audioFromDataUrl("data:audio/ogg;base64,abc=", "take.ogg", 12), { error: "type" })
+  assert.equal(controlSpec("audio").kind, "audio")
 })

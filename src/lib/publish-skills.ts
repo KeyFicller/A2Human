@@ -4,12 +4,12 @@ type NamedSkill = { name: string; title?: string }
 
 export type DraftField = {
   name: string
-  type: "string" | "integer" | "number" | "boolean" | "image"
+  type: "string" | "integer" | "number" | "boolean" | "image" | "audio"
   required: boolean
   description?: string
 }
 
-export type DeliveryKind = "text" | "image" | "image_text"
+export type DeliveryKind = "text" | "image" | "image_text" | "audio" | "audio_text"
 
 type DeliveryProperty = { type: string; contentMediaType?: string }
 
@@ -123,7 +123,7 @@ export function publishAction(bound: boolean, fresh: boolean): "save" | "publish
   return bound && !fresh ? "save" : "publish"
 }
 
-export type PlayMode = "timed_draw" | "paper" | "roll" | "wetware" | "book" | "human_check"
+export type PlayMode = "timed_draw" | "paper" | "roll" | "wetware" | "book" | "human_check" | "open_mic"
 
 const PLAY_BY_NAME: Record<string, PlayMode> = {
   hand_draw: "timed_draw",
@@ -132,6 +132,7 @@ const PLAY_BY_NAME: Record<string, PlayMode> = {
   wetware_run: "wetware",
   offline_lookup: "book",
   human_check: "human_check",
+  open_mic: "open_mic",
 }
 
 export function playMode(name: string): PlayMode | null {
@@ -139,25 +140,41 @@ export function playMode(name: string): PlayMode | null {
 }
 
 export function asPlayMode(value: string | null | undefined): PlayMode | null {
-  if (value === "timed_draw" || value === "paper" || value === "roll" || value === "wetware" || value === "book" || value === "human_check") {
+  if (
+    value === "timed_draw" ||
+    value === "paper" ||
+    value === "roll" ||
+    value === "wetware" ||
+    value === "book" ||
+    value === "human_check" ||
+    value === "open_mic"
+  ) {
     return value
   }
   return null
 }
 
-export function playHintKey(mode: PlayMode): "playTimed" | "playPaper" | "playRoll" | "playWetware" | "playBook" | "playHuman" {
+export function playHintKey(mode: PlayMode): "playTimed" | "playPaper" | "playRoll" | "playWetware" | "playBook" | "playHuman" | "playMic" {
   if (mode === "timed_draw") return "playTimed"
   if (mode === "paper") return "playPaper"
   if (mode === "roll") return "playRoll"
   if (mode === "wetware") return "playWetware"
   if (mode === "book") return "playBook"
+  if (mode === "open_mic") return "playMic"
   return "playHuman"
 }
 
 export const DRAW_LIMIT_MS = 30_000
 
+export const MIC_LIMIT_MS = 15_000
+
 export function usesTimedBoard(name: string, delivery: DeliveryKind, play?: string | null) {
   return (asPlayMode(play) ?? playMode(name)) === "timed_draw" && delivery === "image"
+}
+
+export function usesTimedMic(name: string, delivery: DeliveryKind, play?: string | null) {
+  const mode = asPlayMode(play) ?? playMode(name)
+  return mode === "open_mic" && (delivery === "audio" || delivery === "audio_text")
 }
 
 /** The play hint and timed board follow the delivery the person will actually publish. */
@@ -166,14 +183,21 @@ export function activePlay(name: string, delivery: DeliveryKind | "custom", play
   if (!mode || delivery === "custom") return null
   if (mode === "timed_draw") return delivery === "image" ? mode : null
   if (mode === "paper" || mode === "roll") return delivery === "image_text" ? mode : null
+  if (mode === "open_mic") return delivery === "audio" || delivery === "audio_text" ? mode : null
   return delivery === "text" ? mode : null
 }
 
 /** A custom tool id can still be the carbon drawing preset. The description is the fallback when play was not stored. */
 const TIMED_DRAW = /\u4e09\u5341\u79d2|30\s*\u79d2|30s/i
+const OPEN_MIC = /\u5341\u4e94\u79d2|15\s*\u79d2|15s/i
 
 export function promisesTimedDraw(text: string) {
   return TIMED_DRAW.test(text)
+}
+
+/** A custom tool id can still be the open-mic preset when the copy still promises a timed take. */
+export function promisesOpenMic(text: string) {
+  return OPEN_MIC.test(text)
 }
 
 /** `{}` is an empty field form, not extra text beside an image-only delivery. */
@@ -189,25 +213,91 @@ export function blankDeliveryText(text: string) {
   }
 }
 
-export function drawClock(startedAt: number | null, now: number): { phase: "idle" | "live" | "frozen"; leftMs: number } {
-  if (startedAt == null) return { phase: "idle", leftMs: DRAW_LIMIT_MS }
+export function timedClock(startedAt: number | null, now: number, limitMs: number): { phase: "idle" | "live" | "frozen"; leftMs: number } {
+  if (startedAt == null) return { phase: "idle", leftMs: limitMs }
   const elapsed = Math.max(0, now - startedAt)
-  if (elapsed >= DRAW_LIMIT_MS) return { phase: "frozen", leftMs: 0 }
-  return { phase: "live", leftMs: DRAW_LIMIT_MS - elapsed }
+  if (elapsed >= limitMs) return { phase: "frozen", leftMs: 0 }
+  return { phase: "live", leftMs: limitMs - elapsed }
 }
 
-/** Prefer the bundled preset text so a stale API catalog cannot drop the play-mode contract. */
+export function drawClock(startedAt: number | null, now: number) {
+  return timedClock(startedAt, now, DRAW_LIMIT_MS)
+}
+
+export function micClock(startedAt: number | null, now: number) {
+  return timedClock(startedAt, now, MIC_LIMIT_MS)
+}
+
+/** Prefer the bundled presets so a stale API catalog cannot add or rename the first-screen list. */
 export function mergePresetCatalog<T extends { name: string }>(remote: T[], bundled: T[]): T[] {
   const local = new Map(bundled.map((item) => [item.name, item]))
   const seen = new Set<string>()
-  const merged = remote.map((item) => {
+  const merged = remote.flatMap((item) => {
+    const preset = local.get(item.name)
+    if (!preset) return []
     seen.add(item.name)
-    return local.get(item.name) ?? item
+    return [preset]
   })
   for (const item of bundled) {
     if (!seen.has(item.name)) merged.push(item)
   }
   return merged
+}
+
+export type CatalogCopy = {
+  title: string
+  description: string
+  sample: string
+}
+
+export function catalogText(
+  item: { title: string; description: string; sample: string; en?: CatalogCopy },
+  locale: "zh" | "en",
+): CatalogCopy {
+  if (locale === "en" && item.en?.title && item.en.description && item.en.sample) return item.en
+  return { title: item.title, description: item.description, sample: item.sample }
+}
+
+/** Show the current locale's catalog copy when a field is still a catalog string. Custom text stays. */
+export function alignPresetCopy(
+  stored: { title: string; description: string; sample?: string },
+  preset: { title: string; description: string; sample: string; en?: CatalogCopy } | null,
+  locale: "zh" | "en",
+) {
+  if (!preset) {
+    return { title: stored.title.trim(), description: stored.description, sample: stored.sample ?? "" }
+  }
+  const zh = catalogText(preset, "zh")
+  const en = catalogText(preset, "en")
+  const current = catalogText(preset, locale)
+  const title = stored.title.trim()
+  const sample = stored.sample ?? ""
+  return {
+    title: !title || title === zh.title || title === en.title ? current.title : title,
+    description: stored.description === zh.description || stored.description === en.description ? current.description : stored.description,
+    sample: !sample || sample === zh.sample || sample === en.sample ? current.sample : sample,
+  }
+}
+
+/** Refresh fields that still match the previous locale. Leave anything the person edited. */
+export function relocalizeFields(current: CatalogCopy, previous: CatalogCopy, next: CatalogCopy): CatalogCopy {
+  return {
+    title: current.title === previous.title ? next.title : current.title,
+    description: current.description === previous.description ? next.description : current.description,
+    sample: current.sample === previous.sample ? next.sample : current.sample,
+  }
+}
+
+/** Installed chips use the display title, or the tool id when there is no title. Never the blank-action label. */
+export function installedLabel(skill: { title?: string; name?: string }) {
+  const title = skill.title?.trim() ?? ""
+  if (title) return title
+  return skill.name?.trim() ?? ""
+}
+
+/** The blank action is only the empty slot it just created, not an existing custom skill. */
+export function isBlankDraft(skill: { template: string | null; title: string; name: string; description: string }) {
+  return skill.template === null && !skill.title.trim() && !skill.name.trim() && !skill.description.trim()
 }
 
 export function defaultTaskInput(label: string): DraftField[] {
@@ -222,13 +312,19 @@ export function fieldPill(field: { name: string; description?: string }, typeLab
 export function deliverySchema(kind: DeliveryKind): DeliverySchema {
   const answer = { type: "string" }
   const picture = { type: "string", contentMediaType: "image/*" }
+  const audio = { type: "string", contentMediaType: "audio/*" }
   if (kind === "image") return { type: "object", properties: { picture }, required: ["picture"] }
   if (kind === "image_text") return { type: "object", properties: { answer, picture }, required: ["answer", "picture"] }
+  if (kind === "audio") return { type: "object", properties: { audio }, required: ["audio"] }
+  if (kind === "audio_text") return { type: "object", properties: { answer, audio }, required: ["answer", "audio"] }
   return { type: "object", properties: { answer }, required: ["answer"] }
 }
 
-function isImageProperty(value: { type?: unknown; contentMediaType?: unknown }) {
-  return value.type === "string" && typeof value.contentMediaType === "string" && value.contentMediaType.startsWith("image/")
+function mediaKind(value: { type?: unknown; contentMediaType?: unknown }) {
+  if (value.type !== "string" || typeof value.contentMediaType !== "string") return null
+  if (value.contentMediaType.startsWith("image/")) return "image"
+  if (value.contentMediaType.startsWith("audio/")) return "audio"
+  return null
 }
 
 export function deliveryOf(
@@ -238,12 +334,16 @@ export function deliveryOf(
   const entries = Object.entries(schema.properties)
   if (!entries.length) return "custom"
   const required = new Set(Array.isArray(schema.required) ? schema.required.filter((item): item is string => typeof item === "string") : [])
-  const images = entries.filter(([, value]) => isImageProperty(value))
-  const rest = entries.filter(([, value]) => !isImageProperty(value))
+  const images = entries.filter(([, value]) => mediaKind(value) === "image")
+  const audios = entries.filter(([, value]) => mediaKind(value) === "audio")
+  const rest = entries.filter(([, value]) => mediaKind(value) == null)
   const listed = (name: string) => required.has(name)
+  if (audios.length && images.length) return "custom"
+  if (audios.length === 1 && rest.length === 0) return listed(audios[0][0]) ? "audio" : "custom"
+  if (audios.length === 1 && rest.length === 1 && rest[0][1].type === "string" && listed(rest[0][0])) return "audio_text"
   if (images.length === 1 && rest.length === 0) return listed(images[0][0]) ? "image" : "custom"
   if (images.length === 1 && rest.length === 1 && rest[0][1].type === "string" && listed(rest[0][0])) return "image_text"
-  if (images.length === 0 && rest.length === 1 && rest[0][1].type === "string" && listed(rest[0][0])) return "text"
+  if (images.length === 0 && audios.length === 0 && rest.length === 1 && rest[0][1].type === "string" && listed(rest[0][0])) return "text"
   return "custom"
 }
 

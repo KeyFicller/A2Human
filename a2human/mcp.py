@@ -124,13 +124,15 @@ def _flat_fields(schema: dict[str, Any] | None) -> list[dict[str, Any]] | None:
         media = value.get("contentMediaType")
         if value.get("type") == "string" and isinstance(media, str) and media.startswith("image/"):
             kind = "image"
+        elif value.get("type") == "string" and isinstance(media, str) and media.startswith("audio/"):
+            kind = "audio"
         elif value.get("type") in {"string", "integer", "number", "boolean"} and "contentMediaType" not in value:
             kind = value["type"]
         else:
             return None
         choices = None
         if "enum" in value:
-            if kind in {"image", "boolean"}:
+            if kind in {"image", "audio", "boolean"}:
                 return None
             choices = enum_values(kind, value.get("enum"))
             if choices is None:
@@ -149,6 +151,8 @@ def _input_schema(fields: list[dict[str, Any]] | None) -> dict[str, Any]:
         for field in fields:
             if field["kind"] == "image":
                 properties[field["name"]] = {"type": "string", "description": field["description"] or wire("mcp.imageDescription")}
+            elif field["kind"] == "audio":
+                properties[field["name"]] = {"type": "string", "description": field["description"] or wire("mcp.audioDescription")}
             else:
                 prop: dict[str, Any] = {"type": field["kind"]}
                 if field["description"]:
@@ -334,6 +338,24 @@ def _media_from_url(url: str) -> str:
     return "image/png"
 
 
+def _audio_part(value: str) -> dict[str, Any]:
+    text = value.strip()
+    if text.startswith("http://") or text.startswith("https://"):
+        lower = text.lower()
+        if lower.endswith(".wav"):
+            media = "audio/wav"
+        elif lower.endswith(".mp3"):
+            media = "audio/mpeg"
+        else:
+            media = "audio/webm"
+        return {"mediaType": media, "url": text}
+    matched = re.fullmatch(r"data:(audio/(?:webm|wav|mpeg|mp3))(?:;[^,]*)?;base64,([A-Za-z0-9+/=\s]+)", text)
+    if not matched:
+        return {"error": wire("audio.url")}
+    media = "audio/mpeg" if matched.group(1) == "audio/mp3" else matched.group(1)
+    return {"mediaType": media, "raw": re.sub(r"\s", "", matched.group(2))}
+
+
 def _image_part(value: str) -> dict[str, Any]:
     text = value.strip()
     if text.startswith("http://") or text.startswith("https://"):
@@ -374,6 +396,14 @@ def _field_parts(fields: list[dict[str, Any]], args: dict[str, Any]) -> dict[str
             if "error" in image:
                 return image
             parts.append(image)
+            continue
+        if field["kind"] == "audio":
+            if not isinstance(value, str):
+                return {"error": wire("audio.url")}
+            heard = _audio_part(value)
+            if "error" in heard:
+                return heard
+            parts.append(heard)
             continue
         if field["kind"] == "string" and not isinstance(value, str):
             return {"error": wire("must.string", {"label": field["name"]})}

@@ -20,7 +20,7 @@ const tone: Record<Task["status"], string> = {
 
 export function TaskRow({ task, skillTitles }: { task: Task; skillTitles?: Record<string, string> }) {
   const { locale, t } = useLocale()
-  const waiting = task.status === "input-required" && Boolean(task.artifact || task.artifactImage)
+  const waiting = task.status === "input-required" && Boolean(task.artifact || task.artifactImage || task.artifactAudio)
   return (
     <AppLink href={`/tasks/${task.id}`} className="sheet block px-4 py-4 transition hover:-translate-y-0.5 md:px-5">
       <p className={cn("inline-flex rounded-full bg-[#f3e6c8] px-2 py-0.5 font-mono text-[11px] tracking-[0.12em]", tone[task.status])}>

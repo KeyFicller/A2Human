@@ -188,7 +188,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
           {hired ? (
             <p className="text-sm leading-6">
               {t.profile.hireResult(hired.id, hired.status)}{" "}
-              <AppLink href={`/tasks/${hired.id}`} className="text-stamp">
+              <AppLink href={`/tasks/${hired.id}`} className="text-action">
                 {t.profile.hireOpen}
               </AppLink>
             </p>

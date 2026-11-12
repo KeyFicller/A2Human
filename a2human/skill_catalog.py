@@ -48,8 +48,15 @@ def skill_catalog() -> list[dict[str, Any]]:
             raise RuntimeError("skill catalog name must be a unique tool id")
         seen.add(name)
         _text(item, "title", 32)
-        _text(item, "description", 120)
+        _text(item, "description", 320)
         _text(item, "sample", 200)
+        english = item.get("en")
+        if not isinstance(english, dict):
+            raise RuntimeError(f"skill catalog {name} needs an English copy")
+        named = {**english, "name": name}
+        _text(named, "title", 32)
+        _text(named, "description", 320)
+        _text(named, "sample", 200)
         incoming = _schema(item, "inputSchema")
         _schema(item, "outputSchema")
         if list(incoming["properties"]) != ["task"] or incoming.get("required") != ["task"]:

@@ -15,11 +15,11 @@ export function taskOpen(status: TaskStatus) {
 }
 
 /** The person already handed this in. Scoring can still be open, but it is not their open work. */
-export function handedOff(task: { status: TaskStatus; artifact?: string | null; artifactImage?: unknown }) {
-  return task.status === "input-required" && Boolean(task.artifact || task.artifactImage)
+export function handedOff(task: { status: TaskStatus; artifact?: string | null; artifactImage?: unknown; artifactAudio?: unknown }) {
+  return task.status === "input-required" && Boolean(task.artifact || task.artifactImage || task.artifactAudio)
 }
 
-export function needsWorker(task: { status: TaskStatus; artifact?: string | null; artifactImage?: unknown }) {
+export function needsWorker(task: { status: TaskStatus; artifact?: string | null; artifactImage?: unknown; artifactAudio?: unknown }) {
   return taskOpen(task.status) && !handedOff(task)
 }
 
@@ -29,9 +29,10 @@ export function scoreWasSkipped(task: {
   scoreSkipped?: boolean
   artifact?: string | null
   artifactImage?: unknown
+  artifactAudio?: unknown
 }) {
   if (task.scoreSkipped) return true
-  return task.status === "completed" && typeof task.workScore !== "number" && Boolean(task.artifact || task.artifactImage)
+  return task.status === "completed" && typeof task.workScore !== "number" && Boolean(task.artifact || task.artifactImage || task.artifactAudio)
 }
 
 export function readableArtifact(text: string) {
