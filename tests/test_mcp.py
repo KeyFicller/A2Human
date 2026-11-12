@@ -135,6 +135,35 @@ def test_mcp_lists_one_tool_per_on_duty_skill_and_keeps_a2a_as_the_path():
     assert on["available"] is True
 
 
+async def test_a_chinese_skill_name_is_shown_on_the_listed_tool():
+    store = create_seed()
+    person = publish_agent(store, {
+        "name": "米粒",
+        "bio": "会摸鱼。",
+        "skills": [
+            {"name": "摸鱼诊断", "description": "看看现在该不该继续干活。"},
+            {"name": "deep-think", "description": "An ASCII skill name stays in the function name."},
+        ],
+    })
+    set_availability(store, person["id"], True)
+    shown = "摸鱼诊断 · 米粒"
+    listed = await handle_mcp({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, memory(store))
+    tools = body_of(listed)["result"]["tools"]
+    fish = next(tool for tool in tools if "摸鱼诊断" in tool["description"])
+    assert fish["title"] == shown
+    assert fish["description"].split("\n", 1)[0] == shown
+    assert "看看现在该不该继续干活。" in fish["description"]
+    assert re.fullmatch(r"a2h_[0-9a-f]{8}_[0-9a-f]{8}", fish["name"])
+    ascii_tool = next(tool for tool in tools if "deep-think" in tool["description"])
+    assert ascii_tool["title"] == "deep-think · 米粒"
+    assert re.fullmatch(r"a2h_[0-9a-f]{8}_deep-think_[0-9a-f]{8}", ascii_tool["name"])
+    assert "title" not in next(tool for tool in tools if tool["name"] == "a2h_score")
+    modern = await modern_call(store, "tools/list", {}, 2)
+    modern_fish = next(tool for tool in body_of(modern)["result"]["tools"] if "摸鱼诊断" in tool["description"])
+    assert modern_fish["title"] == shown
+    assert modern_fish["description"].split("\n", 1)[0] == shown
+
+
 async def test_tools_list_accepts_a_task_id_only_poll_and_keeps_skill_fields_required():
     store, _on = world()
     listed = await handle_mcp({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, memory(store))
