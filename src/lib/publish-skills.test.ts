@@ -110,9 +110,11 @@ test("a tool id keeps the stated ascii rule and a hand edit is not overwritten",
 test("preview copy ignores placeholders and checks reset with the skill being edited", () => {
   const zh = JSON.parse(readFileSync(new URL("../locales/zh.json", import.meta.url), "utf8")) as {
     publish: Record<string, string>
+    output: Record<string, string>
   }
   const en = JSON.parse(readFileSync(new URL("../locales/en.json", import.meta.url), "utf8")) as {
     publish: Record<string, string>
+    output: Record<string, string>
   }
   const empty = previewFields({ title: "", description: "", sample: "" })
   assert.deepEqual(empty, { title: "", description: "", task: "" })
@@ -120,6 +122,10 @@ test("preview copy ignores placeholders and checks reset with the skill being ed
   assert.notEqual(empty.description, zh.publish.callHint)
   assert.notEqual(empty.task, zh.publish.samplePlaceholder)
   assert.notEqual(empty.task, en.publish.samplePlaceholder)
+  assert.equal(zh.publish.askOptional, "再加一项可选输入")
+  assert.equal(en.publish.askOptional, "Add another optional input")
+  assert.equal(zh.output.playRoll, "写下掷出或抽到的结果。也可以拍下这次动作。")
+  assert.equal(en.output.playRoll, "Write the number you rolled or drew. A photo of that action is optional.")
   const named = previewFields({ title: "人肉画图机", description: "画一张", sample: "" })
   assert.equal(named.title, "人肉画图机")
   assert.equal(named.description, "画一张")
@@ -228,6 +234,16 @@ test("the first screen lists the carbon presets and drops the office catalog", (
   assert.equal(deliveryOf(SKILL_CATALOG.find((skill) => skill.name === "wetware_run")?.outputSchema), "text")
   assert.equal(deliveryOf(SKILL_CATALOG.find((skill) => skill.name === "offline_lookup")?.outputSchema), "text")
   assert.equal(deliveryOf(SKILL_CATALOG.find((skill) => skill.name === "human_check")?.outputSchema), "text")
+  const roll = SKILL_CATALOG.find((skill) => skill.name === "human_roll")
+  assert.ok(roll?.outputSchema)
+  assert.equal(roll.description, "掷骰或抽一张签，交回结果。也可以拍下这次动作。")
+  assert.deepEqual(roll.outputSchema.required, ["answer"])
+  assert.equal(roll.outputSchema.properties?.picture?.contentMediaType, "image/*")
+  assert.equal(roll.outputSchema.properties?.picture?.description, "骰子或签条的照片")
+  assert.equal(deliveryOf(roll.outputSchema), "image_text")
+  assert.equal(activePlay("human_roll", deliveryOf(roll.outputSchema)), "roll")
+  const paper = SKILL_CATALOG.find((skill) => skill.name === "paper_think")
+  assert.deepEqual(paper?.outputSchema?.required, ["answer", "picture"])
 })
 
 test("a new skill starts as one required text input", () => {
@@ -291,4 +307,31 @@ test("switching delivery type changes the schema the duty preview checks", () =>
   assert.deepEqual(both.required, ["answer", "picture"])
   assert.equal("picture" in text.properties, false)
   assert.equal(deliveryOf({ type: "object", properties: { note: { type: "integer" } }, required: ["note"] }), "custom")
+  assert.equal(
+    deliveryOf({
+      type: "object",
+      properties: {
+        answer: { type: "string" },
+        picture: { type: "string", contentMediaType: "image/*" },
+      },
+      required: ["answer"],
+    }),
+    "image_text",
+  )
+  assert.equal(
+    deliveryOf({
+      type: "object",
+      properties: { answer: { type: "string" }, note: { type: "string" } },
+      required: ["answer"],
+    }),
+    "custom",
+  )
+  assert.equal(
+    deliveryOf({
+      type: "object",
+      properties: { picture: { type: "string", contentMediaType: "image/*" } },
+      required: [],
+    }),
+    "custom",
+  )
 })

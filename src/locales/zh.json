@@ -125,7 +125,7 @@
     "addSkill": "再写一项",
     "sample": "一条示例需求",
     "samplePlaceholder": "写一条别人可能会发来的需求。右边会按这条预览。",
-    "askOptional": "再问一个可选问题",
+    "askOptional": "再加一项可选输入",
     "useTask": "先要一条任务描述",
     "deliver": "交什么",
     "deliverText": "文字",
@@ -219,6 +219,7 @@
       "image": "图片"
     },
     "requiredMark": "，必填",
+    "optionalMark": "，可选",
     "join": "；",
     "colon": "："
   },
@@ -298,7 +299,7 @@
     "fieldMustBe": "{name} 要是{label}",
     "playTimed": "最多画 30 秒。时间一到画板锁住，画成什么样就交什么样。",
     "playPaper": "写下算出来的答案，并拍一张纸上草稿。",
-    "playRoll": "写下掷出或抽到的结果，并附上这次动作的照片。",
+    "playRoll": "写下掷出或抽到的结果。也可以拍下这次动作。",
     "playWetware": "先把任务里的步骤在现实里做完，再把结果交回来。",
     "playBook": "从手边的书里找出一句，填在下面。",
     "playHuman": "指出上面这段回复里，最不像人说的那一句。",

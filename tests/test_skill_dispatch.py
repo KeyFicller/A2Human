@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 
 from a2human.a2a import dispatch_a2a
 from a2human.main import app
-from a2human.rules import DomainError, create_seed, publish_agent, receive_command, set_availability
-from a2human.schema_fields import canonical_output
+from a2human.rules import DomainError, create_seed, publish_agent, receive_command, set_availability, submit_artifact
+from a2human.schema_fields import canonical_output, describe_schema
 from a2human.skill_catalog import CATALOG_IDS, skill_catalog
 
 PRESETS = [
@@ -96,11 +96,67 @@ def test_catalog_delivery_uses_the_duty_output_check():
     with pytest.raises(ValueError):
         canonical_output(both, '{"answer":"42"}', False)
     rolled = by_name["human_roll"]["outputSchema"]
+    assert by_name["human_roll"]["description"] == "掷骰或抽一张签，交回结果。也可以拍下这次动作。"
+    assert rolled["required"] == ["answer"]
     assert "picture" in rolled["properties"] and "answer" in rolled["properties"]
+    assert describe_schema(rolled) == "answer 文字，必填：掷出或抽到的结果；picture 图片，可选：骰子或签条的照片"
+    assert canonical_output(rolled, '{"answer":"4"}', False) == '{"answer":"4"}'
+    assert canonical_output(rolled, '{"answer":"4"}', True) == '{"answer":"4"}'
+    with pytest.raises(ValueError, match="掷出或抽到的结果"):
+        canonical_output(rolled, "{}", False)
+    assert by_name["paper_think"]["outputSchema"]["required"] == ["answer", "picture"]
     text = by_name["human_check"]["outputSchema"]
     assert canonical_output(text, '{"answer":"第二句"}', False) == '{"answer":"第二句"}'
     with pytest.raises(ValueError):
         canonical_output(text, '{"answer":"第二句"}', True)
+
+
+def test_human_roll_handover_accepts_text_alone_and_text_with_a_photo():
+    rolled = next(item for item in skill_catalog() if item["name"] == "human_roll")
+    store = create_seed()
+    human = person(store, "米粒", [{
+        "name": "human_roll",
+        "title": rolled["title"],
+        "description": rolled["description"],
+        "inputSchema": rolled["inputSchema"],
+        "outputSchema": rolled["outputSchema"],
+    }])
+    text_only = receive_command(store, {
+        "humanId": human["id"],
+        "text": rolled["sample"],
+        "messageId": "roll-text",
+        "callerName": "某个大模型",
+        "skill": "human_roll",
+    })
+    handed = submit_artifact(store, text_only["id"], human["id"], '{"answer":"4"}')
+    assert handed["artifact"] == '{"answer":"4"}'
+    assert handed["artifactImage"] is None
+    missing = receive_command(store, {
+        "humanId": human["id"],
+        "text": rolled["sample"],
+        "messageId": "roll-empty",
+        "callerName": "某个大模型",
+        "skill": "human_roll",
+    })
+    with pytest.raises(DomainError, match="掷出或抽到的结果"):
+        submit_artifact(store, missing["id"], human["id"], "{}")
+    pictured = receive_command(store, {
+        "humanId": human["id"],
+        "text": rolled["sample"],
+        "messageId": "roll-photo",
+        "callerName": "某个大模型",
+        "skill": "human_roll",
+    })
+    png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    shown = submit_artifact(
+        store,
+        pictured["id"],
+        human["id"],
+        '{"answer":"6"}',
+        {"mediaType": "image/png", "raw": png, "filename": "dice.png"},
+    )
+    assert shown["artifact"] == '{"answer":"6"}'
+    assert shown["artifactImage"]["filename"] == "dice.png"
 
 
 def test_a_catalog_skill_publishes_and_the_description_can_be_edited():

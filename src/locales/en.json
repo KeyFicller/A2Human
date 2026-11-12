@@ -125,7 +125,7 @@
     "addSkill": "Write another",
     "sample": "One sample request",
     "samplePlaceholder": "Write a request someone might send. The preview on the right uses it.",
-    "askOptional": "Ask one optional question",
+    "askOptional": "Add another optional input",
     "useTask": "Start with one task description",
     "deliver": "What you hand back",
     "deliverText": "Text",
@@ -219,6 +219,7 @@
       "image": "image"
     },
     "requiredMark": ", required",
+    "optionalMark": ", optional",
     "join": "; ",
     "colon": ": "
   },
@@ -298,7 +299,7 @@
     "fieldMustBe": "{name} must be {label}",
     "playTimed": "Draw for at most 30 seconds. When time is up the board locks, and whatever you finished is the image.",
     "playPaper": "Write the answer you worked out, and photograph the paper draft.",
-    "playRoll": "Write the number you rolled or drew, and attach a photo of that action.",
+    "playRoll": "Write the number you rolled or drew. A photo of that action is optional.",
     "playWetware": "Do the steps in the task for real, then hand back the result.",
     "playBook": "Find one sentence in a book nearby and write it below.",
     "playHuman": "Point out the sentence above that sounds least like a person.",
