@@ -6,6 +6,7 @@ import { FieldControl } from "@/components/field-control"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { phrase } from "@/lib/copy"
 import { parseFieldValue } from "@/lib/field-control"
 import { fieldTypeLabel, outputShape, type SchemaField } from "@/lib/schema-fields"
 import type { JsonSchema, TaskImage } from "@/lib/types"
@@ -53,10 +54,16 @@ export function OutputForm({
     onDirty?.()
   }
 
-  function fileInput(label: string) {
+  function fileInput(label: string, optional = false) {
     return (
       <div className="block text-sm">
         {label}
+        {optional ? (
+          <span className="ml-2 text-xs text-muted-foreground">
+            {fieldTypeLabel("image", locale)}
+            {phrase("schema.optionalMark", undefined, locale)}
+          </span>
+        ) : null}
         <FieldControl type="image" ariaLabel={label} onImage={takeImage} onImageError={onError} />
       </div>
     )
@@ -176,7 +183,7 @@ export function OutputForm({
           </div>
         )
       })}
-      {images.length === 1 ? (board && imageOnly ? <DrawBoard onImage={takeImage} /> : fileInput(fieldLabel(images[0]))) : null}
+      {images.length === 1 ? (board && imageOnly ? <DrawBoard onImage={takeImage} /> : fileInput(fieldLabel(images[0]), !images[0].required)) : null}
       <Button
         type="button"
         variant={submitVariant}

@@ -253,6 +253,7 @@ def describe_schema(schema: JsonSchema, locale: str = "zh") -> str:
         return dumps(schema)
     labels = {kind: field_type_label(kind, locale) for kind in FIELD_TYPES}
     required = phrase("schema.requiredMark", None, locale)
+    optional = phrase("schema.optionalMark", None, locale)
     joiner = phrase("schema.join", None, locale)
     colon = phrase("schema.colon", None, locale)
     parts = []
@@ -261,7 +262,13 @@ def describe_schema(schema: JsonSchema, locale: str = "zh") -> str:
         if field.get("enum"):
             values = phrase("schema.enumJoin", None, locale).join(str(item) for item in field["enum"])
             enum_mark = phrase("schema.enumMark", {"values": values}, locale)
-        head = f"{field['name']} {labels[field['type']]}{required if field['required'] else ''}{enum_mark}"
+        if field["required"]:
+            mark = required
+        elif field["type"] == "image":
+            mark = optional
+        else:
+            mark = ""
+        head = f"{field['name']} {labels[field['type']]}{mark}{enum_mark}"
         parts.append(f"{head}{colon}{field['description']}" if field.get("description") else head)
     return joiner.join(parts)
 

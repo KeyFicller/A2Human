@@ -238,12 +238,12 @@ export function deliveryOf(
   const entries = Object.entries(schema.properties)
   if (!entries.length) return "custom"
   const required = new Set(Array.isArray(schema.required) ? schema.required.filter((item): item is string => typeof item === "string") : [])
-  if (!entries.every(([name]) => required.has(name))) return "custom"
   const images = entries.filter(([, value]) => isImageProperty(value))
   const rest = entries.filter(([, value]) => !isImageProperty(value))
-  if (images.length === 1 && rest.length === 0) return "image"
-  if (images.length === 1 && rest.length === 1 && rest[0][1].type === "string") return "image_text"
-  if (images.length === 0 && rest.length === 1 && rest[0][1].type === "string") return "text"
+  const listed = (name: string) => required.has(name)
+  if (images.length === 1 && rest.length === 0) return listed(images[0][0]) ? "image" : "custom"
+  if (images.length === 1 && rest.length === 1 && rest[0][1].type === "string" && listed(rest[0][0])) return "image_text"
+  if (images.length === 0 && rest.length === 1 && rest[0][1].type === "string" && listed(rest[0][0])) return "text"
   return "custom"
 }
 

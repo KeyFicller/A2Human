@@ -202,13 +202,15 @@ export function describeSchema(schema: JsonSchema, locale: Locale = "zh") {
     image: fieldTypeLabel("image", locale),
   }
   const required = phrase("schema.requiredMark", undefined, locale)
+  const optional = phrase("schema.optionalMark", undefined, locale)
   const joiner = phrase("schema.join", undefined, locale)
   const colon = phrase("schema.colon", undefined, locale)
   return fields
     .map((field) => {
       const values = field.enum?.map(String).join(phrase("schema.enumJoin", undefined, locale))
       const enumMark = values ? phrase("schema.enumMark", { values }, locale) : ""
-      const head = `${field.name} ${labels[field.type]}${field.required ? required : ""}${enumMark}`
+      const mark = field.required ? required : field.type === "image" ? optional : ""
+      const head = `${field.name} ${labels[field.type]}${mark}${enumMark}`
       return field.description ? `${head}${colon}${field.description}` : head
     })
     .join(joiner)

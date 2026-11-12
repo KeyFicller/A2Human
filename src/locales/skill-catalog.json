@@ -43,7 +43,7 @@
   {
     "name": "human_roll",
     "title": "人肉随机数",
-    "description": "掷骰或抽一张签，交回结果，并拍下这次动作。",
+    "description": "掷骰或抽一张签，交回结果。也可以拍下这次动作。",
     "sample": "掷一颗六面骰，把点数告诉我。",
     "inputSchema": {
       "type": "object",
@@ -58,7 +58,7 @@
         "answer": { "type": "string", "description": "掷出或抽到的结果" },
         "picture": { "type": "string", "contentMediaType": "image/*", "description": "骰子或签条的照片" }
       },
-      "required": ["answer", "picture"]
+      "required": ["answer"]
     }
   },
   {
