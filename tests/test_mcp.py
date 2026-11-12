@@ -164,6 +164,22 @@ async def test_a_chinese_skill_name_is_shown_on_the_listed_tool():
     assert modern_fish["description"].split("\n", 1)[0] == shown
 
 
+async def test_a_display_title_is_listed_while_the_tool_id_stays_in_the_function_name():
+    store = create_seed()
+    person = publish_agent(store, {
+        "name": "米粒",
+        "bio": "会想。",
+        "skills": [{"name": "carbon_reason", "title": "碳基推理引擎", "description": "在纸上推完再交。"}],
+    })
+    set_availability(store, person["id"], True)
+    listed = await handle_mcp({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, memory(store))
+    tool = next(item for item in body_of(listed)["result"]["tools"] if item["name"] != "a2h_score")
+    assert tool["title"] == "碳基推理引擎 · 米粒"
+    assert tool["description"].split("\n", 1)[0] == "碳基推理引擎 · 米粒"
+    assert "在纸上推完再交。" in tool["description"]
+    assert re.fullmatch(r"a2h_[0-9a-f]{8}_carbon_reason_[0-9a-f]{8}", tool["name"])
+
+
 async def test_tools_list_accepts_a_task_id_only_poll_and_keeps_skill_fields_required():
     store, _on = world()
     listed = await handle_mcp({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, memory(store))

@@ -16,6 +16,7 @@ export type SchemaField = {
   type: FieldType
   required: boolean
   description?: string
+  example?: string
   enum?: Array<string | number>
 }
 
@@ -65,12 +66,23 @@ export function enumList(type: "string" | "integer" | "number", value: unknown):
 
 function propertySchema(field: SchemaField): JsonSchema {
   const description = field.description?.trim()
+  const example = field.type === "image" ? "" : field.example?.trim() ?? ""
   const base: JsonSchema = field.type === "image" ? { type: "string", contentMediaType: "image/*" } : { type: field.type }
   const choices =
     field.type === "string" || field.type === "integer" || field.type === "number" ? enumList(field.type, field.enum) : []
   const listed = choices && choices.length ? { enum: choices } : {}
-  if (!description) return { ...base, ...listed }
-  return { ...base, ...listed, description: [...description].slice(0, 120).join("") }
+  const exemplified = example ? { examples: [[...example].slice(0, 120).join("")] } : {}
+  if (!description) return { ...base, ...listed, ...exemplified }
+  return { ...base, ...listed, ...exemplified, description: [...description].slice(0, 120).join("") }
+}
+
+function readExample(record: Record<string, unknown>) {
+  if (!("examples" in record)) return undefined
+  const value = record.examples
+  if (!Array.isArray(value) || value.length !== 1 || typeof value[0] !== "string") return null
+  const text = value[0].trim()
+  if (!text || [...text].length > 120) return null
+  return text
 }
 
 export function fieldsToSchema(fields: SchemaField[]): JsonSchema | undefined {
@@ -110,16 +122,26 @@ export function schemaToFields(schema: JsonSchema): SchemaField[] | null {
       fields.push({ name, type: "image", required: required.has(name), ...described })
       continue
     }
-    if (keys.some((key) => key !== "type" && key !== "description" && key !== "enum")) return null
+    const example = readExample(record)
+    if (example === null) return null
+    const exemplified = example ? { example } : {}
+    if (keys.some((key) => key !== "type" && key !== "description" && key !== "enum" && key !== "examples")) return null
     if (!isFieldType(record.type) || record.type === "image") return null
     if (record.type === "boolean") {
       if ("enum" in record) return null
-      fields.push({ name, type: record.type, required: required.has(name), ...described })
+      fields.push({ name, type: record.type, required: required.has(name), ...described, ...exemplified })
       continue
     }
     const choices = enumList(record.type, "enum" in record ? record.enum : undefined)
     if (!choices) return null
-    fields.push({ name, type: record.type, required: required.has(name), ...described, ...(choices.length ? { enum: choices } : {}) })
+    fields.push({
+      name,
+      type: record.type,
+      required: required.has(name),
+      ...described,
+      ...exemplified,
+      ...(choices.length ? { enum: choices } : {}),
+    })
   }
   return fields
 }

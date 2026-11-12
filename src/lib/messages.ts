@@ -88,26 +88,56 @@ export type Messages = {
   publish: {
     edit: string
     create: string
+    pageTitle: string
+    pageLead: string
     lead: string
     name: string
     bio: string
     bioPlaceholder: string
-    legend: string
-    catalogLead: string
-    skillName: string
-    skillPlaceholder: string
-    lockedName: string
-    canDo: string
-    canDoPlaceholder: string
-    removeSkill: string
+    personHint: string
+    who: string
+    before: string
+    displayName: string
+    displayPlaceholder: string
+    callWhen: string
+    callHint: string
+    toolId: string
+    toolIdHint: string
     customAdd: string
-    customName: string
-    customHint: string
-    customPlaceholder: string
+    addSkill: string
+    sample: string
+    samplePlaceholder: string
+    askOptional: string
+    useTask: string
+    deliver: string
+    deliverText: string
+    deliverImage: string
+    deliverBoth: string
+    deliverCustom: string
+    advanced: string
+    advancedHide: string
+    previewTitle: string
+    previewAgent: string
+    previewWorker: string
+    workerMark: string
+    localOnly: string
+    simulate: string
+    simulateOk: string
+    deliveryHint: string
+    installed: string
+    agentSees: string
+    noPreview: string
+    outputUnread: string
+    pillRequired: string
+    pillOptional: string
+    taskLabel: string
+    needTitle: string
+    needDescription: string
+    pair: string
+    removeSkill: string
     customInvalid: string
     customReserved: string
     needSkill: string
-    addSkill: string
     duplicate: string
     writing: string
     save: string
@@ -139,6 +169,11 @@ export type Messages = {
     enumPlaceholder: string
     enumInvalid: string
     ariaEnum: (label: string) => string
+    more: string
+    less: string
+    example: string
+    examplePlaceholder: string
+    ariaExample: (label: string) => string
     line: (label: string, body: string) => string
   }
   notice: {
@@ -299,26 +334,56 @@ function bind(locale: Locale): Messages {
     publish: {
       edit: text("publish.edit"),
       create: text("publish.create"),
+      pageTitle: text("publish.pageTitle"),
+      pageLead: text("publish.pageLead"),
       lead: text("publish.lead"),
       name: text("publish.name"),
       bio: text("publish.bio"),
       bioPlaceholder: text("publish.bioPlaceholder"),
-      legend: text("publish.legend"),
-      catalogLead: text("publish.catalogLead"),
-      skillName: text("publish.skillName"),
-      skillPlaceholder: text("publish.skillPlaceholder"),
-      lockedName: text("publish.lockedName"),
-      canDo: text("publish.canDo"),
-      canDoPlaceholder: text("publish.canDoPlaceholder"),
-      removeSkill: text("publish.removeSkill"),
+      personHint: text("publish.personHint"),
+      who: text("publish.who"),
+      before: text("publish.before"),
+      displayName: text("publish.displayName"),
+      displayPlaceholder: text("publish.displayPlaceholder"),
+      callWhen: text("publish.callWhen"),
+      callHint: text("publish.callHint"),
+      toolId: text("publish.toolId"),
+      toolIdHint: text("publish.toolIdHint"),
       customAdd: text("publish.customAdd"),
-      customName: text("publish.customName"),
-      customHint: text("publish.customHint"),
-      customPlaceholder: text("publish.customPlaceholder"),
+      addSkill: text("publish.addSkill"),
+      sample: text("publish.sample"),
+      samplePlaceholder: text("publish.samplePlaceholder"),
+      askOptional: text("publish.askOptional"),
+      useTask: text("publish.useTask"),
+      deliver: text("publish.deliver"),
+      deliverText: text("publish.deliverText"),
+      deliverImage: text("publish.deliverImage"),
+      deliverBoth: text("publish.deliverBoth"),
+      deliverCustom: text("publish.deliverCustom"),
+      advanced: text("publish.advanced"),
+      advancedHide: text("publish.advancedHide"),
+      previewTitle: text("publish.previewTitle"),
+      previewAgent: text("publish.previewAgent"),
+      previewWorker: text("publish.previewWorker"),
+      workerMark: text("publish.workerMark"),
+      localOnly: text("publish.localOnly"),
+      simulate: text("publish.simulate"),
+      simulateOk: text("publish.simulateOk"),
+      deliveryHint: text("publish.deliveryHint"),
+      installed: text("publish.installed"),
+      agentSees: text("publish.agentSees"),
+      noPreview: text("publish.noPreview"),
+      outputUnread: text("publish.outputUnread"),
+      pillRequired: text("publish.pillRequired"),
+      pillOptional: text("publish.pillOptional"),
+      taskLabel: text("publish.taskLabel"),
+      needTitle: text("publish.needTitle"),
+      needDescription: text("publish.needDescription"),
+      pair: text("publish.pair"),
+      removeSkill: text("publish.removeSkill"),
       customInvalid: text("publish.customInvalid"),
       customReserved: text("publish.customReserved"),
       needSkill: text("publish.needSkill"),
-      addSkill: text("publish.addSkill"),
       duplicate: text("publish.duplicate"),
       writing: text("publish.writing"),
       save: text("publish.save"),
@@ -350,6 +415,11 @@ function bind(locale: Locale): Messages {
       enumPlaceholder: text("schema.enumPlaceholder"),
       enumInvalid: text("schema.enumInvalid"),
       ariaEnum: (label) => text("schema.ariaEnum", { label }),
+      more: text("schema.more"),
+      less: text("schema.less"),
+      example: text("schema.example"),
+      examplePlaceholder: text("schema.examplePlaceholder"),
+      ariaExample: (label) => text("schema.ariaExample", { label }),
       line: (label, body) => text("schema.line", { label, body }),
     },
     notice: {

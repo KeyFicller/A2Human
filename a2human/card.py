@@ -9,10 +9,17 @@ from a2human.rules import on_duty, work_record
 from a2human.schema_fields import contract_modes
 
 
+def _written_skill(skill: dict[str, Any]) -> str:
+    title = skill.get("title")
+    if isinstance(title, str) and title.strip():
+        return title.strip()
+    return skill["name"]
+
+
 def _skill_entry(skill: dict[str, Any]) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "id": skill["name"],
-        "name": skill["name"],
+        "name": _written_skill(skill),
         "description": skill["description"],
         "tags": ["human"],
     }

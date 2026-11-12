@@ -3,9 +3,16 @@ import type { JsonSchema } from "./types"
 
 export type CatalogSkill = {
   name: string
+  title: string
   description: string
+  sample: string
   inputSchema?: JsonSchema
   outputSchema?: JsonSchema
+}
+
+export function skillLabel(skill: { name: string; title?: string }) {
+  const title = skill.title?.trim()
+  return title || skill.name
 }
 
 /** Same file the API validates against (`GET /api/skill-catalog`). */

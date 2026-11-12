@@ -48,6 +48,8 @@ function FieldList({
 }) {
   const { locale, t } = useLocale()
   const [enumText, setEnumText] = useState<Record<number, string>>({})
+  const [open, setOpen] = useState<Record<number, boolean>>({})
+  const needsChoices = (type: SchemaField["type"]) => type === "string" || type === "integer" || type === "number"
   function updateField(index: number, patch: Partial<SchemaField>) {
     onChange({
       ...draft,
@@ -115,42 +117,63 @@ function FieldList({
                 className="h-8 text-left text-sm text-stamp"
                 onClick={() => {
                   setEnumText({})
+                  setOpen({})
                   onChange({ ...draft, fields: draft.fields.filter((_, item) => item !== index) })
                 }}
               >
                 {t.schema.remove}
               </button>
             </div>
-            <label className="ml-4 block border-l border-[#e4dccb] pl-3 text-xs text-muted-foreground">
-              {t.schema.note}
-              <Input
-                className="mt-1"
-                value={field.description ?? ""}
-                maxLength={120}
-                placeholder={t.schema.notePlaceholder}
-                aria-label={t.schema.ariaNote(label)}
-                onChange={(event) => updateField(index, { description: event.target.value })}
-              />
-            </label>
-            {field.type === "string" || field.type === "integer" || field.type === "number" ? (
-              <label className="ml-4 block border-l border-[#e4dccb] pl-3 text-xs text-muted-foreground">
-                {t.schema.enum}
-                <Textarea
-                  className="mt-1"
-                  value={enumText[index] ?? formatEnum(field.enum)}
-                  placeholder={t.schema.enumPlaceholder}
-                  aria-label={t.schema.ariaEnum(label)}
-                  onChange={(event) => {
-                    const next = event.target.value
-                    setEnumText((current) => ({ ...current, [index]: next }))
-                    const parsed = parseEnumText(next, field.type as "string" | "integer" | "number")
-                    updateField(index, { enum: parsed.ok && parsed.values.length ? parsed.values : undefined })
-                  }}
-                />
-                {enumText[index]?.trim() && !parseEnumText(enumText[index] ?? "", field.type as "string" | "integer" | "number").ok ? (
-                  <p className="mt-1 text-stamp">{t.schema.enumInvalid}</p>
+            <button type="button" className="text-left text-xs text-stamp" onClick={() => setOpen((current) => ({ ...current, [index]: !current[index] }))}>
+              {open[index] ? t.schema.less : t.schema.more}
+            </button>
+            {open[index] ? (
+              <div className="ml-4 space-y-2 border-l border-[#e4dccb] pl-3">
+                <label className="block text-xs text-muted-foreground">
+                  {t.schema.note}
+                  <Input
+                    className="mt-1"
+                    value={field.description ?? ""}
+                    maxLength={120}
+                    placeholder={t.schema.notePlaceholder}
+                    aria-label={t.schema.ariaNote(label)}
+                    onChange={(event) => updateField(index, { description: event.target.value })}
+                  />
+                </label>
+                {field.type !== "image" ? (
+                  <label className="block text-xs text-muted-foreground">
+                    {t.schema.example}
+                    <Input
+                      className="mt-1"
+                      value={field.example ?? ""}
+                      maxLength={120}
+                      placeholder={t.schema.examplePlaceholder}
+                      aria-label={t.schema.ariaExample(label)}
+                      onChange={(event) => updateField(index, { example: event.target.value })}
+                    />
+                  </label>
                 ) : null}
-              </label>
+                {needsChoices(field.type) ? (
+                  <label className="block text-xs text-muted-foreground">
+                    {t.schema.enum}
+                    <Textarea
+                      className="mt-1"
+                      value={enumText[index] ?? formatEnum(field.enum)}
+                      placeholder={t.schema.enumPlaceholder}
+                      aria-label={t.schema.ariaEnum(label)}
+                      onChange={(event) => {
+                        const next = event.target.value
+                        setEnumText((current) => ({ ...current, [index]: next }))
+                        const parsed = parseEnumText(next, field.type as "string" | "integer" | "number")
+                        updateField(index, { enum: parsed.ok && parsed.values.length ? parsed.values : undefined })
+                      }}
+                    />
+                    {enumText[index]?.trim() && !parseEnumText(enumText[index] ?? "", field.type as "string" | "integer" | "number").ok ? (
+                      <p className="mt-1 text-stamp">{t.schema.enumInvalid}</p>
+                    ) : null}
+                  </label>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ))}

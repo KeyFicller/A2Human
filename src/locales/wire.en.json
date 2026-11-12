@@ -23,6 +23,7 @@
   "skill": {
     "shape": "A skill needs a name and what it can finish",
     "name": "Use 1 to 24 characters for the skill name",
+    "title": "Use 1 to 32 characters for the skill's display name",
     "description": "Use 1 to 120 characters for the skill description",
     "duplicate": "Skill names cannot repeat",
     "type": "skill must be a skill name",

@@ -8,20 +8,29 @@ from fastapi.testclient import TestClient
 from a2human.a2a import dispatch_a2a
 from a2human.main import app
 from a2human.rules import DomainError, create_seed, publish_agent, receive_command, set_availability
+from a2human.schema_fields import canonical_output
 from a2human.skill_catalog import CATALOG_IDS, skill_catalog
 
-EVERYDAY = [
-    ("translate", "中英互译"),
-    ("summarize", "长文/会议纪要压缩"),
-    ("rewrite", "改语气、改得更顺"),
-    ("proofread", "错别字和病句"),
-    ("brainstorm", "点子、标题、活动方案"),
-    ("schedule", "约时间、排日程"),
-    ("research", "查公开资料并给出处"),
-    ("coach", "简历/面试口头陪练"),
-    ("customer_reply", "客服式礼貌回复"),
-    ("plan_trip", "行程与清单建议"),
+PRESETS = [
+    ("hand_draw", "碳基图像生成"),
+    ("paper_think", "物理深度思考"),
+    ("human_roll", "人肉随机数"),
+    ("wetware_run", "湿件代码执行"),
+    ("offline_lookup", "离线知识检索"),
+    ("human_check", "人类兼容性测试"),
 ]
+OFFICE = {
+    "translate",
+    "summarize",
+    "rewrite",
+    "proofread",
+    "brainstorm",
+    "schedule",
+    "research",
+    "coach",
+    "customer_reply",
+    "plan_trip",
+}
 
 
 def person(store, name, skills, available=True):
@@ -54,16 +63,39 @@ def result_of(response):
     return response["result"]
 
 
-def test_catalog_lists_the_everyday_skills_with_paired_schemas():
+def test_catalog_lists_the_carbon_presets_and_not_the_office_catalog():
     catalog = skill_catalog()
-    assert [(item["name"], item["description"]) for item in catalog] == EVERYDAY
-    assert CATALOG_IDS == {name for name, _description in EVERYDAY}
+    assert [(item["name"], item["title"]) for item in catalog] == PRESETS
+    assert CATALOG_IDS == {name for name, _title in PRESETS}
+    assert OFFICE.isdisjoint(CATALOG_IDS)
     for item in catalog:
+        assert 1 <= len(item["title"]) <= 32
         assert 1 <= len(item["description"]) <= 120
-        assert item["inputSchema"]["type"] == "object"
+        assert item["sample"].strip()
+        assert item["inputSchema"]["required"] == ["task"]
+        assert list(item["inputSchema"]["properties"]) == ["task"]
+        assert item["inputSchema"]["properties"]["task"]["type"] == "string"
+        assert item["inputSchema"]["properties"]["task"]["description"] == "任务描述"
         assert item["outputSchema"]["type"] == "object"
-        assert item["inputSchema"]["properties"]
         assert item["outputSchema"]["properties"]
+
+
+def test_catalog_delivery_uses_the_duty_output_check():
+    by_name = {item["name"]: item for item in skill_catalog()}
+    image = by_name["hand_draw"]["outputSchema"]
+    assert canonical_output(image, "", True) == ""
+    with pytest.raises(ValueError):
+        canonical_output(image, "", False)
+    both = by_name["paper_think"]["outputSchema"]
+    assert canonical_output(both, '{"answer":"42"}', True) == '{"answer":"42"}'
+    with pytest.raises(ValueError):
+        canonical_output(both, '{"answer":"42"}', False)
+    rolled = by_name["human_roll"]["outputSchema"]
+    assert "picture" in rolled["properties"] and "answer" in rolled["properties"]
+    text = by_name["human_check"]["outputSchema"]
+    assert canonical_output(text, '{"answer":"第二句"}', False) == '{"answer":"第二句"}'
+    with pytest.raises(ValueError):
+        canonical_output(text, '{"answer":"第二句"}', True)
 
 
 def test_a_catalog_skill_publishes_and_the_description_can_be_edited():
@@ -71,21 +103,36 @@ def test_a_catalog_skill_publishes_and_the_description_can_be_edited():
     created = publish_agent(store, {
         "name": "阿梨",
         "bio": "",
-        "skills": [{"name": "translate", "description": "只做中文译成英文"}],
+        "skills": [{"name": "hand_draw", "title": "碳基图像生成", "description": "只交一张手绘。"}],
     })
-    assert created["skills"] == [{"name": "translate", "description": "只做中文译成英文"}]
+    assert created["skills"] == [{"name": "hand_draw", "description": "只交一张手绘。", "title": "碳基图像生成"}]
+
+
+def test_publish_stores_the_display_name_apart_from_the_tool_id():
+    store = create_seed()
+    created = publish_agent(store, {
+        "name": "阿梨",
+        "bio": "",
+        "skills": [{"name": "carbon_reason", "title": "碳基推理引擎", "description": "在纸上推完再交。"}],
+    })
+    assert created["skills"][0]["name"] == "carbon_reason"
+    assert created["skills"][0]["title"] == "碳基推理引擎"
+    kept = publish_agent(store, {"name": "老周", "bio": "", "skills": [{"name": "计数", "description": "数清楚。"}]})
+    assert "title" not in kept["skills"][0]
+    with pytest.raises(DomainError, match="显示名"):
+        publish_agent(store, {"name": "小北", "bio": "", "skills": [{"name": "note", "title": "名" * 33, "description": "太长了。"}]})
 
 
 def test_a_custom_name_cannot_shadow_a_catalog_id():
     store = create_seed()
     with pytest.raises(DomainError, match="预置技能"):
-        publish_agent(store, {"name": "阿梨", "bio": "", "skills": [{"name": "Translate", "description": "自己起的名"}]})
+        publish_agent(store, {"name": "阿梨", "bio": "", "skills": [{"name": "Hand_Draw", "description": "自己起的名"}]})
     kept = publish_agent(store, {"name": "老周", "bio": "", "skills": [{"name": "neighborhood", "description": "邻里通知写顺。"}]})
     assert kept["skills"][0]["name"] == "neighborhood"
     with pytest.raises(DomainError, match="预置技能"):
         from a2human.rules import update_agent
 
-        update_agent(store, kept["id"], {"name": "老周", "bio": "", "skills": [{"name": "Plan_Trip", "description": "自己起的名"}]})
+        update_agent(store, kept["id"], {"name": "老周", "bio": "", "skills": [{"name": "Paper_Think", "description": "自己起的名"}]})
 
 
 def test_custom_skills_share_the_six_skill_cap():
@@ -113,7 +160,7 @@ def test_existing_length_and_count_rules_still_apply():
         publish_agent(store, {
             "name": "老周",
             "bio": "",
-            "skills": [{"name": name, "description": description} for name, description in EVERYDAY[:6]]
+            "skills": [{"name": name, "description": title} for name, title in PRESETS[:6]]
             + [{"name": "extra_note", "description": "多出来的一项。"}],
         })
     with pytest.raises(DomainError, match="不能重复"):
@@ -234,7 +281,7 @@ def test_http_catalog_and_dispatch_routes():
         catalog = client.get("/api/skill-catalog")
         assert catalog.status_code == 200
         body = catalog.json()
-        assert [(item["name"], item["description"]) for item in body["skills"]] == EVERYDAY
+        assert [(item["name"], item["title"]) for item in body["skills"]] == PRESETS
         created = client.post("/api/agents", json={
             "name": "米粒",
             "bio": "会译。",
@@ -247,7 +294,7 @@ def test_http_catalog_and_dispatch_routes():
         shadowed = client.post("/api/agents", json={
             "name": "阿梨",
             "bio": "",
-            "skills": [{"name": "Translate", "description": "不行"}],
+            "skills": [{"name": "Hand_Draw", "description": "不行"}],
         })
         assert shadowed.status_code == 400
         assert "预置技能" in shadowed.json()["error"]

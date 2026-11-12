@@ -12,6 +12,7 @@ import { ErrorNote } from "@/components/status"
 import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
 import { RecordFigures } from "@/components/record-figures"
+import { skillLabel } from "@/lib/skill-catalog"
 import type { Agent } from "@/lib/types"
 
 export function ProfileFallback() {
@@ -87,7 +88,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
         <ul className="mt-6 space-y-3">
           {agent.skills.map((skill) => (
             <li key={skill.name}>
-              <Badge variant="secondary">{skill.name}</Badge>
+              <Badge variant="secondary">{skillLabel(skill)}</Badge>
               <p className="mt-1 text-sm leading-6">{skill.description}</p>
               <SchemaSummary skill={skill} />
             </li>

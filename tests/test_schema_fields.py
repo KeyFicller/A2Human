@@ -30,6 +30,18 @@ def test_a_field_can_carry_a_description():
     assert schema_to_fields({"type": "object", "properties": {"n": {"type": "string", "description": "x" * 121}}}) is None
 
 
+def test_a_field_note_and_example_stay_on_the_duty_form():
+    schema = fields_to_schema([
+        {"name": "task", "type": "string", "required": True, "description": "任务描述", "example": "画一只猫"},
+    ])
+    assert schema["properties"]["task"]["examples"] == ["画一只猫"]
+    assert schema["properties"]["task"]["description"] == "任务描述"
+    assert schema_to_fields(schema) == [
+        {"name": "task", "type": "string", "required": True, "description": "任务描述", "example": "画一只猫"},
+    ]
+    assert canonical_output(schema, '{"task":"画一只猫"}', False) == '{"task":"画一只猫"}'
+
+
 def test_an_image_field_is_a_string_with_an_image_media_type():
     schema = fields_to_schema([{"name": "照片", "type": "image", "required": True}])
     assert schema == {
@@ -89,3 +101,12 @@ def test_an_output_has_to_match_the_declared_schema():
         canonical_output(image, "", False)
     with pytest.raises(ValueError, match="没有图片"):
         canonical_output(schema, '{"count":3}', True)
+    both = fields_to_schema([
+        {"name": "answer", "type": "string", "required": True},
+        {"name": "picture", "type": "image", "required": True},
+    ])
+    assert canonical_output(both, '{"answer":"42"}', True) == '{"answer":"42"}'
+    with pytest.raises(ValueError, match="图片"):
+        canonical_output(both, '{"answer":"42"}', False)
+    with pytest.raises(ValueError, match="answer"):
+        canonical_output(both, "", True)
