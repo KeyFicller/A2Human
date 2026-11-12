@@ -17,4 +17,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/field-control.test.ts
+      - run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/*.test.ts

@@ -9,7 +9,7 @@
     "start": "bash scripts/start.sh",
     "api": "python3 -m uvicorn a2human.main:app --host 127.0.0.1 --port 3848",
     "lint": "eslint",
-    "test": "python3 -m pytest && node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/field-control.test.ts"
+    "test": "python3 -m pytest && node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

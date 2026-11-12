@@ -12,6 +12,7 @@ import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { go, pagesExport } from "@/lib/paths"
 import { draftFromSchema, duplicateFieldName, emptySchemaDraft, schemaPayload, type SchemaDraft } from "@/lib/schema-fields"
+import { canAddCustomSkill, customSkillAddLabel } from "@/lib/publish-skills"
 import {
   CUSTOM_SKILL_NAME,
   SKILL_CATALOG,
@@ -86,7 +87,7 @@ export default function PublishPage() {
   const nameValue = name ?? agent?.name ?? ""
   const bioValue = bio ?? agent?.bio ?? ""
   const skillValue = skills ?? (agent?.skills.length ? agent.skills.map((skill) => draftFrom(skill, names)) : [])
-  const customCount = skillValue.filter((skill) => skill.kind !== "catalog").length
+  const customCount = skillValue.filter((skill) => skill.kind === "custom").length
 
   if (!ready) return <LoadingLine />
 
@@ -261,9 +262,9 @@ export default function PublishPage() {
               </button>
             </div>
           ))}
-          {customCount < 1 && skillValue.length < 6 ? (
+          {canAddCustomSkill(skillValue.length) ? (
             <button type="button" className="text-sm text-stamp" onClick={() => setSkills([...skillValue, emptyCustom()])}>
-              {t.publish.customAdd}
+              {t.publish[customSkillAddLabel(customCount)]}
             </button>
           ) : null}
         </fieldset>
