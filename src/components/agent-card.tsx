@@ -5,6 +5,7 @@ import { useLocale } from "@/components/locale-provider"
 import { RecordFigures } from "@/components/record-figures"
 import { SchemaSummary } from "@/components/schema-summary"
 import { Badge } from "@/components/ui/badge"
+import { skillLabel } from "@/lib/skill-catalog"
 import type { Agent } from "@/lib/types"
 
 export function AgentCard({ agent }: { agent: Agent }) {
@@ -20,7 +21,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       <ul className="mt-4 space-y-2">
         {agent.skills.map((skill) => (
           <li key={skill.name}>
-            <Badge variant="secondary">{skill.name}</Badge>
+            <Badge variant="secondary">{skillLabel(skill)}</Badge>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">{skill.description}</p>
             <SchemaSummary skill={skill} />
           </li>

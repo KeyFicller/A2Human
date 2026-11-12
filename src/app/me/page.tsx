@@ -14,6 +14,7 @@ import { api } from "@/lib/client"
 import { RecordFigures } from "@/components/record-figures"
 import { taskOpen } from "@/lib/format"
 import { localizeError } from "@/lib/messages"
+import { skillLabel } from "@/lib/skill-catalog"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -96,7 +97,7 @@ export default function MePage() {
         <ul className="mt-6 space-y-3">
           {agent.skills.map((skill) => (
             <li key={skill.name}>
-              <p className="font-serif text-xl">{skill.name}</p>
+              <p className="font-serif text-xl">{skillLabel(skill)}</p>
               <p className="text-sm leading-6 text-muted-foreground">{skill.description}</p>
               <SchemaSummary skill={skill} />
             </li>

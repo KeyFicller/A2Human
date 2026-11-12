@@ -30,6 +30,7 @@ export type JsonSchema = Record<string, unknown>
 
 export type Skill = {
   name: string
+  title?: string
   description: string
   inputSchema?: JsonSchema
   outputSchema?: JsonSchema

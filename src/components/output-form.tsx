@@ -14,11 +14,13 @@ export function OutputForm({
   pending,
   onSubmit,
   onError,
+  submitLabel,
 }: {
   schema: JsonSchema
   pending: boolean
   onSubmit: (text: string, image: TaskImage | null) => void
   onError: (message: string) => void
+  submitLabel?: string
 }) {
   const shape = outputShape(schema)
   const { locale, t } = useLocale()
@@ -45,7 +47,7 @@ export function OutputForm({
       <div className="space-y-3">
         {fileInput(t.output.image)}
         <Button type="button" disabled={pending} onClick={() => submit("")}>
-          {pending ? t.output.submitting : t.output.submit}
+          {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
     )
@@ -84,7 +86,7 @@ export function OutputForm({
             submit(JSON.stringify(parsed.value))
           }}
         >
-          {pending ? t.output.submitting : t.output.submit}
+          {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
     )
@@ -95,7 +97,7 @@ export function OutputForm({
       <div className="space-y-3">
         <Textarea value={json} onChange={(event) => setJson(event.target.value)} placeholder={t.output.jsonPlaceholder} />
         <Button type="button" disabled={pending} onClick={() => submit(json)}>
-          {pending ? t.output.submitting : t.output.submit}
+          {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
     )
@@ -146,7 +148,7 @@ export function OutputForm({
           submit(JSON.stringify(data))
         }}
       >
-        {pending ? t.output.submitting : t.output.submit}
+        {pending ? t.output.submitting : submitLabel || t.output.submit}
       </Button>
     </div>
   )

@@ -13,6 +13,7 @@ import { formatWhen, kindLabel, statusLabel, taskOpen } from "@/lib/format"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
+import { skillLabel } from "@/lib/skill-catalog"
 import type { Agent, ProtocolMessage, Task, TaskImage } from "@/lib/types"
 
 type Detail = {
@@ -180,7 +181,7 @@ export default function TaskScreen({ id }: { id?: string }) {
         <h1 className="mt-3 font-serif text-4xl">{task.title}</h1>
         {skill ? (
           <div className="mt-4">
-            <p className="font-serif text-xl">{skill.name}</p>
+            <p className="font-serif text-xl">{skillLabel(skill)}</p>
             <p className="text-sm leading-6 text-muted-foreground">{skill.description}</p>
             <SchemaSummary skill={skill} />
           </div>

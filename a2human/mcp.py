@@ -92,6 +92,13 @@ def _tool_title(skill_name: str, person_name: str) -> str:
     return f"{skill_name} · {person_name}"
 
 
+def _written_skill(skill: dict[str, Any]) -> str:
+    title = skill.get("title")
+    if isinstance(title, str) and title.strip():
+        return title.strip()
+    return skill["name"]
+
+
 def _is_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
@@ -180,13 +187,14 @@ def _catalog(store: dict[str, Any]) -> list[dict[str, Any]]:
                 name = f"{name[: 64 - len(tail)]}{tail}"
             used.add(name)
             fields = _flat_fields(skill.get("inputSchema"))
-            title = _tool_title(skill["name"], agent["name"])
+            written = _written_skill(skill)
+            title = _tool_title(written, agent["name"])
             tools.append({
                 "name": name,
                 "title": title,
                 "description": "\n".join([
                     title,
-                    wire("mcp.toolPerson", {"name": agent["name"], "skill": skill["name"]}),
+                    wire("mcp.toolPerson", {"name": agent["name"], "skill": written}),
                     wire("mcp.recordLine", {"line": record_line(record["completed"], record["averageScore"], record["averageDuration"])}),
                     skill["description"],
                     wire("mcp.toolPath"),

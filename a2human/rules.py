@@ -134,6 +134,19 @@ def _clean_schema(value: object, label: str) -> dict[str, Any] | None:
     return loads(encoded)
 
 
+def _clean_title(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        fail(wire("skill.title"))
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    if text_len(trimmed) > 32:
+        fail(wire("skill.title"))
+    return trimmed
+
+
 def _clean_skills(skills: object) -> list[dict[str, Any]]:
     if not isinstance(skills, list) or len(skills) < 1:
         fail(wire("skills.min"))
@@ -148,6 +161,7 @@ def _clean_skills(skills: object) -> list[dict[str, Any]]:
             fail(wire("skill.shape"))
         name = item["name"].strip()
         description = item["description"].strip()
+        title = _clean_title(item.get("title"))
         if text_len(name) < 1 or text_len(name) > 24:
             fail(wire("skill.name"))
         if reserved_custom_name(name):
@@ -161,10 +175,13 @@ def _clean_skills(skills: object) -> list[dict[str, Any]]:
         output_schema = _clean_schema(item.get("outputSchema"), wire("schema.output"))
         if bool(input_schema) != bool(output_schema):
             fail(wire("schema.pair"))
+        entry: dict[str, Any] = {"name": name, "description": description}
+        if title:
+            entry["title"] = title
         if input_schema and output_schema:
-            cleaned.append({"name": name, "description": description, "inputSchema": input_schema, "outputSchema": output_schema})
-        else:
-            cleaned.append({"name": name, "description": description})
+            entry["inputSchema"] = input_schema
+            entry["outputSchema"] = output_schema
+        cleaned.append(entry)
     return cleaned
 
 

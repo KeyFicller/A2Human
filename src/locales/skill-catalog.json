@@ -1,187 +1,124 @@
 [
   {
-    "name": "translate",
-    "description": "中英互译",
+    "name": "hand_draw",
+    "title": "碳基图像生成",
+    "description": "计时三十秒，亲手画完。画到哪算哪，交一张图。",
+    "sample": "画一只正在喝茶的猫。三十秒，画到哪算哪。",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "text": { "type": "string" },
-        "direction": { "type": "string" }
+        "task": { "type": "string", "description": "任务描述" }
       },
-      "required": ["text"]
+      "required": ["task"]
     },
     "outputSchema": {
       "type": "object",
       "properties": {
-        "text": { "type": "string" }
+        "picture": { "type": "string", "contentMediaType": "image/*" }
       },
-      "required": ["text"]
+      "required": ["picture"]
     }
   },
   {
-    "name": "summarize",
-    "description": "长文/会议纪要压缩",
+    "name": "paper_think",
+    "title": "物理深度思考",
+    "description": "在纸上把问题算完，交回答案，再拍一张草稿。",
+    "sample": "一个水池，进水 3 小时满，出水 5 小时空。一起开，多久注满？",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "text": { "type": "string" }
+        "task": { "type": "string", "description": "任务描述" }
       },
-      "required": ["text"]
-    },
-    "outputSchema": {
-      "type": "object",
-      "properties": {
-        "summary": { "type": "string" }
-      },
-      "required": ["summary"]
-    }
-  },
-  {
-    "name": "rewrite",
-    "description": "改语气、改得更顺",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "text": { "type": "string" },
-        "tone": { "type": "string" }
-      },
-      "required": ["text"]
-    },
-    "outputSchema": {
-      "type": "object",
-      "properties": {
-        "text": { "type": "string" }
-      },
-      "required": ["text"]
-    }
-  },
-  {
-    "name": "proofread",
-    "description": "错别字和病句",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "text": { "type": "string" }
-      },
-      "required": ["text"]
-    },
-    "outputSchema": {
-      "type": "object",
-      "properties": {
-        "text": { "type": "string" }
-      },
-      "required": ["text"]
-    }
-  },
-  {
-    "name": "brainstorm",
-    "description": "点子、标题、活动方案",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "topic": { "type": "string" }
-      },
-      "required": ["topic"]
-    },
-    "outputSchema": {
-      "type": "object",
-      "properties": {
-        "ideas": { "type": "string" }
-      },
-      "required": ["ideas"]
-    }
-  },
-  {
-    "name": "schedule",
-    "description": "约时间、排日程",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "request": { "type": "string" }
-      },
-      "required": ["request"]
-    },
-    "outputSchema": {
-      "type": "object",
-      "properties": {
-        "suggestion": { "type": "string" }
-      },
-      "required": ["suggestion"]
-    }
-  },
-  {
-    "name": "research",
-    "description": "查公开资料并给出处",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "question": { "type": "string" }
-      },
-      "required": ["question"]
+      "required": ["task"]
     },
     "outputSchema": {
       "type": "object",
       "properties": {
         "answer": { "type": "string" },
-        "sources": { "type": "string" }
+        "picture": { "type": "string", "contentMediaType": "image/*" }
       },
-      "required": ["answer", "sources"]
+      "required": ["answer", "picture"]
     }
   },
   {
-    "name": "coach",
-    "description": "简历/面试口头陪练",
+    "name": "human_roll",
+    "title": "人肉随机数",
+    "description": "掷骰或抽一张签，交回结果，并拍下这次动作。",
+    "sample": "掷一颗六面骰，把点数告诉我。",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "topic": { "type": "string" },
-        "material": { "type": "string" }
+        "task": { "type": "string", "description": "任务描述" }
       },
-      "required": ["topic"]
+      "required": ["task"]
     },
     "outputSchema": {
       "type": "object",
       "properties": {
-        "feedback": { "type": "string" }
+        "answer": { "type": "string" },
+        "picture": { "type": "string", "contentMediaType": "image/*" }
       },
-      "required": ["feedback"]
+      "required": ["answer", "picture"]
     }
   },
   {
-    "name": "customer_reply",
-    "description": "客服式礼貌回复",
+    "name": "wetware_run",
+    "title": "湿件代码执行",
+    "description": "按伪代码把现实里的步骤做完，再交回结果。",
+    "sample": "走到窗边看一眼，用一句话交回你看见的天气。",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "message": { "type": "string" }
+        "task": { "type": "string", "description": "任务描述" }
       },
-      "required": ["message"]
+      "required": ["task"]
     },
     "outputSchema": {
       "type": "object",
       "properties": {
-        "reply": { "type": "string" }
+        "answer": { "type": "string" }
       },
-      "required": ["reply"]
+      "required": ["answer"]
     }
   },
   {
-    "name": "plan_trip",
-    "description": "行程与清单建议",
+    "name": "offline_lookup",
+    "title": "离线知识检索",
+    "description": "翻一本手边的书，用书里的一句话来回答。",
+    "sample": "随手拿起一本书，找出一句和等待有关的话。",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "destination": { "type": "string" },
-        "days": { "type": "integer" }
+        "task": { "type": "string", "description": "任务描述" }
       },
-      "required": ["destination"]
+      "required": ["task"]
     },
     "outputSchema": {
       "type": "object",
       "properties": {
-        "plan": { "type": "string" }
+        "answer": { "type": "string" }
       },
-      "required": ["plan"]
+      "required": ["answer"]
+    }
+  },
+  {
+    "name": "human_check",
+    "title": "人类兼容性测试",
+    "description": "指出一段智能体回复里，哪一句最不像人说的。",
+    "sample": "「当然可以！以下是五个要点：首先，让我们深入探讨。」哪一句最不像人？",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "task": { "type": "string", "description": "任务描述" }
+      },
+      "required": ["task"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "answer": { "type": "string" }
+      },
+      "required": ["answer"]
     }
   }
 ]

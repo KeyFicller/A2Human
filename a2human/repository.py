@@ -34,6 +34,8 @@ def public_copy(store: dict[str, Any]) -> dict[str, Any]:
 
 def _skill_dict(row: SkillRow) -> dict[str, Any]:
     skill: dict[str, Any] = {"name": row.name, "description": row.description}
+    if row.title:
+        skill["title"] = row.title
     if row.input_schema is not None and row.output_schema is not None:
         skill["inputSchema"] = row.input_schema
         skill["outputSchema"] = row.output_schema
@@ -206,6 +208,7 @@ async def _replace_skills(session: AsyncSession, agent_id: str, skills: list[dic
             agent_id=agent_id,
             position=position,
             name=skill["name"],
+            title=skill.get("title"),
             description=skill["description"],
             input_schema=skill.get("inputSchema"),
             output_schema=skill.get("outputSchema"),

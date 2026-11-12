@@ -84,8 +84,16 @@ def enum_values(kind: str, value: object) -> list | None:
     return found
 
 
+def _example_text(value: object) -> str | None:
+    text = str(value or "").strip()
+    if not text or len(text) > 120:
+        return None
+    return text
+
+
 def _property_schema(field: dict[str, Any]) -> JsonSchema:
     description = (field.get("description") or "").strip()
+    example = "" if field.get("type") == "image" else (_example_text(field.get("example")) or "")
     base: JsonSchema = (
         {"type": "string", "contentMediaType": "image/*"} if field["type"] == "image" else {"type": field["type"]}
     )
@@ -94,9 +102,23 @@ def _property_schema(field: dict[str, Any]) -> JsonSchema:
         choices = enum_values(str(kind), field.get("enum"))
         if choices:
             base = {**base, "enum": choices}
+    if example:
+        base = {**base, "examples": [example]}
     if not description:
         return base
     return {**base, "description": description[:120]}
+
+
+def _read_example(record: dict[str, Any]) -> str | None | bool:
+    if "examples" not in record:
+        return None
+    value = record.get("examples")
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], str):
+        return False
+    text = value[0].strip()
+    if not text or len(text) > 120:
+        return False
+    return text
 
 
 def fields_to_schema(fields: list[dict[str, Any]]) -> JsonSchema | None:
@@ -144,7 +166,11 @@ def schema_to_fields(schema: JsonSchema | None) -> list[dict[str, Any]] | None:
                 return None
             fields.append({"name": name, "type": "image", "required": name in required, **described})
             continue
-        if any(key not in {"type", "description", "enum"} for key in keys):
+        example = _read_example(value)
+        if example is False:
+            return None
+        exemplified = {"example": example} if example else {}
+        if any(key not in {"type", "description", "enum", "examples"} for key in keys):
             return None
         kind = value.get("type")
         if kind not in FIELD_TYPES or kind == "image":
@@ -152,13 +178,13 @@ def schema_to_fields(schema: JsonSchema | None) -> list[dict[str, Any]] | None:
         if kind == "boolean":
             if "enum" in value:
                 return None
-            fields.append({"name": name, "type": kind, "required": name in required, **described})
+            fields.append({"name": name, "type": kind, "required": name in required, **described, **exemplified})
             continue
         choices = enum_values(kind, value.get("enum") if "enum" in value else None)
         if choices is None:
             return None
         listed = {"enum": choices} if choices else {}
-        fields.append({"name": name, "type": kind, "required": name in required, **described, **listed})
+        fields.append({"name": name, "type": kind, "required": name in required, **described, **exemplified, **listed})
     return fields
 
 
