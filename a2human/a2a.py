@@ -135,7 +135,10 @@ def _status_message(store: dict[str, Any], task: dict[str, Any], context_id: str
         return {}
     decision = next((item for item in reversed(store["messages"]) if item["taskId"] == task["id"] and item["kind"] in DECISION_KINDS), None)
     if task["status"] == "working":
+        progress = task.get("progress")
         waiting = wire("working.poll")
+        if isinstance(progress, str) and progress.strip():
+            waiting = f"{progress.strip()}\n{waiting}"
     elif task["status"] == "submitted":
         waiting = wire("submitted.poll")
     elif decision and decision["kind"] == "task.scoreRequest":
@@ -176,6 +179,7 @@ def project_task(store: dict[str, Any], task: dict[str, Any], options: dict[str,
             "title": task["title"],
             "claimantName": task.get("claimantName"),
             "claimantId": task.get("claimantId"),
+            **({"progress": task["progress"].strip()} if isinstance(task.get("progress"), str) and task["progress"].strip() else {}),
             **(
                 {"score": task["workScore"], "scoredBy": task["posterName"], "person": task.get("claimantName")}
                 if isinstance(task.get("workScore"), (int, float)) and not isinstance(task.get("workScore"), bool)

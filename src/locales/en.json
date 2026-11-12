@@ -188,7 +188,12 @@
     "incomingAlt": "Incoming image",
     "returnedAlt": "Submitted image",
     "pendingAlt": "Image to submit",
-    "handedWaiting": "Delivered. Waiting for the model to score it."
+    "handedWaiting": "Delivered. Waiting for the model to score it.",
+    "progress": "Progress",
+    "progressPlaceholder": "Searching the mental library",
+    "progressSave": "Update progress",
+    "progressSaved": "Progress updated.",
+    "progressError": "The progress line was not saved"
   },
   "output": {
     "image": "Image",

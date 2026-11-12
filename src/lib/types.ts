@@ -58,6 +58,7 @@ export type Task = {
   status: TaskStatus
   claimantId: string | null
   claimantName: string | null
+  progress?: string
   artifact: string | null
   workScore?: number
   images?: TaskImage[]

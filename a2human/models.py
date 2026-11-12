@@ -67,6 +67,7 @@ class TaskRow(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False)
     claimant_id: Mapped[str | None] = mapped_column(Text, ForeignKey("agents.id"))
     claimant_name: Mapped[str | None] = mapped_column(Text)
+    progress: Mapped[str | None] = mapped_column(Text)
     artifact: Mapped[str | None] = mapped_column(Text)
     work_score: Mapped[int | None] = mapped_column(Integer)
     images: Mapped[list | None] = mapped_column(JSONB)

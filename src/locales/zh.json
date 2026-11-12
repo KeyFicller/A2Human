@@ -188,7 +188,12 @@
     "incomingAlt": "派来的图片",
     "returnedAlt": "交回的图片",
     "pendingAlt": "待提交的图片",
-    "handedWaiting": "已交。等模型打分。"
+    "handedWaiting": "已交。等模型打分。",
+    "progress": "进度",
+    "progressPlaceholder": "正在搜索脑内知识库",
+    "progressSave": "更新进度",
+    "progressSaved": "进度已更新。",
+    "progressError": "进度没写上"
   },
   "output": {
     "image": "图片",

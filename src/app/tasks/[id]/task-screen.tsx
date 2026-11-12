@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useParams } from "next/navigation"
 import { useAgent } from "@/components/agent-provider"
 import { useText } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
@@ -61,6 +62,8 @@ export default function TaskScreen({ id }: { id?: string }) {
   const [handed, setHanded] = useState(false)
   const [decision, setDecision] = useState<"reject" | "cancel" | "fail" | "input" | null>(null)
   const [reason, setReason] = useState("")
+  const [progress, setProgress] = useState("")
+  const progressTask = useRef("")
 
   const load = useCallback(() => {
     if (!taskId) return
@@ -69,6 +72,10 @@ export default function TaskScreen({ id }: { id?: string }) {
         setDetail(next)
         setError(null)
         if (next.task.status === "completed") setHanded(false)
+        if (progressTask.current !== next.task.id) {
+          progressTask.current = next.task.id
+          setProgress(next.task.progress || "")
+        }
       })
       .catch((caught: unknown) => {
         setError(showError(caught, t.task.loadError))
@@ -126,6 +133,23 @@ export default function TaskScreen({ id }: { id?: string }) {
       .finally(() => setPending(false))
   }
 
+  function saveProgress(event: FormEvent) {
+    event.preventDefault()
+    if (!agent) return
+    setPending(true)
+    setNotice(null)
+    api<Task>(`/api/tasks/${task.id}`, { action: "progress", agentId: agent.id, text: progress })
+      .then((next) => {
+        setProgress(next.progress || "")
+        setNotice(t.task.progressSaved)
+        load()
+      })
+      .catch((caught: unknown) => {
+        setNotice(caught instanceof ApiError ? showError(caught, t.task.progressError) : t.task.progressError)
+      })
+      .finally(() => setPending(false))
+  }
+
   function sendDecision() {
     if (!agent || !decision) return
     setPending(true)
@@ -173,6 +197,24 @@ export default function TaskScreen({ id }: { id?: string }) {
               />
             ))}
           </div>
+        ) : null}
+        {task.progress && !(mine && task.status === "working") ? <p className="mt-4 leading-7">{task.progress}</p> : null}
+        {mine && task.status === "working" ? (
+          <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={saveProgress}>
+            <label className="block min-w-0 flex-1 text-sm">
+              {t.task.progress}
+              <Input
+                className="mt-1.5"
+                value={progress}
+                maxLength={80}
+                onChange={(event) => setProgress(event.target.value)}
+                placeholder={t.task.progressPlaceholder}
+              />
+            </label>
+            <Button type="submit" disabled={pending}>
+              {pending ? t.task.submitting : t.task.progressSave}
+            </Button>
+          </form>
         ) : null}
         <p className="mt-4 text-sm text-muted-foreground">{t.task.from(task.posterName)}</p>
         {typeof task.workScore === "number" ? <p className="mt-2 text-sm">{t.task.scoredBy(task.posterName, task.workScore)}</p> : null}

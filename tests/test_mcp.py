@@ -4,7 +4,7 @@ import pytest
 
 from a2human.clock import now_iso, now_ms
 from a2human.mcp import MCP_TASK_POLL_MS, MCP_TASK_TTL_MS, McpIo, TASKS_EXTENSION, duty_step, handle_mcp, list_duty_tools
-from a2human.rules import create_seed, decide_task, publish_agent, set_availability, submit_artifact
+from a2human.rules import create_seed, decide_task, publish_agent, set_availability, set_progress, submit_artifact
 
 counting = {
     "name": "计数",
@@ -244,6 +244,58 @@ async def test_task_id_only_polls_and_a_new_dispatch_still_requires_skill_fields
     assert body_of(refused)["result"]["isError"] is True
     assert "scene" in body_of(refused)["result"]["content"][0]["text"]
     assert len(store["tasks"]) == 1
+
+
+def _poll(store, tool, task_id, rpc_id):
+    return handle_mcp(
+        {"jsonrpc": "2.0", "id": rpc_id, "method": "tools/call", "params": {"name": tool["name"], "arguments": {"task_id": task_id}}},
+        memory(store),
+    )
+
+
+async def test_a_progress_line_is_optional_and_shows_up_on_poll():
+    store, on = world()
+    tool = list_duty_tools(store)[0]
+    await handle_mcp(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool["name"], "arguments": {"scene": "三个圆"}}},
+        memory(store),
+    )
+    task = store["tasks"][0]
+    quiet = await _poll(store, tool, task["id"], 2)
+    quiet_text = quiet["body"]["result"]["content"][0]["text"]
+    assert "isError" not in quiet["body"]["result"]
+    assert "task_id" in quiet_text
+    assert "正在搜索脑内知识库" not in quiet_text
+
+    set_progress(store, task["id"], on["id"], "正在搜索脑内知识库")
+    shown = await _poll(store, tool, task["id"], 3)
+    shown_text = shown["body"]["result"]["content"][0]["text"]
+    assert shown_text.startswith("正在搜索脑内知识库\n")
+    assert "task_id" in shown_text
+
+    set_progress(store, task["id"], on["id"], "  假装深度思考  ")
+    updated = await _poll(store, tool, task["id"], 4)
+    updated_text = updated["body"]["result"]["content"][0]["text"]
+    assert updated_text.startswith("假装深度思考\n")
+    assert "正在搜索脑内知识库" not in updated_text
+
+    set_progress(store, task["id"], on["id"], "   ")
+    cleared = await _poll(store, tool, task["id"], 5)
+    cleared_text = cleared["body"]["result"]["content"][0]["text"]
+    assert "假装深度思考" not in cleared_text
+    assert "task_id" in cleared_text
+    assert "progress" not in task
+
+    set_progress(store, task["id"], on["id"], "正在搜索脑内知识库")
+    submit_artifact(store, task["id"], on["id"], '{"count":3}')
+    waiting = await _poll(store, tool, task["id"], 6)
+    assert '"request":"score"' in waiting["body"]["result"]["content"][0]["text"]
+    done = await handle_mcp(
+        {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": tool["name"], "arguments": {"task_id": task["id"], "score": 4}}},
+        memory(store),
+    )
+    assert done["body"]["result"]["content"][0]["text"] == '{"count":3}'
+    assert task["status"] == "completed"
 
 
 async def test_a_tool_call_opens_an_a2a_task_and_asks_again_while_the_person_is_still_working():

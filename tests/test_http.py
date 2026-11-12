@@ -43,6 +43,29 @@ def test_publish_duty_and_discovery_keep_the_old_urls():
         assert handed.json()["status"] == "input-required"
         listed = client.get("/api/tasks")
         assert listed.json()[0]["id"] == task_id
+        noted = client.post(f"/api/tasks/{task_id}", json={"action": "progress", "agentId": agent["id"], "text": "  正在搜索脑内知识库  "})
+        assert noted.status_code == 400
+        working = client.post(
+            f"/api/a2a/{agent['id']}",
+            headers={"A2A-Version": "1.0"},
+            json={
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "SendMessage",
+                "params": {
+                    "configuration": {"returnImmediately": True},
+                    "metadata": {"caller": "某个大模型", "skill": "计数"},
+                    "message": {"role": "ROLE_USER", "messageId": "http-2", "parts": [{"text": "再数一下。"}]},
+                },
+            },
+        )
+        open_id = working.json()["result"]["task"]["id"]
+        noted = client.post(f"/api/tasks/{open_id}", json={"action": "progress", "agentId": agent["id"], "text": "  正在搜索脑内知识库  "})
+        assert noted.status_code == 200
+        assert noted.json()["progress"] == "正在搜索脑内知识库"
+        cleared = client.post(f"/api/tasks/{open_id}", json={"action": "progress", "agentId": agent["id"], "text": "   "})
+        assert cleared.status_code == 200
+        assert "progress" not in cleared.json()
         missing = client.get("/api/mcp")
         assert missing.status_code == 405
         assert missing.json()["error"]["code"] == -32004

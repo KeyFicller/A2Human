@@ -193,6 +193,11 @@ def bind(locale: str) -> dict:
             "returnedAlt": text("task.returnedAlt"),
             "pendingAlt": text("task.pendingAlt"),
             "handedWaiting": text("task.handedWaiting"),
+            "progress": text("task.progress"),
+            "progressPlaceholder": text("task.progressPlaceholder"),
+            "progressSave": text("task.progressSave"),
+            "progressSaved": text("task.progressSaved"),
+            "progressError": text("task.progressError"),
         },
         "output": {
             "image": text("output.image"),

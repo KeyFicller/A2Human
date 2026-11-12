@@ -91,6 +91,11 @@
   },
   "field": { "required": "{name} 要填", "missing": "还缺 {name}" },
   "status": { "owner": "只有被派到这单的人能改状态" },
+  "progress": {
+    "type": "进度要是文字",
+    "length": "进度最多 {max} 个字",
+    "closed": "只有进行中的任务能写进度"
+  },
   "action": { "unknown": "未知动作" },
   "reason": { "length": "用 1 到 200 个字说明" },
   "request": { "body": "请求体不是 JSON", "failed": "请求失败" },

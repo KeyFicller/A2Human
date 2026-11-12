@@ -69,6 +69,8 @@ def _task_dict(row: TaskRow) -> dict[str, Any]:
         task["source"] = row.source
     if row.target_id is not None:
         task["targetId"] = row.target_id
+    if row.progress:
+        task["progress"] = row.progress
     return task
 
 
@@ -180,6 +182,7 @@ def _fill_task(row: TaskRow, task: dict[str, Any], seq: int, version: int) -> No
     row.status = task["status"]
     row.claimant_id = task.get("claimantId")
     row.claimant_name = task.get("claimantName")
+    row.progress = task.get("progress") or None
     row.artifact = task.get("artifact")
     row.work_score = task.get("workScore") if "workScore" in task else None
     row.images = task.get("images")

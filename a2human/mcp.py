@@ -251,6 +251,21 @@ def _task_of(result: object) -> dict[str, Any] | None:
     return None
 
 
+def _progress_line(task: dict[str, Any]) -> str:
+    value = task.get("progress")
+    if not isinstance(value, str):
+        meta = task.get("metadata")
+        value = meta.get("progress") if isinstance(meta, dict) else None
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def _with_progress(base: str, task: dict[str, Any]) -> str:
+    line = _progress_line(task)
+    return f"{line}\n{base}" if line else base
+
+
 def _explain(response: dict[str, Any]) -> dict[str, Any]:
     if "error" in response:
         return {"kind": "error", "text": response["error"]["message"]}
@@ -261,7 +276,7 @@ def _explain(response: dict[str, Any]) -> dict[str, Any]:
     note = _status_text(task)
     artifact = _artifact_text(task)
     if state in {"TASK_STATE_WORKING", "TASK_STATE_SUBMITTED"}:
-        return {"kind": "pending", "taskId": task["id"], "agentId": "", "text": wire("mcp.stillWorking", {"id": task["id"]})}
+        return {"kind": "pending", "taskId": task["id"], "agentId": "", "text": _with_progress(wire("mcp.stillWorking", {"id": task["id"]}), task)}
     if state == "TASK_STATE_INPUT_REQUIRED":
         return {"kind": "done", "text": note or artifact or state}
     if state == "TASK_STATE_COMPLETED":
@@ -527,7 +542,7 @@ def _score_pending(store: dict[str, Any], task: dict[str, Any]) -> bool:
 def _mcp_status_message(store: dict[str, Any], task: dict[str, Any]) -> str:
     status = _mcp_status(task["status"])
     if status == "working":
-        return wire("mcp.workingStatus")
+        return _with_progress(wire("mcp.workingStatus"), task)
     if status == "input_required":
         if _score_pending(store, task):
             return wire("mcp.scoreStatus", {"id": task["id"], "seconds": round(SCORE_WAIT_MS / 1000), "artifact": task.get("artifact") or ""})
