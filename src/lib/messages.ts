@@ -180,6 +180,11 @@ export type Messages = {
     returnedAlt: string
     pendingAlt: string
     handedWaiting: string
+    progress: string
+    progressPlaceholder: string
+    progressSave: string
+    progressSaved: string
+    progressError: string
   }
   output: {
     image: string
@@ -386,6 +391,11 @@ function bind(locale: Locale): Messages {
       returnedAlt: text("task.returnedAlt"),
       pendingAlt: text("task.pendingAlt"),
       handedWaiting: text("task.handedWaiting"),
+      progress: text("task.progress"),
+      progressPlaceholder: text("task.progressPlaceholder"),
+      progressSave: text("task.progressSave"),
+      progressSaved: text("task.progressSaved"),
+      progressError: text("task.progressError"),
     },
     output: {
       image: text("output.image"),

@@ -91,6 +91,11 @@
   },
   "field": { "required": "{name} is required", "missing": "Still missing {name}" },
   "status": { "owner": "Only the person on this task can change the status" },
+  "progress": {
+    "type": "Progress must be text",
+    "length": "Progress can be at most {max} characters",
+    "closed": "Progress can be written only while the task is in progress"
+  },
   "action": { "unknown": "Unknown action" },
   "reason": { "length": "Explain it in 1 to 200 characters" },
   "request": { "body": "The request body is not JSON", "failed": "Request failed" },

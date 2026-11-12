@@ -574,6 +574,33 @@ def cancel_commanded_task(store: dict[str, Any], task_id: str) -> dict[str, Any]
     return task
 
 
+PROGRESS_MAX = 80
+
+
+def set_progress(store: dict[str, Any], task_id: str, agent_id: str, text: object) -> dict[str, Any]:
+    """Replace the optional one-line status the person on duty is showing, or clear it."""
+    task = _require_task(store, task_id)
+    agent = _require_agent(store, agent_id)
+    if task.get("claimantId") != agent["id"]:
+        fail(wire("status.owner"))
+    if task.get("status") != "working":
+        fail(wire("progress.closed"))
+    if text is None:
+        text = ""
+    if not isinstance(text, str):
+        fail(wire("progress.type"))
+    line = " ".join(text.split())
+    if text_len(line) > PROGRESS_MAX:
+        fail(wire("progress.length", {"max": PROGRESS_MAX}))
+    if line:
+        task["progress"] = line
+    else:
+        task.pop("progress", None)
+    task["updatedAt"] = now_iso()
+    remember(store)
+    return task
+
+
 def claim_task(store: dict[str, Any], task_id: str, agent_id: str) -> bool:
     """Give an unclaimed task to one person. The database keeps the second claim from landing."""
     task = _require_task(store, task_id)

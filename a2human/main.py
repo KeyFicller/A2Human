@@ -30,6 +30,7 @@ from a2human.rules import (
     present_agent,
     publish_agent,
     set_availability,
+    set_progress,
     submit_artifact,
     update_agent,
 )
@@ -213,6 +214,8 @@ async def post_task(task_id: str, request: Request) -> Response:
         def run(store: dict) -> dict:
             if body.get("action") == "artifact":
                 return submit_artifact(store, task_id, agent_id, body.get("text"), body.get("image"))
+            if body.get("action") == "progress":
+                return set_progress(store, task_id, agent_id, body.get("text"))
             if body.get("action") in {"reject", "cancel", "fail", "input"}:
                 return decide_task(store, task_id, agent_id, body["action"], body.get("text"))
             raise DomainError(wire("action.unknown"))

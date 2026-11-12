@@ -88,6 +88,10 @@ def _tool_name(agent_id: str, skill_name: str) -> str:
     return base[:64]
 
 
+def _tool_title(skill_name: str, person_name: str) -> str:
+    return f"{skill_name} · {person_name}"
+
+
 def _is_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
@@ -176,9 +180,12 @@ def _catalog(store: dict[str, Any]) -> list[dict[str, Any]]:
                 name = f"{name[: 64 - len(tail)]}{tail}"
             used.add(name)
             fields = _flat_fields(skill.get("inputSchema"))
+            title = _tool_title(skill["name"], agent["name"])
             tools.append({
                 "name": name,
+                "title": title,
                 "description": "\n".join([
+                    title,
                     wire("mcp.toolPerson", {"name": agent["name"], "skill": skill["name"]}),
                     wire("mcp.recordLine", {"line": record_line(record["completed"], record["averageScore"], record["averageDuration"])}),
                     skill["description"],
@@ -194,7 +201,7 @@ def _catalog(store: dict[str, Any]) -> list[dict[str, Any]]:
 
 def list_duty_tools(store: dict[str, Any]) -> list[dict[str, Any]]:
     return [
-        {"name": tool["name"], "description": tool["description"], "inputSchema": tool["inputSchema"], "execution": {"taskSupport": "optional"}}
+        {"name": tool["name"], "title": tool["title"], "description": tool["description"], "inputSchema": tool["inputSchema"], "execution": {"taskSupport": "optional"}}
         for tool in _catalog(store)
     ]
 
@@ -244,6 +251,21 @@ def _task_of(result: object) -> dict[str, Any] | None:
     return None
 
 
+def _progress_line(task: dict[str, Any]) -> str:
+    value = task.get("progress")
+    if not isinstance(value, str):
+        meta = task.get("metadata")
+        value = meta.get("progress") if isinstance(meta, dict) else None
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def _with_progress(base: str, task: dict[str, Any]) -> str:
+    line = _progress_line(task)
+    return f"{line}\n{base}" if line else base
+
+
 def _explain(response: dict[str, Any]) -> dict[str, Any]:
     if "error" in response:
         return {"kind": "error", "text": response["error"]["message"]}
@@ -254,7 +276,7 @@ def _explain(response: dict[str, Any]) -> dict[str, Any]:
     note = _status_text(task)
     artifact = _artifact_text(task)
     if state in {"TASK_STATE_WORKING", "TASK_STATE_SUBMITTED"}:
-        return {"kind": "pending", "taskId": task["id"], "agentId": "", "text": wire("mcp.stillWorking", {"id": task["id"]})}
+        return {"kind": "pending", "taskId": task["id"], "agentId": "", "text": _with_progress(wire("mcp.stillWorking", {"id": task["id"]}), task)}
     if state == "TASK_STATE_INPUT_REQUIRED":
         return {"kind": "done", "text": note or artifact or state}
     if state == "TASK_STATE_COMPLETED":
@@ -520,7 +542,7 @@ def _score_pending(store: dict[str, Any], task: dict[str, Any]) -> bool:
 def _mcp_status_message(store: dict[str, Any], task: dict[str, Any]) -> str:
     status = _mcp_status(task["status"])
     if status == "working":
-        return wire("mcp.workingStatus")
+        return _with_progress(wire("mcp.workingStatus"), task)
     if status == "input_required":
         if _score_pending(store, task):
             return wire("mcp.scoreStatus", {"id": task["id"], "seconds": round(SCORE_WAIT_MS / 1000), "artifact": task.get("artifact") or ""})
@@ -832,10 +854,15 @@ def _check_modern_headers(rpc_id: object, method: str, params: dict[str, Any], h
 
 
 def _modern_tool_list(store: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {"name": tool["name"], "description": tool["description"], "inputSchema": tool["inputSchema"]}
-        for tool in [*list_duty_tools(store), _score_tool()]
-    ]
+    listed: list[dict[str, Any]] = []
+    for tool in [*list_duty_tools(store), _score_tool()]:
+        item = {"name": tool["name"]}
+        if "title" in tool:
+            item["title"] = tool["title"]
+        item["description"] = tool["description"]
+        item["inputSchema"] = tool["inputSchema"]
+        listed.append(item)
+    return listed
 
 
 def _tool_payload(store: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
