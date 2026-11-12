@@ -1,39 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { FieldControl } from "@/components/field-control"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { parseFieldValue } from "@/lib/field-control"
 import { fieldTypeLabel, outputShape } from "@/lib/schema-fields"
 import type { JsonSchema, TaskImage } from "@/lib/types"
-
-function readFile(
-  file: File,
-  onImage: (image: TaskImage | null) => void,
-  onError: (message: string) => void,
-  tooBig: string,
-  wrongType: string,
-) {
-  if (file.size > 1_000_000) {
-    onImage(null)
-    onError(tooBig)
-    return
-  }
-  const reader = new FileReader()
-  reader.onload = () => {
-    const result = typeof reader.result === "string" ? reader.result : ""
-    const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(result)
-    if (!matched) {
-      onImage(null)
-      onError(wrongType)
-      return
-    }
-    onImage({ mediaType: matched[1] as TaskImage["mediaType"], raw: matched[2].replace(/\s/g, ""), filename: file.name })
-    onError("")
-  }
-  reader.readAsDataURL(file)
-}
 
 export function OutputForm({
   schema,
@@ -54,22 +28,10 @@ export function OutputForm({
 
   function fileInput(label: string) {
     return (
-      <label className="block text-sm">
+      <div className="block text-sm">
         {label}
-        <input
-          className="mt-1.5 block text-sm"
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            if (!file) {
-              setImage(null)
-              return
-            }
-            readFile(file, setImage, onError, t.task.imageTooBig, t.task.imageType)
-          }}
-        />
-      </label>
+        <FieldControl type="image" ariaLabel={label} onImage={setImage} onImageError={onError} />
+      </div>
     )
   }
 
@@ -93,50 +55,33 @@ export function OutputForm({
     const label = fieldTypeLabel(shape.type, locale)
     return (
       <div className="space-y-3">
-        <label className="block text-sm">
+        <div className="block text-sm">
           {label}
-          {shape.type === "boolean" ? (
-            <select
-              className="mt-1.5 h-10 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-              value={values.value ?? ""}
-              onChange={(event) => setValues({ value: event.target.value })}
-            >
-              <option value="">{t.output.choose}</option>
-              <option value="true">{t.output.yes}</option>
-              <option value="false">{t.output.no}</option>
-            </select>
-          ) : (
-            <Input
-              className="mt-1.5 h-10"
-              inputMode={shape.type === "string" ? "text" : "decimal"}
-              value={values.value ?? ""}
-              onChange={(event) => setValues({ value: event.target.value })}
-            />
-          )}
-        </label>
+          <FieldControl
+            type={shape.type}
+            longString={shape.type === "string"}
+            choices={shape.enum}
+            choiceName="value"
+            value={values.value ?? ""}
+            blank={t.output.choose}
+            ariaLabel={label}
+            onChange={(next) => setValues({ value: next })}
+          />
+        </div>
         <Button
           type="button"
           disabled={pending}
           onClick={() => {
-            const raw = (values.value ?? "").trim()
-            if (!raw) {
+            const parsed = parseFieldValue(shape.type, values.value ?? "", shape.enum)
+            if (parsed.state === "empty") {
               onError(t.output.mustFill(label))
               return
             }
-            if (shape.type === "boolean") {
-              submit(JSON.stringify(raw === "true"))
+            if (parsed.state === "bad") {
+              onError(t.output.mustBe(label))
               return
             }
-            if (shape.type === "integer" || shape.type === "number") {
-              const number = Number(raw)
-              if (!Number.isFinite(number) || (shape.type === "integer" && !Number.isInteger(number))) {
-                onError(t.output.mustBe(label))
-                return
-              }
-              submit(JSON.stringify(number))
-              return
-            }
-            submit(JSON.stringify(raw))
+            submit(JSON.stringify(parsed.value))
           }}
         >
           {pending ? t.output.submitting : t.output.submit}
@@ -163,32 +108,24 @@ export function OutputForm({
     <div className="space-y-3">
       {images.length > 1 ? <p className="text-sm text-stamp">{t.output.oneImage}</p> : null}
       {dataFields.map((field) => (
-        <label key={field.name} className="block text-sm">
+        <div key={field.name} className="block text-sm">
           {field.name}
           <span className="ml-2 text-xs text-muted-foreground">
             {fieldTypeLabel(field.type, locale)}
             {field.required ? t.output.requiredSuffix : ""}
             {field.description ? `${t.output.noteColon}${field.description}` : ""}
           </span>
-          {field.type === "boolean" ? (
-            <select
-              className="mt-1.5 h-10 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-              value={values[field.name] ?? ""}
-              onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
-            >
-              <option value="">{field.required ? t.output.choose : t.output.skip}</option>
-              <option value="true">{t.output.yes}</option>
-              <option value="false">{t.output.no}</option>
-            </select>
-          ) : (
-            <Input
-              className="mt-1.5 h-10"
-              inputMode={field.type === "string" ? "text" : "decimal"}
-              value={values[field.name] ?? ""}
-              onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
-            />
-          )}
-        </label>
+          <FieldControl
+            type={field.type}
+            name={field.name}
+            choices={field.enum}
+            choiceName={field.name}
+            value={values[field.name] ?? ""}
+            blank={field.required ? t.output.choose : t.output.skip}
+            ariaLabel={field.name}
+            onChange={(next) => setValues({ ...values, [field.name]: next })}
+          />
+        </div>
       ))}
       {images.length === 1 ? fileInput(images[0].name) : null}
       <Button
@@ -197,22 +134,14 @@ export function OutputForm({
         onClick={() => {
           const data: Record<string, unknown> = {}
           for (const field of dataFields) {
-            const raw = (values[field.name] ?? "").trim()
-            if (!raw) continue
-            if (field.type === "boolean") {
-              data[field.name] = raw === "true"
-              continue
+            if (field.type === "image") continue
+            const parsed = parseFieldValue(field.type, values[field.name] ?? "", field.enum)
+            if (parsed.state === "empty") continue
+            if (parsed.state === "bad") {
+              onError(t.output.fieldMustBe(field.name, fieldTypeLabel(field.type, locale)))
+              return
             }
-            if (field.type === "integer" || field.type === "number") {
-              const number = Number(raw)
-              if (!Number.isFinite(number) || (field.type === "integer" && !Number.isInteger(number))) {
-                onError(t.output.fieldMustBe(field.name, fieldTypeLabel(field.type, locale)))
-                return
-              }
-              data[field.name] = number
-              continue
-            }
-            data[field.name] = raw
+            data[field.name] = parsed.value
           }
           submit(JSON.stringify(data))
         }}

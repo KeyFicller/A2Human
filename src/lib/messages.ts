@@ -135,6 +135,10 @@ export type Messages = {
     cannotSplit: string
     useForm: string
     useJson: string
+    enum: string
+    enumPlaceholder: string
+    enumInvalid: string
+    ariaEnum: (label: string) => string
     line: (label: string, body: string) => string
   }
   notice: {
@@ -186,6 +190,8 @@ export type Messages = {
     no: string
     skip: string
     jsonPlaceholder: string
+    drop: string
+    clear: string
     oneImage: string
     requiredSuffix: string
     noteColon: string
@@ -335,6 +341,10 @@ function bind(locale: Locale): Messages {
       cannotSplit: text("schema.cannotSplit"),
       useForm: text("schema.useForm"),
       useJson: text("schema.useJson"),
+      enum: text("schema.enum"),
+      enumPlaceholder: text("schema.enumPlaceholder"),
+      enumInvalid: text("schema.enumInvalid"),
+      ariaEnum: (label) => text("schema.ariaEnum", { label }),
       line: (label, body) => text("schema.line", { label, body }),
     },
     notice: {
@@ -386,6 +396,8 @@ function bind(locale: Locale): Messages {
       no: text("output.no"),
       skip: text("output.skip"),
       jsonPlaceholder: text("output.jsonPlaceholder"),
+      drop: text("output.drop"),
+      clear: text("output.clear"),
       oneImage: text("output.oneImage"),
       requiredSuffix: text("output.requiredSuffix"),
       noteColon: text("output.noteColon"),

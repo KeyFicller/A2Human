@@ -44,6 +44,30 @@ def task_of(response):
     return result.get("task") or result
 
 
+async def test_an_enum_is_advertised_and_a_value_outside_it_is_refused():
+    store = create_seed()
+    skill = {
+        "name": "方向",
+        "description": "只接受列出的方向。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"direction": {"type": "string", "enum": ["zh", "en"]}},
+            "required": ["direction"],
+        },
+        "outputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+    }
+    on = publish_agent(store, {"name": "米粒", "bio": "会译。", "skills": [skill]})
+    set_availability(store, on["id"], True)
+    tool = list_duty_tools(store)[0]
+    assert tool["inputSchema"]["properties"]["direction"]["enum"] == ["zh", "en"]
+    refused = await handle_mcp(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool["name"], "arguments": {"direction": "fr"}}},
+        memory(store),
+    )
+    assert body_of(refused)["result"]["isError"] is True
+    assert store["tasks"] == []
+
+
 def test_mcp_lists_one_tool_per_on_duty_skill_and_keeps_a2a_as_the_path():
     store, on = world()
     tools = list_duty_tools(store)
