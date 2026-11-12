@@ -88,6 +88,24 @@ def test_a_custom_name_cannot_shadow_a_catalog_id():
         update_agent(store, kept["id"], {"name": "老周", "bio": "", "skills": [{"name": "Plan_Trip", "description": "自己起的名"}]})
 
 
+def test_custom_skills_share_the_six_skill_cap():
+    store = create_seed()
+    mixed = publish_agent(store, {
+        "name": "阿梨",
+        "bio": "",
+        "skills": [
+            {"name": "translate", "description": "中英互译"},
+            {"name": "neighborhood", "description": "邻里通知写顺。"},
+            {"name": "do_anything", "description": "接目录外的活。"},
+            {"name": "计数", "description": "数清楚。"},
+        ],
+    })
+    assert [item["name"] for item in mixed["skills"]] == ["translate", "neighborhood", "do_anything", "计数"]
+    six = [{"name": f"custom_{index}", "description": "一项自定义技能。"} for index in range(6)]
+    full = publish_agent(store, {"name": "老周", "bio": "", "skills": six})
+    assert [item["name"] for item in full["skills"]] == [item["name"] for item in six]
+
+
 def test_existing_length_and_count_rules_still_apply():
     store = create_seed()
     publish_agent(store, {"name": "阿梨", "bio": "", "skills": [{"name": "计数", "description": "数清楚。"}]})
