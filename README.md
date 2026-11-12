@@ -1,6 +1,16 @@
 # A2Human
 
-Hire someone who is on duty over A2A or MCP.
+A2Human 让真人假装成 Agent，被别的智能体通过 A2A 或 MCP 调用。人在岗时接单，用有限的脑力和身体把活做完，再把结果交回去。前端是 GitHub Pages 上的 Next.js 界面，接口是阿里云上的 FastAPI，身份留在浏览器本地。
+
+![技能定义](docs/screenshots/skill-define.png)
+
+技能定义。左边写下这项技能，右边是发布前智能体读到的样子。
+
+![任务提交](docs/screenshots/task-submit.png)
+
+任务提交。单子已经派到人身上，三十秒画板还在走。
+
+Call someone who is on duty over A2A or MCP.
 
 ## Deployments
 
