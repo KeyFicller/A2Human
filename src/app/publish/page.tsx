@@ -23,7 +23,8 @@ import {
   defaultTaskInput,
   deliveryOf,
   deliverySchema,
-  fieldPill,
+  installedLabel,
+  isBlankDraft,
   mergePresetCatalog,
   personNameIssue,
   playMode,
@@ -36,8 +37,8 @@ import {
   type DeliveryKind,
   type SlotIdentity,
 } from "@/lib/publish-skills"
-import { draftFromSchema, duplicateFieldName, fieldTypeLabel, schemaPayload, type SchemaDraft, type SchemaField } from "@/lib/schema-fields"
-import { CUSTOM_SKILL_NAME, SKILL_CATALOG, catalogNames, type CatalogSkill } from "@/lib/skill-catalog"
+import { FIELD_TYPES, draftFromSchema, duplicateFieldName, fieldTypeLabel, schemaPayload, type SchemaDraft, type SchemaField } from "@/lib/schema-fields"
+import { CUSTOM_SKILL_NAME, SKILL_CATALOG, alignPresetCopy, catalogNames, catalogText, relocalizeFields, type CatalogSkill } from "@/lib/skill-catalog"
 import type { Agent, Skill } from "@/lib/types"
 
 type SkillKind = "catalog" | "custom" | "legacy"
@@ -71,14 +72,15 @@ function emptyCustom(taskLabel: string, names: Set<string>): SkillDraft {
   return draftOf(blankIdentity(), null, taskLabel, names)
 }
 
-function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[]): SkillDraft {
+function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[], locale: "zh" | "en"): SkillDraft {
   const kind = kindFor(skill.name, names, names.has(skill.name) ? "catalog" : CUSTOM_SKILL_NAME.test(skill.name) ? "custom" : "legacy")
   const preset = catalog.find((item) => item.name === skill.name)
+  const copy = alignPresetCopy({ title: skill.title?.trim() || "", description: skill.description }, preset ?? null, locale)
   return {
     name: skill.name,
-    title: skill.title?.trim() || preset?.title || skill.name,
-    description: skill.description,
-    sample: preset?.sample ?? "",
+    title: copy.title || skill.name,
+    description: copy.description,
+    sample: copy.sample,
     input: draftFromSchema(skill.inputSchema),
     output: draftFromSchema(skill.outputSchema),
     kind,
@@ -106,12 +108,12 @@ export default function PublishPage() {
   const [advanced, setAdvanced] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fresh, setFresh] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [bioError, setBioError] = useState<string | null>(null)
   const [armed, setArmed] = useState(false)
   const nameRef = useRef<HTMLLabelElement>(null)
   const bioRef = useRef<HTMLLabelElement>(null)
+  const localeRef = useRef(locale)
 
   useEffect(() => {
     let cancel = false
@@ -125,14 +127,36 @@ export default function PublishPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const previous = localeRef.current
+    localeRef.current = locale
+    if (previous === locale) return
+    setSkills((current) => {
+      if (!current) return current
+      return current.map((skill) => {
+        if (!skill.template) return skill
+        const item = catalog.find((entry) => entry.name === skill.template)
+        if (!item) return skill
+        return {
+          ...skill,
+          ...relocalizeFields(
+            { title: skill.title, description: skill.description, sample: skill.sample },
+            catalogText(item, previous),
+            catalogText(item, locale),
+          ),
+        }
+      })
+    })
+  }, [catalog, locale])
+
   const names = catalogNames(catalog)
-  const editing = Boolean(agent) && !fresh
+  const editing = Boolean(agent)
   const nameValue = name ?? (editing ? agent?.name ?? "" : "")
   const bioValue = bio ?? (editing ? agent?.bio ?? "" : "")
-  const skillValue = skills ?? (editing && agent?.skills.length ? agent.skills.map((skill) => draftFrom(skill, names, catalog)) : [])
+  const skillValue = skills ?? (editing && agent?.skills.length ? agent.skills.map((skill) => draftFrom(skill, names, catalog, locale)) : [])
   const focusIndex = skillValue.length ? Math.min(focus, skillValue.length - 1) : 0
   const active = skillValue[focusIndex]
-  const action = publishAction(Boolean(agent), fresh)
+  const action = publishAction(Boolean(agent), false)
 
   if (!ready) return <LoadingLine />
 
@@ -164,7 +188,8 @@ export default function PublishPage() {
   function applyPreset(item: CatalogSkill) {
     const index = skillValue.length ? focusIndex : 0
     const taken = skillValue.filter((_, itemIndex) => itemIndex !== index).map((skill) => skill.name)
-    const next = draftOf(presetIdentity(item, taken, catalog), item, t.publish.taskLabel, names)
+    const copy = catalogText(item, locale)
+    const next = draftOf(presetIdentity({ ...item, ...copy }, taken, catalog), item, t.publish.taskLabel, names)
     setSkills(applyToSlot(skillValue, index, next))
     setFocus(index)
     setAdvanced(false)
@@ -183,32 +208,6 @@ export default function PublishPage() {
     setSkills(next)
     setFocus(next.length - 1)
     setAdvanced(false)
-  }
-
-  function startFresh() {
-    setFresh(true)
-    setName("")
-    setBio("")
-    setSkills([])
-    setFocus(0)
-    setAdvanced(false)
-    setError(null)
-    setNameError(null)
-    setBioError(null)
-    setArmed(false)
-  }
-
-  function backToBound() {
-    setFresh(false)
-    setName(null)
-    setBio(null)
-    setSkills(null)
-    setFocus(0)
-    setAdvanced(false)
-    setError(null)
-    setNameError(null)
-    setBioError(null)
-    setArmed(false)
   }
 
   function setDelivery(kind: DeliveryKind) {
@@ -235,6 +234,8 @@ export default function PublishPage() {
     ["text", t.publish.deliverText],
     ["image", t.publish.deliverImage],
     ["image_text", t.publish.deliverBoth],
+    ["audio", t.publish.deliverAudio],
+    ["audio_text", t.publish.deliverAudioText],
   ]
 
   return (
@@ -271,7 +272,7 @@ export default function PublishPage() {
           setPending(false)
           return
         }
-        if (skillValue.some((skill) => ![...skill.description.trim()].length || [...skill.description.trim()].length > 120)) {
+        if (skillValue.some((skill) => ![...skill.description.trim()].length || [...skill.description.trim()].length > 320)) {
           setError(t.publish.needDescription)
           setPending(false)
           return
@@ -358,22 +359,6 @@ export default function PublishPage() {
         {editing && agent ? t.publish.editingTitle(agent.name) : t.publish.pageTitle}
       </h1>
       <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{t.publish.pageLead}</p>
-      {editing && agent ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d9d0c0] bg-[#f7f1e4] px-4 py-3" role="status">
-          <p className="text-sm leading-6">{t.publish.editingBanner(agent.name)}</p>
-          <button type="button" className="text-sm text-stamp" onClick={startFresh}>
-            {t.publish.newCard}
-          </button>
-        </div>
-      ) : null}
-      {fresh && agent ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d9d0c0] px-4 py-3" role="status">
-          <p className="text-sm leading-6">{t.publish.freshLead}</p>
-          <button type="button" className="text-sm text-stamp" onClick={backToBound}>
-            {t.publish.backToCard}
-          </button>
-        </div>
-      ) : null}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <label className="text-sm" htmlFor="person-name" ref={nameRef}>
           {t.publish.name}
@@ -431,11 +416,11 @@ export default function PublishPage() {
                 const selected = active?.template === item.name
                 return (
                   <button key={item.name} type="button" aria-pressed={selected} className={capsule(selected)} onClick={() => applyPreset(item)}>
-                    {item.title || item.name}
+                    {catalogText(item, locale).title || item.name}
                   </button>
                 )
               })}
-              <button type="button" aria-pressed={Boolean(active && active.template === null)} className={capsule(Boolean(active && active.template === null))} onClick={writeOwn}>
+              <button type="button" aria-pressed={Boolean(active && isBlankDraft(active))} className={capsule(Boolean(active && isBlankDraft(active)))} onClick={writeOwn}>
                 {t.publish.customAdd}
               </button>
               {canStartAnother(skillValue.length) ? (
@@ -460,7 +445,7 @@ export default function PublishPage() {
                         setAdvanced(false)
                       }}
                     >
-                      {skill.title.trim() || skill.name || t.publish.customAdd}
+                      {installedLabel(skill) || t.publish.untitled(index + 1)}
                     </button>
                   ))}
                 </div>
@@ -483,7 +468,7 @@ export default function PublishPage() {
                   <Textarea
                     className="mt-1.5 min-h-24"
                     value={active.description}
-                    maxLength={120}
+                    maxLength={320}
                     onChange={(event) => updateSkill(focusIndex, { description: event.target.value })}
                   />
                   <span className="mt-1 block text-xs text-muted-foreground">{t.publish.callHint}</span>
@@ -504,7 +489,7 @@ export default function PublishPage() {
                     </span>
                   ) : null}
                 </label>
-                <button type="button" className="text-sm text-stamp" onClick={() => removeSkill(focusIndex)}>
+                <button type="button" className="text-sm text-action" onClick={() => removeSkill(focusIndex)}>
                   {t.publish.removeSkill}
                 </button>
               </>
@@ -517,51 +502,42 @@ export default function PublishPage() {
               {inputFields.length === 0 ? (
                 <button
                   type="button"
-                  className="text-sm text-stamp"
+                  className="text-sm text-action"
                   onClick={() => updateSkill(focusIndex, { input: { mode: "fields", fields: defaultTaskInput(t.publish.taskLabel), json: "" } })}
                 >
                   {t.publish.useTask}
                 </button>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full border border-[#d9d0c0] bg-[#f7f1e4] px-3 py-1 text-sm">
-                    {fieldPill(inputFields[0], fieldTypeLabel(inputFields[0].type, locale), inputFields[0].required ? t.publish.pillRequired : t.publish.pillOptional)}
-                  </span>
-                </div>
-              )}
+              ) : null}
               {!advanced && active.input.mode === "fields"
-                ? inputFields.slice(1).map((field, offset) => {
-                    const index = offset + 1
-                    return (
-                      <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto_auto] sm:items-end">
-                        <label className="block text-xs text-muted-foreground">
-                          {t.schema.name}
-                          <Input className="mt-1" value={field.name} maxLength={40} onChange={(event) => patchInput(index, { name: event.target.value })} />
-                        </label>
-                        <label className="block text-xs text-muted-foreground">
-                          {t.schema.type}
-                          <select
-                            className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-                            value={field.type}
-                            onChange={(event) => patchInput(index, { type: event.target.value as SchemaField["type"] })}
-                          >
-                            {(["string", "integer", "number", "boolean", "image"] as const).map((type) => (
-                              <option key={type} value={type}>
-                                {fieldTypeLabel(type, locale)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="flex h-8 items-center gap-1.5 text-sm">
-                          <input type="checkbox" checked={field.required} onChange={(event) => patchInput(index, { required: event.target.checked })} />
-                          {t.schema.required}
-                        </label>
-                        <button type="button" className="h-8 text-left text-sm text-stamp" onClick={() => updateSkill(focusIndex, { input: { ...active.input, fields: inputFields.filter((_, item) => item !== index) } })}>
-                          {t.schema.remove}
-                        </button>
-                      </div>
-                    )
-                  })
+                ? inputFields.map((field, index) => (
+                    <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto_auto] sm:items-end">
+                      <label className="block text-xs text-muted-foreground">
+                        {t.schema.name}
+                        <Input className="mt-1" value={field.name} maxLength={40} onChange={(event) => patchInput(index, { name: event.target.value })} />
+                      </label>
+                      <label className="block text-xs text-muted-foreground">
+                        {t.schema.type}
+                        <select
+                          className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                          value={field.type}
+                          onChange={(event) => patchInput(index, { type: event.target.value as SchemaField["type"] })}
+                        >
+                          {FIELD_TYPES.map((type) => (
+                            <option key={type} value={type}>
+                              {fieldTypeLabel(type, locale)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex h-8 items-center gap-1.5 text-sm">
+                        <input type="checkbox" checked={field.required} onChange={(event) => patchInput(index, { required: event.target.checked })} />
+                        {t.schema.required}
+                      </label>
+                      <button type="button" className="h-8 text-left text-sm text-action" onClick={() => updateSkill(focusIndex, { input: { ...active.input, fields: inputFields.filter((_, item) => item !== index) } })}>
+                        {t.schema.remove}
+                      </button>
+                    </div>
+                  ))
                 : null}
               <label className="block text-sm">
                 {t.publish.sample}
@@ -576,7 +552,7 @@ export default function PublishPage() {
               {!advanced && active.input.mode === "fields" && inputFields.length > 0 ? (
                 <button
                   type="button"
-                  className="text-sm text-stamp"
+                  className="text-sm text-action"
                   onClick={() =>
                     updateSkill(focusIndex, {
                       input: { ...active.input, fields: [...inputFields, { name: "", type: "string", required: false }] },
@@ -599,7 +575,7 @@ export default function PublishPage() {
                   ) : null}
                 </div>
               </div>
-              <button type="button" className="text-sm text-stamp" onClick={() => setAdvanced((current) => !current)}>
+              <button type="button" className="text-sm text-action" onClick={() => setAdvanced((current) => !current)}>
                 {advanced ? t.publish.advancedHide : t.publish.advanced}
               </button>
               {advanced ? (

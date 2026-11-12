@@ -16,6 +16,7 @@ from a2human.clock import now_iso, now_ms, parse_ms
 from a2human.copy import wire
 from a2human.hooks import remember
 from a2human.skill_catalog import reserved_custom_name
+from a2human.audio import read_audio
 from a2human.images import read_image
 from a2human.jsonutil import dumps, loads
 from a2human.schema_fields import canonical_output
@@ -25,7 +26,8 @@ COMMAND_TEXT_MAX = 4000
 SCHEMA_MAX = 2000
 SCORE_WAIT_MS = 60_000
 TITLE_LIMIT = 32
-PLAY_MODES = {"timed_draw", "paper", "roll", "wetware", "book", "human_check"}
+DESCRIPTION_LIMIT = 320
+PLAY_MODES = {"timed_draw", "paper", "roll", "wetware", "book", "human_check", "open_mic"}
 
 DECISIONS = {
     "reject": {"status": "rejected", "kind": "task.reject"},
@@ -180,7 +182,7 @@ def _clean_skills(skills: object) -> list[dict[str, Any]]:
             fail(wire("skill.name"))
         if reserved_custom_name(name):
             fail(wire("skill.reserved"))
-        if text_len(description) < 1 or text_len(description) > 120:
+        if text_len(description) < 1 or text_len(description) > DESCRIPTION_LIMIT:
             fail(wire("skill.description"))
         if name in seen:
             fail(wire("skill.duplicate"))
@@ -258,7 +260,7 @@ def _delivered_task(task: dict[str, Any]) -> bool:
         return False
     if isinstance(task.get("artifact"), str) and task["artifact"].strip():
         return True
-    return isinstance(task.get("artifactImage"), dict)
+    return isinstance(task.get("artifactImage"), dict) or isinstance(task.get("artifactAudio"), dict)
 
 
 def work_record(tasks: list[dict[str, Any]], agent_id: str) -> dict[str, Any]:
@@ -309,7 +311,7 @@ def _awaiting_score(store: dict[str, Any], task: dict[str, Any]) -> bool:
     return bool(decision and decision["kind"] == "task.scoreRequest")
 
 
-def submit_artifact(store: dict[str, Any], task_id: str, agent_id: str, text: object, image: object = None) -> dict[str, Any]:
+def submit_artifact(store: dict[str, Any], task_id: str, agent_id: str, text: object, image: object = None, audio: object = None) -> dict[str, Any]:
     task = _require_task(store, task_id)
     agent = _require_agent(store, agent_id)
     answering = task["status"] in {"working", "input-required"}
@@ -328,20 +330,27 @@ def submit_artifact(store: dict[str, Any], task_id: str, agent_id: str, text: ob
         if "error" in read:
             fail(read["error"])
         picture = read["image"]
+    recording = None
+    if audio is not None and audio != "":
+        heard = read_audio(audio)
+        if "error" in heard:
+            fail(heard["error"])
+        recording = heard["audio"]
     output_schema = (_output_skill(store, task) or {}).get("outputSchema")
     stored = artifact
     if output_schema:
         try:
-            stored = canonical_output(output_schema, artifact, bool(picture))
+            stored = canonical_output(output_schema, artifact, bool(picture), bool(recording))
         except Exception as error:
             message = str(error) or wire("output.bad")
             fail(message)
     if stored and text_len(stored) > 4000:
         fail(wire("artifact.length"))
-    if not picture and text_len(stored) < 1:
+    if not picture and not recording and text_len(stored) < 1:
         fail(wire("artifact.length"))
     task["artifact"] = stored or None
     task["artifactImage"] = picture
+    task["artifactAudio"] = recording
     task["status"] = "input-required"
     task["updatedAt"] = now_iso()
     _add_message(store, {
@@ -349,7 +358,7 @@ def submit_artifact(store: dict[str, Any], task_id: str, agent_id: str, text: ob
         "fromId": agent["id"],
         "fromName": agent["name"],
         "kind": "task.artifact",
-        "text": stored or (wire("artifact.imageNamed", {"name": picture["filename"]}) if picture and picture.get("filename") else wire("artifact.imagePlain")),
+        "text": stored or _media_note(picture, recording),
     })
     _add_message(store, {
         "taskId": task["id"],
@@ -413,16 +422,26 @@ def _command_title(text: str) -> str:
     return "".join(chars[: TITLE_LIMIT - 1]) + "…"
 
 
+def _media_note(picture: dict[str, Any] | None, recording: dict[str, Any] | None) -> str:
+    if picture:
+        return wire("artifact.imageNamed", {"name": picture["filename"]}) if picture.get("filename") else wire("artifact.imagePlain")
+    if recording:
+        return wire("artifact.audioNamed", {"name": recording["filename"]}) if recording.get("filename") else wire("artifact.audioPlain")
+    return wire("artifact.imagePlain")
+
+
 def artifact_reference(task: dict[str, Any]) -> str:
     """Text the score request can point at, including an image-only delivery."""
     text = task.get("artifact") if isinstance(task.get("artifact"), str) else ""
     if text:
         return text
     image = task.get("artifactImage")
-    if not isinstance(image, dict):
+    audio = task.get("artifactAudio")
+    file = image if isinstance(image, dict) else audio if isinstance(audio, dict) else None
+    if not isinstance(file, dict):
         return ""
-    media = image.get("mediaType") if isinstance(image.get("mediaType"), str) else "image"
-    name = image.get("filename") if isinstance(image.get("filename"), str) else ""
+    media = file.get("mediaType") if isinstance(file.get("mediaType"), str) else "file"
+    name = file.get("filename") if isinstance(file.get("filename"), str) else ""
     return f"{media} {name}".strip()
 
 
@@ -452,12 +471,15 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         return replay
     text = str(payload.get("text") or "").strip()
     images = list(payload.get("images") or [])
+    audios = list(payload.get("audios") or [])
     if text_len(text) > COMMAND_TEXT_MAX:
         fail(wire("command.length", {"max": COMMAND_TEXT_MAX}))
-    if text_len(text) < 1 and not images:
+    if text_len(text) < 1 and not images and not audios:
         fail(wire("command.length", {"max": COMMAND_TEXT_MAX}))
     if len(images) > 4:
         fail(wire("images.max"), -32602)
+    if len(audios) > 4:
+        fail(wire("audios.max"), -32602)
 
     if payload.get("taskId"):
         task = next((item for item in store["tasks"] if item["id"] == payload["taskId"]), None)
@@ -507,6 +529,11 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
             if len(next_images) > 4:
                 fail(wire("images.max"), -32602)
             task["images"] = next_images
+        if audios:
+            next_audios = [*(task.get("audios") or []), *audios]
+            if len(next_audios) > 4:
+                fail(wire("audios.max"), -32602)
+            task["audios"] = next_audios
         _add_message(store, {
             "taskId": task["id"],
             "fromId": caller["id"],
@@ -530,12 +557,15 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         fail(wire("skill.missing"), -32602)
     caller = ensure_caller(store)
     created_at = now_iso()
-    brief = text or wire("list.sep").join(image.get("filename") or wire("image.word") for image in images)
+    names = [image.get("filename") or wire("image.word") for image in images]
+    names.extend(item.get("filename") or wire("audio.word") for item in audios)
+    brief = text or wire("list.sep").join(names)
     task = {
         "id": str(uuid.uuid4()),
         "title": _command_title(brief),
         "brief": brief,
         **({"images": images} if images else {}),
+        **({"audios": audios} if audios else {}),
         "posterId": caller["id"],
         "posterName": payload["callerName"],
         "skills": [skill] if skill else [],

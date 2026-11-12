@@ -68,7 +68,7 @@ export default function AgentsPage() {
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{t.agents.title}</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{t.agents.lead}</p>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-        <button type="button" className="text-stamp" onClick={load}>
+        <button type="button" className="text-action" onClick={load}>
           {t.agents.refresh}
         </button>
         {agents ? <span className="font-mono text-xs text-muted-foreground">{t.agents.onDutyCount(agents.length)}</span> : null}

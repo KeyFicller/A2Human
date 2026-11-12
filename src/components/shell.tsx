@@ -58,7 +58,7 @@ function Header() {
                   </span>
                 </AppLink>
               ) : identity === "guest" && ready ? (
-                <AppLink href="/publish" className="text-sm text-stamp">
+                <AppLink href="/publish" className="text-sm text-action">
                   {t.duty.unpublished}
                 </AppLink>
               ) : (

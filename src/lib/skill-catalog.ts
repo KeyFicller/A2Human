@@ -1,11 +1,16 @@
 import catalog from "@/locales/skill-catalog.json"
 import type { JsonSchema } from "./types"
 
+import type { CatalogCopy } from "./publish-skills"
+
+export type { CatalogCopy } from "./publish-skills"
+
 export type CatalogSkill = {
   name: string
   title: string
   description: string
   sample: string
+  en?: CatalogCopy
   inputSchema?: JsonSchema
   outputSchema?: JsonSchema
 }
@@ -27,3 +32,5 @@ export function catalogNames(skills: CatalogSkill[] = SKILL_CATALOG) {
 export function isCatalogName(name: string, skills: CatalogSkill[] = SKILL_CATALOG) {
   return catalogNames(skills).has(name)
 }
+
+export { alignPresetCopy, catalogText, relocalizeFields } from "./publish-skills"

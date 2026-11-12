@@ -13,10 +13,11 @@ from typing import Any
 from a2human.copy import phrase, wire
 from a2human.jsonutil import dumps, loads
 
-FIELD_TYPES = ("string", "integer", "number", "boolean", "image")
+FIELD_TYPES = ("string", "integer", "number", "boolean", "image", "audio")
 ENUM_MAX = 20
 ENUM_ITEM_MAX = 80
 IMAGE_MODES = ("image/png", "image/jpeg", "image/webp", "image/gif")
+AUDIO_MODES = ("audio/webm", "audio/wav", "audio/mpeg")
 SCHEMA_KEYS = {
     "type",
     "properties",
@@ -93,10 +94,13 @@ def _example_text(value: object) -> str | None:
 
 def _property_schema(field: dict[str, Any]) -> JsonSchema:
     description = (field.get("description") or "").strip()
-    example = "" if field.get("type") == "image" else (_example_text(field.get("example")) or "")
-    base: JsonSchema = (
-        {"type": "string", "contentMediaType": "image/*"} if field["type"] == "image" else {"type": field["type"]}
-    )
+    example = "" if field.get("type") in {"image", "audio"} else (_example_text(field.get("example")) or "")
+    if field["type"] == "image":
+        base: JsonSchema = {"type": "string", "contentMediaType": "image/*"}
+    elif field["type"] == "audio":
+        base = {"type": "string", "contentMediaType": "audio/*"}
+    else:
+        base = {"type": field["type"]}
     kind = field.get("type")
     if kind in {"string", "integer", "number"} and field.get("enum") is not None:
         choices = enum_values(str(kind), field.get("enum"))
@@ -162,6 +166,9 @@ def schema_to_fields(schema: JsonSchema | None) -> list[dict[str, Any]] | None:
             if any(key not in {"type", "contentMediaType", "description"} for key in keys):
                 return None
             media = value.get("contentMediaType")
+            if isinstance(media, str) and media.startswith("audio/"):
+                fields.append({"name": name, "type": "audio", "required": name in required, **described})
+                continue
             if not isinstance(media, str) or not media.startswith("image/"):
                 return None
             fields.append({"name": name, "type": "image", "required": name in required, **described})
@@ -173,7 +180,7 @@ def schema_to_fields(schema: JsonSchema | None) -> list[dict[str, Any]] | None:
         if any(key not in {"type", "description", "enum", "examples"} for key in keys):
             return None
         kind = value.get("type")
-        if kind not in FIELD_TYPES or kind == "image":
+        if kind not in FIELD_TYPES or kind in {"image", "audio"}:
             return None
         if kind == "boolean":
             if "enum" in value:
@@ -214,15 +221,15 @@ def duplicate_field_name(fields: list[dict[str, Any]]) -> bool:
     return len(set(names)) != len(names)
 
 
-def _schema_mentions_image(value: object) -> bool:
+def _schema_mentions_media(value: object, prefix: str) -> bool:
     if isinstance(value, list):
-        return any(_schema_mentions_image(item) for item in value)
+        return any(_schema_mentions_media(item, prefix) for item in value)
     if not isinstance(value, dict):
         return False
     media = value.get("contentMediaType")
-    if isinstance(media, str) and media.startswith("image/"):
+    if isinstance(media, str) and media.startswith(prefix):
         return True
-    return any(_schema_mentions_image(item) for item in value.values())
+    return any(_schema_mentions_media(item, prefix) for item in value.values())
 
 
 def schema_requires_image(schema: JsonSchema | None) -> bool:
@@ -232,18 +239,28 @@ def schema_requires_image(schema: JsonSchema | None) -> bool:
     return bool(fields and any(field["type"] == "image" and field["required"] for field in fields))
 
 
+def schema_requires_audio(schema: JsonSchema | None) -> bool:
+    if not schema:
+        return False
+    fields = schema_to_fields(schema)
+    return bool(fields and any(field["type"] == "audio" and field["required"] for field in fields))
+
+
 def contract_modes(schema: JsonSchema | None) -> list[str] | None:
     """Modes advertised on an agent card for one skill schema."""
     if not schema:
         return None
     fields = schema_to_fields(schema)
-    images = any(field["type"] == "image" for field in fields) if fields is not None else _schema_mentions_image(schema)
-    data = any(field["type"] != "image" for field in fields) if fields is not None else True
+    images = any(field["type"] == "image" for field in fields) if fields is not None else _schema_mentions_media(schema, "image/")
+    audios = any(field["type"] == "audio" for field in fields) if fields is not None else _schema_mentions_media(schema, "audio/")
+    data = any(field["type"] not in {"image", "audio"} for field in fields) if fields is not None else True
     modes: list[str] = []
     if data:
         modes.append("application/json")
     if images:
         modes.extend(IMAGE_MODES)
+    if audios:
+        modes.extend(AUDIO_MODES)
     return modes or ["application/json"]
 
 
@@ -278,12 +295,19 @@ def _is_image_schema(schema: JsonSchema) -> bool:
     return schema.get("type") == "string" and isinstance(media, str) and media.startswith("image/")
 
 
+def _is_audio_schema(schema: JsonSchema) -> bool:
+    media = schema.get("contentMediaType")
+    return schema.get("type") == "string" and isinstance(media, str) and media.startswith("audio/")
+
+
 def output_shape(schema: JsonSchema) -> dict[str, Any]:
     fields = schema_to_fields(schema)
     if fields is not None:
         return {"kind": "fields", "fields": fields}
     if _is_image_schema(schema):
         return {"kind": "image"}
+    if _is_audio_schema(schema):
+        return {"kind": "audio"}
     kind = schema.get("type")
     if isinstance(kind, str) and kind in VALUE_TYPES and all(key in VALUE_SHAPE_KEYS for key in schema):
         return {"kind": "value", "type": kind}
@@ -349,6 +373,10 @@ def _check_value(schema: JsonSchema, value: object, label: str) -> None:
             image = value.startswith("http://") or value.startswith("https://") or value.startswith("data:image/") and _data_image(value)
             if not image:
                 raise ValueError(wire("must.image", {"label": label}))
+        if isinstance(media, str) and media.startswith("audio/"):
+            audio = value.startswith("http://") or value.startswith("https://") or value.startswith("data:audio/") and _data_audio(value)
+            if not audio:
+                raise ValueError(wire("must.audio", {"label": label}))
     if kind in {"integer", "number"} and isinstance(value, (int, float)) and not isinstance(value, bool):
         if isinstance(schema.get("minimum"), (int, float)) and not isinstance(schema.get("minimum"), bool) and value < schema["minimum"]:
             raise ValueError(wire("must.small", {"label": label}))
@@ -385,6 +413,11 @@ def _data_image(value: str) -> bool:
     return value.startswith("data:image/png;base64,") or value.startswith("data:image/jpeg;base64,") or value.startswith("data:image/webp;base64,") or value.startswith("data:image/gif;base64,")
 
 
+def _data_audio(value: str) -> bool:
+    head = value.split(";", 1)[0]
+    return head in {"data:audio/webm", "data:audio/wav", "data:audio/mpeg", "data:audio/mp3"} and ";base64," in value
+
+
 def _blank_delivery_text(text: str) -> bool:
     trimmed = text.strip()
     if not trimmed:
@@ -403,20 +436,28 @@ def _field_label(field: dict[str, Any]) -> str:
     return str(field["name"])
 
 
-def _canonical_fields(fields: list[dict[str, Any]], text: str, has_image: bool) -> str:
+def _canonical_fields(fields: list[dict[str, Any]], text: str, has_image: bool, has_audio: bool = False) -> str:
     images = [field for field in fields if field["type"] == "image"]
+    audios = [field for field in fields if field["type"] == "audio"]
     if len(images) > 1:
         raise ValueError(wire("output.oneImage"))
+    if len(audios) > 1:
+        raise ValueError(wire("output.oneAudio"))
     image = images[0] if images else None
+    audio = audios[0] if audios else None
     if image is None and has_image:
         raise ValueError(wire("output.noImage"))
-    data_fields = [field for field in fields if field["type"] != "image"]
+    if audio is None and has_audio:
+        raise ValueError(wire("output.noAudio"))
+    data_fields = [field for field in fields if field["type"] not in {"image", "audio"}]
     missing: list[str] = []
     if image and image.get("required") and not has_image:
         missing.append(wire("output.needImage"))
+    if audio and audio.get("required") and not has_audio:
+        missing.append(wire("output.needAudio"))
     if not data_fields:
         if not _blank_delivery_text(text):
-            raise ValueError(wire("output.imageOnly"))
+            raise ValueError(wire("output.audioOnly") if audio and not image else wire("output.imageOnly"))
         if missing:
             raise ValueError("\n".join(missing))
         return ""
@@ -443,27 +484,42 @@ def _canonical_fields(fields: list[dict[str, Any]], text: str, has_image: bool) 
     if missing:
         raise ValueError("\n".join(missing))
     image_name = image["name"] if image else None
+    audio_name = audio["name"] if audio else None
     for key in parsed:
         if image_name and key == image_name:
+            continue
+        if audio_name and key == audio_name:
             continue
         if not any(field["name"] == key for field in data_fields):
             raise ValueError(wire("output.missing", {"key": key}))
     return dumps(out)
 
 
-def canonical_output(schema: JsonSchema, text: str, has_image: bool) -> str:
+def canonical_output(schema: JsonSchema, text: str, has_image: bool, has_audio: bool = False) -> str:
     """Return the stored artifact text, or raise ValueError when it does not match."""
     fields = schema_to_fields(schema)
     if fields is not None:
-        return _canonical_fields(fields, text, has_image)
+        return _canonical_fields(fields, text, has_image, has_audio)
     if _is_image_schema(schema):
+        if has_audio:
+            raise ValueError(wire("output.noAudio"))
         if not has_image:
             raise ValueError(wire("output.needImage"))
         if text.strip():
             raise ValueError(wire("output.imageOnly"))
         return ""
+    if _is_audio_schema(schema):
+        if has_image:
+            raise ValueError(wire("output.noImage"))
+        if not has_audio:
+            raise ValueError(wire("output.needAudio"))
+        if text.strip():
+            raise ValueError(wire("output.audioOnly"))
+        return ""
     if has_image:
         raise ValueError(wire("output.noImage"))
+    if has_audio:
+        raise ValueError(wire("output.noAudio"))
     trimmed = text.strip()
     if not trimmed:
         raise ValueError(wire("output.schemaRequired"))

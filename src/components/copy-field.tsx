@@ -22,7 +22,7 @@ export function CopyField({ label, value, hint }: { label: string; value: string
         </p>
         <button
           type="button"
-          className="shrink-0 text-sm text-stamp"
+          className="shrink-0 text-sm text-action"
           disabled={!value}
           onClick={() => {
             void navigator.clipboard.writeText(value).then(

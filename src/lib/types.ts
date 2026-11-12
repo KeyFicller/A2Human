@@ -5,6 +5,13 @@ export type TaskImage = {
   filename?: string
 }
 
+export type TaskAudio = {
+  mediaType: "audio/webm" | "audio/wav" | "audio/mpeg"
+  raw?: string
+  url?: string
+  filename?: string
+}
+
 export type TaskStatus =
   | "submitted"
   | "working"
@@ -65,7 +72,9 @@ export type Task = {
   artifact: string | null
   workScore?: number
   images?: TaskImage[]
+  audios?: TaskAudio[]
   artifactImage?: TaskImage | null
+  artifactAudio?: TaskAudio | null
   createdAt: string
   updatedAt: string
   contextId?: string

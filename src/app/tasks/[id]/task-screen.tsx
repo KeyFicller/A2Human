@@ -14,9 +14,9 @@ import { needsWorker, readableArtifact, scoreWasSkipped } from "@/lib/task-view"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
-import { activePlay, deliveryOf, playHintKey, promisesTimedDraw, usesTimedBoard, type PlayMode } from "@/lib/publish-skills"
+import { activePlay, deliveryOf, playHintKey, promisesOpenMic, promisesTimedDraw, usesTimedBoard, usesTimedMic, type PlayMode } from "@/lib/publish-skills"
 import { skillLabel } from "@/lib/skill-catalog"
-import type { Agent, ProtocolMessage, Task, TaskImage } from "@/lib/types"
+import type { Agent, ProtocolMessage, Task, TaskAudio, TaskImage } from "@/lib/types"
 
 type Detail = {
   task: Task
@@ -24,21 +24,22 @@ type Detail = {
   claimant?: Agent | null
 }
 
-function imageSrc(image: TaskImage) {
-  if (image.url) return image.url
-  if (image.raw) return `data:${image.mediaType};base64,${image.raw}`
+function imageSrc(file: { mediaType: string; raw?: string; url?: string }) {
+  if (file.url) return file.url
+  if (file.raw) return `data:${file.mediaType};base64,${file.raw}`
   return ""
 }
 
 const SCORE_WAIT_MS = 60_000
 
-function progressHint(play: PlayMode | null, text: { progressDraw: string; progressPaper: string; progressRoll: string; progressWetware: string; progressBook: string; progressHuman: string; progressCustom: string }) {
+function progressHint(play: PlayMode | null, text: { progressDraw: string; progressPaper: string; progressRoll: string; progressWetware: string; progressBook: string; progressHuman: string; progressMic: string; progressCustom: string }) {
   if (play === "timed_draw") return text.progressDraw
   if (play === "paper") return text.progressPaper
   if (play === "roll") return text.progressRoll
   if (play === "wetware") return text.progressWetware
   if (play === "book") return text.progressBook
   if (play === "human_check") return text.progressHuman
+  if (play === "open_mic") return text.progressMic
   return text.progressCustom
 }
 
@@ -143,6 +144,11 @@ export default function TaskScreen({ id }: { id?: string }) {
       deliveryKind === "image" &&
       (usesTimedBoard(skill.name, "image", skill.play) || (!skill.play && promisesTimedDraw(`${skill.title || ""}\n${skill.description}`))),
   )
+  const mic = Boolean(
+    skill &&
+      (deliveryKind === "audio" || deliveryKind === "audio_text") &&
+      (usesTimedMic(skill.name, deliveryKind, skill.play) || (!skill.play && promisesOpenMic(`${skill.title || ""}\n${skill.description}`))),
+  )
   const stance = [...messages].reverse().find((item) =>
     item.kind === "task.input" || item.kind === "task.scoreRequest" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
   )
@@ -154,12 +160,12 @@ export default function TaskScreen({ id }: { id?: string }) {
         ["fail", t.task.fail],
         ["cancel", t.task.cancel],
       ] as const)
-  function handIn(nextText: string, nextImage: TaskImage | null) {
+  function handIn(nextText: string, nextImage: TaskImage | null, nextAudio: TaskAudio | null) {
     if (!agent) return
     setPending(true)
     setNotice(null)
     setHanded(false)
-    api<Task>(`/api/tasks/${task.id}`, { action: "artifact", agentId: agent.id, text: nextText, image: nextImage })
+    api<Task>(`/api/tasks/${task.id}`, { action: "artifact", agentId: agent.id, text: nextText, image: nextImage, audio: nextAudio })
       .then(() => {
         setText("")
         setImage(null)
@@ -237,6 +243,13 @@ export default function TaskScreen({ id }: { id?: string }) {
             ))}
           </div>
         ) : null}
+        {task.audios?.length ? (
+          <div className="mt-4 grid gap-3">
+            {task.audios.map((item, index) => (
+              <audio key={`${item.filename ?? "audio"}-${index}`} className="w-full" controls src={imageSrc(item)} />
+            ))}
+          </div>
+        ) : null}
         {task.progress && !(mine && task.status === "working") ? <p className="mt-4 break-words leading-7">{task.progress}</p> : null}
         {mine && task.status === "working" ? (
           <form className="mt-4 space-y-3" onSubmit={saveProgress}>
@@ -306,13 +319,14 @@ export default function TaskScreen({ id }: { id?: string }) {
             </div>
           </form>
         ) : null}
-        {task.artifact || task.artifactImage ? (
+        {task.artifact || task.artifactImage || task.artifactAudio ? (
           <div className="mt-6 rounded-2xl bg-[#f7f1e4] p-4">
             <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.task.artifact}</p>
             {task.artifact ? <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7">{readableArtifact(task.artifact)}</p> : null}
             {task.artifactImage ? (
               <Picture image={task.artifactImage} alt={task.artifactImage.filename || t.task.returnedAlt} className="mt-3 max-h-80 rounded-2xl object-contain" />
             ) : null}
+            {task.artifactAudio ? <audio className="mt-3 w-full" controls src={imageSrc(task.artifactAudio)} /> : null}
           </div>
         ) : null}
         {mine && answering && skill?.outputSchema ? (
@@ -324,6 +338,7 @@ export default function TaskScreen({ id }: { id?: string }) {
               pending={pending}
               hint={play ? t.output[playHintKey(play)] : undefined}
               board={board}
+              mic={mic}
               onError={(message) => setNotice(message || null)}
               onSubmit={handIn}
             />
@@ -338,7 +353,7 @@ export default function TaskScreen({ id }: { id?: string }) {
                 setNotice(t.task.needImage)
                 return
               }
-              handIn(text, image)
+              handIn(text, image, null)
             }}
           >
             <Textarea

@@ -1,9 +1,13 @@
 import type { FieldType } from "./schema-fields"
-import type { TaskImage } from "./types"
+import type { TaskAudio, TaskImage } from "./types"
 
 export const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif"
 
 export const IMAGE_MAX_BYTES = 1_000_000
+
+export const AUDIO_ACCEPT = "audio/webm,audio/wav,audio/mpeg,audio/mp3,.webm,.wav,.mp3"
+
+export const AUDIO_MAX_BYTES = 2_000_000
 
 const DATA_IMAGE = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/
 
@@ -44,6 +48,7 @@ export type ControlSpec =
   | { kind: "boolean"; widget: "checkbox" }
   | { kind: "enum"; widget: "radio" | "select"; options: EnumValue[] }
   | { kind: "image"; accept: string; maxBytes: number }
+  | { kind: "audio"; accept: string; maxBytes: number }
 
 export function stringIsPassage(name: string | undefined, longString = false) {
   if (longString) return true
@@ -67,6 +72,7 @@ export function controlSpec(
   if (type === "integer") return { kind: "integer", step: 1, inputMode: "numeric" }
   if (type === "number") return { kind: "number", step: "any", inputMode: "decimal" }
   if (type === "boolean") return { kind: "boolean", widget: "checkbox" }
+  if (type === "audio") return { kind: "audio", accept: AUDIO_ACCEPT, maxBytes: AUDIO_MAX_BYTES }
   return { kind: "image", accept: IMAGE_ACCEPT, maxBytes: IMAGE_MAX_BYTES }
 }
 
@@ -148,4 +154,27 @@ export function imageFromDataUrl(
     return { error: "type" }
   }
   return { image: { mediaType, raw: matched[2].replace(/\s/g, ""), filename } }
+}
+
+const DATA_AUDIO = /^data:(audio\/(?:webm|wav|mpeg|mp3))(?:;[^,]*)?;base64,([A-Za-z0-9+/=\s]+)$/
+
+export function audioMediaType(value: string): TaskAudio["mediaType"] | null {
+  const base = value.split(";", 1)[0].trim().toLowerCase()
+  if (base === "audio/webm") return "audio/webm"
+  if (base === "audio/wav" || base === "audio/wave" || base === "audio/x-wav") return "audio/wav"
+  if (base === "audio/mpeg" || base === "audio/mp3") return "audio/mpeg"
+  return null
+}
+
+export function audioFromDataUrl(
+  result: string,
+  filename: string,
+  size: number,
+): { audio: TaskAudio } | { error: "tooBig" | "type" } {
+  if (size > AUDIO_MAX_BYTES) return { error: "tooBig" }
+  const matched = DATA_AUDIO.exec(result)
+  if (!matched) return { error: "type" }
+  const mediaType = audioMediaType(matched[1])
+  if (!mediaType) return { error: "type" }
+  return { audio: { mediaType, raw: matched[2].replace(/\s/g, ""), filename } }
 }

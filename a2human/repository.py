@@ -61,8 +61,12 @@ def _task_dict(row: TaskRow) -> dict[str, Any]:
     }
     if row.images:
         task["images"] = row.images
+    if row.audios:
+        task["audios"] = row.audios
     if row.artifact_image_set:
         task["artifactImage"] = row.artifact_image
+    if row.artifact_audio_set:
+        task["artifactAudio"] = row.artifact_audio
     if row.work_score is not None:
         task["workScore"] = row.work_score
     if row.context_id is not None:
@@ -194,8 +198,11 @@ def _fill_task(row: TaskRow, task: dict[str, Any], seq: int, version: int) -> No
     row.artifact = task.get("artifact")
     row.work_score = task.get("workScore") if "workScore" in task else None
     row.images = task.get("images")
+    row.audios = task.get("audios")
     row.artifact_image_set = "artifactImage" in task
     row.artifact_image = task.get("artifactImage") if row.artifact_image_set else None
+    row.artifact_audio_set = "artifactAudio" in task
+    row.artifact_audio = task.get("artifactAudio") if row.artifact_audio_set else None
     row.created_at = to_datetime(task["createdAt"])
     row.updated_at = to_datetime(task["updatedAt"])
     row.context_id = task.get("contextId")

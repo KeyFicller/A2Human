@@ -63,7 +63,7 @@ function FieldList({
         <h3 className="text-sm">{label}</h3>
         <button
           type="button"
-          className="text-sm text-stamp"
+          className="text-sm text-action"
           onClick={() => onChange({ ...draft, fields: [...draft.fields, { name: "", type: "string", required: true }] })}
         >
           {t.schema.addField}
@@ -114,7 +114,7 @@ function FieldList({
               </label>
               <button
                 type="button"
-                className="h-8 text-left text-sm text-stamp"
+                className="h-8 text-left text-sm text-action"
                 onClick={() => {
                   setEnumText({})
                   setOpen({})
@@ -124,7 +124,7 @@ function FieldList({
                 {t.schema.remove}
               </button>
             </div>
-            <button type="button" className="text-left text-xs text-stamp" onClick={() => setOpen((current) => ({ ...current, [index]: !current[index] }))}>
+            <button type="button" className="text-left text-xs text-action" onClick={() => setOpen((current) => ({ ...current, [index]: !current[index] }))}>
               {open[index] ? t.schema.less : t.schema.more}
             </button>
             {open[index] ? (
@@ -227,7 +227,7 @@ export function SchemaEditor({
       )}
       <button
         type="button"
-        className="text-left text-sm text-stamp"
+        className="text-left text-sm text-action"
         onClick={() => {
           if (!jsonMode) {
             setNote(null)

@@ -1,5 +1,6 @@
 """Everyday skill catalog, publish validation, and skill-based dispatch."""
 
+import base64
 import json
 
 import pytest
@@ -15,9 +16,10 @@ PRESETS = [
     ("hand_draw", "碳基图像生成"),
     ("paper_think", "物理深度思考"),
     ("human_roll", "人肉随机数"),
-    ("wetware_run", "湿件代码执行"),
+    ("wetware_run", "碳基气象台"),
     ("offline_lookup", "离线知识检索"),
     ("human_check", "人类兼容性测试"),
+    ("open_mic", "一展歌喉"),
 ]
 OFFICE = {
     "translate",
@@ -70,7 +72,12 @@ def test_catalog_lists_the_carbon_presets_and_not_the_office_catalog():
     assert OFFICE.isdisjoint(CATALOG_IDS)
     for item in catalog:
         assert 1 <= len(item["title"]) <= 32
-        assert 1 <= len(item["description"]) <= 120
+        assert 1 <= len(item["description"]) <= 320
+        english = item.get("en")
+        assert isinstance(english, dict)
+        assert 1 <= len(english["title"]) <= 32
+        assert 1 <= len(english["description"]) <= 320
+        assert english["sample"].strip()
         assert item["sample"].strip()
         assert item["inputSchema"]["required"] == ["task"]
         assert list(item["inputSchema"]["properties"]) == ["task"]
@@ -96,7 +103,7 @@ def test_catalog_delivery_uses_the_duty_output_check():
     with pytest.raises(ValueError):
         canonical_output(both, '{"answer":"42"}', False)
     rolled = by_name["human_roll"]["outputSchema"]
-    assert by_name["human_roll"]["description"] == "掷骰或抽一张签，交回结果。也可以拍下这次动作。"
+    assert by_name["human_roll"]["description"] == "需要一个无法被模型预测或复现的随机结果时调用。真人掷骰或抽签，只交文字结果即可，也可附上现场照片。这不是伪随机函数，是手气本身。"
     assert rolled["required"] == ["answer"]
     assert "picture" in rolled["properties"] and "answer" in rolled["properties"]
     assert describe_schema(rolled) == "answer 文字，必填：掷出或抽到的结果；picture 图片，可选：骰子或签条的照片"
@@ -105,6 +112,11 @@ def test_catalog_delivery_uses_the_duty_output_check():
     with pytest.raises(ValueError, match="掷出或抽到的结果"):
         canonical_output(rolled, "{}", False)
     assert by_name["paper_think"]["outputSchema"]["required"] == ["answer", "picture"]
+    sung = by_name["open_mic"]["outputSchema"]
+    assert canonical_output(sung, '{"answer":"副歌"}', False, True) == '{"answer":"副歌"}'
+    with pytest.raises(ValueError):
+        canonical_output(sung, '{"answer":"副歌"}', False, False)
+    assert canonical_output(by_name["wetware_run"]["outputSchema"], '{"answer":"正在下雨"}', False) == '{"answer":"正在下雨"}'
     text = by_name["human_check"]["outputSchema"]
     assert canonical_output(text, '{"answer":"第二句"}', False) == '{"answer":"第二句"}'
     with pytest.raises(ValueError):
@@ -157,6 +169,40 @@ def test_human_roll_handover_accepts_text_alone_and_text_with_a_photo():
     )
     assert shown["artifact"] == '{"answer":"6"}'
     assert shown["artifactImage"]["filename"] == "dice.png"
+
+
+def test_open_mic_accepts_text_with_a_recording_and_text_alone_is_not_enough():
+    store = create_seed()
+    preset = next(item for item in skill_catalog() if item["name"] == "open_mic")
+    human = person(store, "阿梨", [{
+        "name": "open_mic",
+        "title": "一展歌喉",
+        "description": preset["description"],
+        "play": "open_mic",
+        "inputSchema": preset["inputSchema"],
+        "outputSchema": preset["outputSchema"],
+    }])
+    sung = receive_command(store, {
+        "humanId": human["id"],
+        "text": "唱一段副歌。",
+        "messageId": "mic-1",
+        "callerName": "某个大模型",
+        "skill": "open_mic",
+    })
+    webm = base64.b64encode(b"\x1a\x45\xdf\xa3" + b"\x00" * 12).decode()
+    with pytest.raises(DomainError):
+        submit_artifact(store, sung["id"], human["id"], '{"answer":"副歌"}')
+    handed = submit_artifact(
+        store,
+        sung["id"],
+        human["id"],
+        '{"answer":"副歌"}',
+        None,
+        {"mediaType": "audio/webm", "raw": webm, "filename": "take.webm"},
+    )
+    assert handed["artifact"] == '{"answer":"副歌"}'
+    assert handed["artifactAudio"]["mediaType"] == "audio/webm"
+    assert handed["artifactImage"] is None
 
 
 def test_a_catalog_skill_publishes_and_the_description_can_be_edited():
@@ -221,7 +267,7 @@ def test_existing_length_and_count_rules_still_apply():
         publish_agent(store, {
             "name": "老周",
             "bio": "接活。",
-            "skills": [{"name": name, "description": title} for name, title in PRESETS[:6]]
+            "skills": [{"name": name, "description": title} for name, title in PRESETS[:7]]
             + [{"name": "extra_note", "description": "多出来的一项。"}],
         })
     with pytest.raises(DomainError, match="不能重复"):

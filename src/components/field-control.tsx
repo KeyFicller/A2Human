@@ -4,9 +4,10 @@ import { useRef, useState, type ChangeEvent, type DragEvent } from "react"
 import { useLocale } from "@/components/locale-provider"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { MicBoard } from "@/components/mic-board"
 import { acceptIntegerDraft, controlSpec, imageFromDataUrl, type EnumValue } from "@/lib/field-control"
 import type { FieldType } from "@/lib/schema-fields"
-import type { TaskImage } from "@/lib/types"
+import type { TaskAudio, TaskImage } from "@/lib/types"
 
 export function FieldControl({
   type,
@@ -16,6 +17,7 @@ export function FieldControl({
   value,
   onChange,
   onImage,
+  onAudio,
   onImageError,
   ariaLabel,
   blank,
@@ -28,6 +30,7 @@ export function FieldControl({
   value?: string
   onChange?: (value: string) => void
   onImage?: (image: TaskImage | null) => void
+  onAudio?: (audio: TaskAudio | null) => void
   onImageError?: (message: string) => void
   ariaLabel?: string
   blank?: string
@@ -208,7 +211,7 @@ export function FieldControl({
         {picture ? (
           <button
             type="button"
-            className="mt-1 text-sm text-stamp"
+            className="mt-1 text-sm text-action"
             onClick={clearImage}
           >
             {t.output.clear}
@@ -217,6 +220,10 @@ export function FieldControl({
         {imageError ? <p className="mt-1 text-sm text-stamp">{imageError}</p> : null}
       </div>
     )
+  }
+
+  if (spec.kind === "audio") {
+    return <MicBoard onAudio={(audio) => onAudio?.(audio)} />
   }
 
   return (

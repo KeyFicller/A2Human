@@ -2,13 +2,15 @@ import { phrase, wire, type Locale } from "./copy"
 import { blankDeliveryText } from "./publish-skills"
 import type { JsonSchema } from "./types"
 
-export const FIELD_TYPES = ["string", "integer", "number", "boolean", "image"] as const
+export const FIELD_TYPES = ["string", "integer", "number", "boolean", "image", "audio"] as const
 
 export const ENUM_MAX = 20
 
 export const ENUM_ITEM_MAX = 80
 
 export const IMAGE_MODES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const
+
+export const AUDIO_MODES = ["audio/webm", "audio/wav", "audio/mpeg"] as const
 
 export type FieldType = (typeof FIELD_TYPES)[number]
 
@@ -67,8 +69,13 @@ export function enumList(type: "string" | "integer" | "number", value: unknown):
 
 function propertySchema(field: SchemaField): JsonSchema {
   const description = field.description?.trim()
-  const example = field.type === "image" ? "" : field.example?.trim() ?? ""
-  const base: JsonSchema = field.type === "image" ? { type: "string", contentMediaType: "image/*" } : { type: field.type }
+  const example = field.type === "image" || field.type === "audio" ? "" : field.example?.trim() ?? ""
+  const base: JsonSchema =
+    field.type === "image"
+      ? { type: "string", contentMediaType: "image/*" }
+      : field.type === "audio"
+        ? { type: "string", contentMediaType: "audio/*" }
+        : { type: field.type }
   const choices =
     field.type === "string" || field.type === "integer" || field.type === "number" ? enumList(field.type, field.enum) : []
   const listed = choices && choices.length ? { enum: choices } : {}
@@ -119,15 +126,17 @@ export function schemaToFields(schema: JsonSchema): SchemaField[] | null {
     const described = description ? { description } : {}
     if (record.type === "string" && "contentMediaType" in record) {
       if (keys.some((key) => key !== "type" && key !== "contentMediaType" && key !== "description")) return null
-      if (typeof record.contentMediaType !== "string" || !record.contentMediaType.startsWith("image/")) return null
-      fields.push({ name, type: "image", required: required.has(name), ...described })
+      if (typeof record.contentMediaType !== "string") return null
+      const media = record.contentMediaType.startsWith("audio/") ? "audio" : record.contentMediaType.startsWith("image/") ? "image" : null
+      if (!media) return null
+      fields.push({ name, type: media, required: required.has(name), ...described })
       continue
     }
     const example = readExample(record)
     if (example === null) return null
     const exemplified = example ? { example } : {}
     if (keys.some((key) => key !== "type" && key !== "description" && key !== "enum" && key !== "examples")) return null
-    if (!isFieldType(record.type) || record.type === "image") return null
+    if (!isFieldType(record.type) || record.type === "image" || record.type === "audio") return null
     if (record.type === "boolean") {
       if ("enum" in record) return null
       fields.push({ name, type: record.type, required: required.has(name), ...described, ...exemplified })
@@ -166,12 +175,12 @@ export function duplicateFieldName(fields: SchemaField[]) {
   return new Set(names).size !== names.length
 }
 
-function schemaMentionsImage(value: unknown): boolean {
+function schemaMentionsMedia(value: unknown, prefix: "image/" | "audio/"): boolean {
   if (!value || typeof value !== "object") return false
-  if (Array.isArray(value)) return value.some(schemaMentionsImage)
+  if (Array.isArray(value)) return value.some((item) => schemaMentionsMedia(item, prefix))
   const record = value as Record<string, unknown>
-  if (typeof record.contentMediaType === "string" && record.contentMediaType.startsWith("image/")) return true
-  return Object.values(record).some(schemaMentionsImage)
+  if (typeof record.contentMediaType === "string" && record.contentMediaType.startsWith(prefix)) return true
+  return Object.values(record).some((item) => schemaMentionsMedia(item, prefix))
 }
 
 export function schemaRequiresImage(schema: JsonSchema | undefined) {
@@ -180,14 +189,29 @@ export function schemaRequiresImage(schema: JsonSchema | undefined) {
   return Boolean(fields?.some((field) => field.type === "image" && field.required))
 }
 
+export function schemaRequiresAudio(schema: JsonSchema | undefined) {
+  if (!schema) return false
+  const fields = schemaToFields(schema)
+  return Boolean(fields?.some((field) => field.type === "audio" && field.required))
+}
+
+export function schemaRequiresText(schema: JsonSchema | undefined) {
+  if (!schema) return true
+  const fields = schemaToFields(schema)
+  if (!fields) return true
+  return fields.some((field) => field.type !== "image" && field.type !== "audio" && field.required)
+}
+
 export function contractModes(schema: JsonSchema | undefined) {
   if (!schema) return undefined
   const fields = schemaToFields(schema)
-  const images = fields ? fields.some((field) => field.type === "image") : schemaMentionsImage(schema)
-  const data = fields ? fields.some((field) => field.type !== "image") : true
+  const images = fields ? fields.some((field) => field.type === "image") : schemaMentionsMedia(schema, "image/")
+  const audios = fields ? fields.some((field) => field.type === "audio") : schemaMentionsMedia(schema, "audio/")
+  const data = fields ? fields.some((field) => field.type !== "image" && field.type !== "audio") : true
   const modes: string[] = []
   if (data) modes.push("application/json")
   if (images) modes.push(...IMAGE_MODES)
+  if (audios) modes.push(...AUDIO_MODES)
   return modes.length ? modes : ["application/json"]
 }
 
@@ -200,6 +224,7 @@ export function describeSchema(schema: JsonSchema, locale: Locale = "zh") {
     number: fieldTypeLabel("number", locale),
     boolean: fieldTypeLabel("boolean", locale),
     image: fieldTypeLabel("image", locale),
+    audio: fieldTypeLabel("audio", locale),
   }
   const required = phrase("schema.requiredMark", undefined, locale)
   const optional = phrase("schema.optionalMark", undefined, locale)
@@ -239,16 +264,22 @@ export type OutputShape =
   | { kind: "fields"; fields: SchemaField[] }
   | { kind: "value"; type: "string" | "integer" | "number" | "boolean"; enum?: Array<string | number> }
   | { kind: "image" }
+  | { kind: "audio" }
   | { kind: "json" }
 
 function isImageSchema(schema: JsonSchema) {
   return schema.type === "string" && typeof schema.contentMediaType === "string" && schema.contentMediaType.startsWith("image/")
 }
 
+function isAudioSchema(schema: JsonSchema) {
+  return schema.type === "string" && typeof schema.contentMediaType === "string" && schema.contentMediaType.startsWith("audio/")
+}
+
 export function outputShape(schema: JsonSchema): OutputShape {
   const fields = schemaToFields(schema)
   if (fields) return { kind: "fields", fields }
   if (isImageSchema(schema)) return { kind: "image" }
+  if (isAudioSchema(schema)) return { kind: "audio" }
   if (typeof schema.type === "string" && VALUE_TYPES.has(schema.type)) {
     const keys = Object.keys(schema)
     if (keys.every((key) => ["type", "description", "minimum", "maximum", "minLength", "maxLength", "enum"].includes(key))) {
@@ -301,6 +332,10 @@ function checkValue(schema: JsonSchema, value: unknown, label: string) {
       const image = /^https?:\/\//.test(value) || /^data:image\/(?:png|jpeg|webp|gif);base64,/.test(value)
       if (!image) throw new Error(wire("must.image", { label }))
     }
+    if (typeof schema.contentMediaType === "string" && schema.contentMediaType.startsWith("audio/")) {
+      const audio = /^https?:\/\//.test(value) || /^data:audio\/(?:webm|wav|mpeg|mp3)(?:;[^,]*)?;base64,/.test(value)
+      if (!audio) throw new Error(wire("must.audio", { label }))
+    }
   }
   if ((schema.type === "integer" || schema.type === "number") && typeof value === "number") {
     if (typeof schema.minimum === "number" && value < schema.minimum) throw new Error(wire("must.small", { label }))
@@ -337,16 +372,21 @@ function fieldLabel(field: SchemaField) {
   return field.description?.trim() || field.name
 }
 
-function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean) {
+function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean, hasAudio: boolean) {
   const images = fields.filter((field) => field.type === "image")
+  const audios = fields.filter((field) => field.type === "audio")
   if (images.length > 1) throw new Error(wire("output.oneImage"))
+  if (audios.length > 1) throw new Error(wire("output.oneAudio"))
   const image = images[0]
+  const audio = audios[0]
   if (!image && hasImage) throw new Error(wire("output.noImage"))
-  const dataFields = fields.filter((field) => field.type !== "image")
+  if (!audio && hasAudio) throw new Error(wire("output.noAudio"))
+  const dataFields = fields.filter((field) => field.type !== "image" && field.type !== "audio")
   const missing: string[] = []
   if (image?.required && !hasImage) missing.push(wire("output.needImage"))
+  if (audio?.required && !hasAudio) missing.push(wire("output.needAudio"))
   if (dataFields.length === 0) {
-    if (!blankDeliveryText(text)) throw new Error(wire("output.imageOnly"))
+    if (!blankDeliveryText(text)) throw new Error(image && !audio ? wire("output.imageOnly") : wire("output.audioOnly"))
     if (missing.length) throw new Error(missing.join("\n"))
     return ""
   }
@@ -373,20 +413,29 @@ function canonicalFields(fields: SchemaField[], text: string, hasImage: boolean)
   if (missing.length) throw new Error(missing.join("\n"))
   for (const key of Object.keys(record)) {
     if (image && key === image.name) continue
+    if (audio && key === audio.name) continue
     if (!dataFields.some((field) => field.name === key)) throw new Error(wire("output.missing", { key }))
   }
   return JSON.stringify(out)
 }
 
-export function canonicalOutput(schema: JsonSchema, text: string, hasImage: boolean) {
+export function canonicalOutput(schema: JsonSchema, text: string, hasImage: boolean, hasAudio = false) {
   const fields = schemaToFields(schema)
-  if (fields) return canonicalFields(fields, text, hasImage)
+  if (fields) return canonicalFields(fields, text, hasImage, hasAudio)
   if (isImageSchema(schema)) {
+    if (hasAudio) throw new Error(wire("output.noAudio"))
     if (!hasImage) throw new Error(wire("output.needImage"))
     if (text.trim()) throw new Error(wire("output.imageOnly"))
     return ""
   }
+  if (isAudioSchema(schema)) {
+    if (hasImage) throw new Error(wire("output.noImage"))
+    if (!hasAudio) throw new Error(wire("output.needAudio"))
+    if (text.trim()) throw new Error(wire("output.audioOnly"))
+    return ""
+  }
   if (hasImage) throw new Error(wire("output.noImage"))
+  if (hasAudio) throw new Error(wire("output.noAudio"))
   const trimmed = text.trim()
   if (!trimmed) throw new Error(wire("output.schemaRequired"))
   let parsed: unknown

@@ -134,6 +134,8 @@ export type Messages = {
     deliverText: string
     deliverImage: string
     deliverBoth: string
+    deliverAudio: string
+    deliverAudioText: string
     deliverCustom: string
     advanced: string
     advancedHide: string
@@ -161,11 +163,8 @@ export type Messages = {
     previewNoTask: string
     toolIdEmpty: string
     toolIdInvalid: string
-    editingBanner: (name: string) => string
     editingTitle: (name: string) => string
-    newCard: string
-    freshLead: string
-    backToCard: string
+    untitled: (n: number) => string
     customInvalid: string
     customReserved: string
     needSkill: string
@@ -231,6 +230,8 @@ export type Messages = {
     writeHere: string
     imageTooBig: string
     imageType: string
+    audioTooBig: string
+    audioType: string
     needImage: string
     submitting: string
     submit: string
@@ -261,6 +262,7 @@ export type Messages = {
     progressPaper: string
     progressRoll: string
     progressWetware: string
+    progressMic: string
     progressBook: string
     progressHuman: string
     progressCustom: string
@@ -282,6 +284,7 @@ export type Messages = {
     drop: string
     clear: string
     oneImage: string
+    oneAudio: string
     requiredSuffix: string
     noteColon: string
     mustFill: (label: string) => string
@@ -293,7 +296,16 @@ export type Messages = {
     playWetware: string
     playBook: string
     playHuman: string
+    playMic: string
     drawStart: string
+    dropAudio: string
+    micStart: string
+    micStop: string
+    micLeft: (seconds: number) => string
+    micDone: string
+    micIdle: string
+    micLabel: string
+    micUpload: string
     drawLeft: (seconds: number) => string
     drawFrozen: string
     drawIdle: string
@@ -445,6 +457,8 @@ function bind(locale: Locale): Messages {
       deliverText: text("publish.deliverText"),
       deliverImage: text("publish.deliverImage"),
       deliverBoth: text("publish.deliverBoth"),
+      deliverAudio: text("publish.deliverAudio"),
+      deliverAudioText: text("publish.deliverAudioText"),
       deliverCustom: text("publish.deliverCustom"),
       advanced: text("publish.advanced"),
       advancedHide: text("publish.advancedHide"),
@@ -472,11 +486,8 @@ function bind(locale: Locale): Messages {
       previewNoTask: text("publish.previewNoTask"),
       toolIdEmpty: text("publish.toolIdEmpty"),
       toolIdInvalid: text("publish.toolIdInvalid"),
-      editingBanner: (name) => text("publish.editingBanner", { name }),
       editingTitle: (name) => text("publish.editingTitle", { name }),
-      newCard: text("publish.newCard"),
-      freshLead: text("publish.freshLead"),
-      backToCard: text("publish.backToCard"),
+      untitled: (n) => text("publish.untitled", { n }),
       customInvalid: text("publish.customInvalid"),
       customReserved: text("publish.customReserved"),
       needSkill: text("publish.needSkill"),
@@ -542,6 +553,8 @@ function bind(locale: Locale): Messages {
       writeHere: text("task.writeHere"),
       imageTooBig: text("task.imageTooBig"),
       imageType: text("task.imageType"),
+      audioTooBig: text("task.audioTooBig"),
+      audioType: text("task.audioType"),
       needImage: text("task.needImage"),
       submitting: text("task.submitting"),
       submit: text("task.submit"),
@@ -572,6 +585,7 @@ function bind(locale: Locale): Messages {
       progressPaper: text("task.progressPaper"),
       progressRoll: text("task.progressRoll"),
       progressWetware: text("task.progressWetware"),
+      progressMic: text("task.progressMic"),
       progressBook: text("task.progressBook"),
       progressHuman: text("task.progressHuman"),
       progressCustom: text("task.progressCustom"),
@@ -593,6 +607,7 @@ function bind(locale: Locale): Messages {
       drop: text("output.drop"),
       clear: text("output.clear"),
       oneImage: text("output.oneImage"),
+      oneAudio: text("output.oneAudio"),
       requiredSuffix: text("output.requiredSuffix"),
       noteColon: text("output.noteColon"),
       mustFill: (label) => text("output.mustFill", { label }),
@@ -604,6 +619,15 @@ function bind(locale: Locale): Messages {
       playWetware: text("output.playWetware"),
       playBook: text("output.playBook"),
       playHuman: text("output.playHuman"),
+      playMic: text("output.playMic"),
+      dropAudio: text("output.dropAudio"),
+      micStart: text("output.micStart"),
+      micStop: text("output.micStop"),
+      micLeft: (seconds) => text("output.micLeft", { seconds }),
+      micDone: text("output.micDone"),
+      micIdle: text("output.micIdle"),
+      micLabel: text("output.micLabel"),
+      micUpload: text("output.micUpload"),
       drawStart: text("output.drawStart"),
       drawLeft: (seconds) => text("output.drawLeft", { seconds }),
       drawFrozen: text("output.drawFrozen"),
