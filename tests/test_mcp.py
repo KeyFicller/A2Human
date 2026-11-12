@@ -149,8 +149,7 @@ async def test_tools_list_accepts_a_task_id_only_poll_and_keeps_skill_fields_req
     assert not schema_accepts(schema, {"score": 4})
     assert not schema_accepts(schema, {"task_id": "task-1", "extra": True})
 
-    both = create_seed()
-    agent = publish_agent(both, {
+    agent = publish_agent(store, {
         "name": "办事",
         "bio": "按要求。",
         "skills": [{
@@ -167,9 +166,9 @@ async def test_tools_list_accepts_a_task_id_only_poll_and_keeps_skill_fields_req
             "outputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
         }],
     })
-    set_availability(both, agent["id"], True)
-    listed_both = await handle_mcp({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, memory(both))
-    duty = next(tool for tool in body_of(listed_both)["result"]["tools"] if tool["name"] != "a2h_score")
+    set_availability(store, agent["id"], True)
+    listed_both = await handle_mcp({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, memory(store))
+    duty = next(tool for tool in body_of(listed_both)["result"]["tools"] if "requirements" in tool["inputSchema"]["properties"])
     both_schema = duty["inputSchema"]
     assert both_schema["anyOf"][0]["required"] == ["requirements", "limit"]
     assert schema_accepts(both_schema, {"task_id": "task-2"})
@@ -178,11 +177,11 @@ async def test_tools_list_accepts_a_task_id_only_poll_and_keeps_skill_fields_req
     assert schema_accepts(both_schema, {"requirements": "把桌子搬到门口", "limit": 2})
     partial = await handle_mcp(
         {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": duty["name"], "arguments": {"requirements": "把桌子搬到门口"}}},
-        memory(both),
+        memory(store),
     )
     assert body_of(partial)["result"]["isError"] is True
     assert "limit" in body_of(partial)["result"]["content"][0]["text"]
-    assert both["tasks"] == []
+    assert store["tasks"] == []
 
 
 async def test_task_id_only_polls_and_a_new_dispatch_still_requires_skill_fields():
