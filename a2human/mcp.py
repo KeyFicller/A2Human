@@ -153,9 +153,15 @@ def _input_schema(fields: list[dict[str, Any]] | None) -> dict[str, Any]:
         properties["task_id"] = {"type": "string", "description": wire("mcp.taskIdDescription")}
     if "score" not in properties:
         properties["score"] = {"type": "integer", "description": wire("mcp.scoreDescription")}
+    schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": False}
+    # Poll is task_id alone. Legacy score is task_id plus score. Skill fields stay required to dispatch.
     if required:
-        return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
-    return {"type": "object", "properties": properties, "additionalProperties": False}
+        schema["anyOf"] = [
+            {"required": required},
+            {"required": ["task_id"]},
+            {"required": ["task_id", "score"]},
+        ]
+    return schema
 
 
 def _catalog(store: dict[str, Any]) -> list[dict[str, Any]]:

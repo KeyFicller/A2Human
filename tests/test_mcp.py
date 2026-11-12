@@ -3,7 +3,7 @@ import re
 import pytest
 
 from a2human.clock import now_iso, now_ms
-from a2human.mcp import MCP_TASK_POLL_MS, MCP_TASK_TTL_MS, McpIo, TASKS_EXTENSION, handle_mcp, list_duty_tools
+from a2human.mcp import MCP_TASK_POLL_MS, MCP_TASK_TTL_MS, McpIo, TASKS_EXTENSION, duty_step, handle_mcp, list_duty_tools
 from a2human.rules import create_seed, decide_task, publish_agent, set_availability, submit_artifact
 
 counting = {
@@ -42,6 +42,43 @@ def body_of(response):
 def task_of(response):
     result = body_of(response)["result"]
     return result.get("task") or result
+
+
+def schema_accepts(schema, instance):
+    """The slice of JSON Schema that duty tool inputSchemas use."""
+    expected = schema.get("type")
+    object_like = expected == "object" or (
+        expected is None and any(key in schema for key in ("properties", "required", "additionalProperties", "anyOf", "oneOf"))
+    )
+    if object_like:
+        if not isinstance(instance, dict):
+            return False
+        properties = schema.get("properties") or {}
+        if schema.get("additionalProperties") is False and any(key not in properties for key in instance):
+            return False
+        for key, value in instance.items():
+            prop = properties.get(key)
+            if isinstance(prop, dict) and not schema_accepts(prop, value):
+                return False
+        if any(name not in instance for name in schema.get("required") or []):
+            return False
+    elif expected == "string":
+        if not isinstance(instance, str):
+            return False
+    elif expected == "integer":
+        if isinstance(instance, bool) or not isinstance(instance, int):
+            return False
+    elif expected == "number":
+        if isinstance(instance, bool) or not isinstance(instance, (int, float)):
+            return False
+    elif expected == "boolean":
+        if not isinstance(instance, bool):
+            return False
+    if "anyOf" in schema and not any(schema_accepts(branch, instance) for branch in schema["anyOf"]):
+        return False
+    if "oneOf" in schema and sum(schema_accepts(branch, instance) for branch in schema["oneOf"]) != 1:
+        return False
+    return True
 
 
 async def test_an_enum_is_advertised_and_a_value_outside_it_is_refused():
@@ -85,10 +122,99 @@ def test_mcp_lists_one_tool_per_on_duty_skill_and_keeps_a2a_as_the_path():
     assert schema["properties"]["task_id"]["type"] == "string"
     assert schema["properties"]["score"]["type"] == "integer"
     assert count["execution"]["taskSupport"] == "optional"
-    assert schema["required"] == ["scene"]
+    assert schema["anyOf"] == [
+        {"required": ["scene"]},
+        {"required": ["task_id"]},
+        {"required": ["task_id", "score"]},
+    ]
+    assert "required" not in schema
     assert tools[1]["inputSchema"]["properties"]["prompt"]["type"] == "string"
+    assert "required" not in tools[1]["inputSchema"]
+    assert "anyOf" not in tools[1]["inputSchema"]
     assert all("阿梨" not in tool["description"] for tool in list_duty_tools(store))
     assert on["available"] is True
+
+
+async def test_tools_list_accepts_a_task_id_only_poll_and_keeps_skill_fields_required():
+    store, _on = world()
+    listed = await handle_mcp({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, memory(store))
+    counted = next(tool for tool in body_of(listed)["result"]["tools"] if "scene" in tool["inputSchema"]["properties"])
+    schema = counted["inputSchema"]
+    assert schema_accepts(schema, {"task_id": "task-1"})
+    assert schema_accepts(schema, {"task_id": "task-1", "score": 4})
+    assert schema_accepts(schema, {"scene": "三个圆"})
+    assert schema_accepts(schema, {"scene": "三个圆", "photo": "https://example.com/a.png"})
+    assert not schema_accepts(schema, {})
+    assert not schema_accepts(schema, {"photo": "https://example.com/a.png"})
+    assert not schema_accepts(schema, {"score": 4})
+    assert not schema_accepts(schema, {"task_id": "task-1", "extra": True})
+
+    agent = publish_agent(store, {
+        "name": "办事",
+        "bio": "按要求。",
+        "skills": [{
+            "name": "办理",
+            "description": "两栏都要。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "requirements": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                "required": ["requirements", "limit"],
+            },
+            "outputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+        }],
+    })
+    set_availability(store, agent["id"], True)
+    listed_both = await handle_mcp({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, memory(store))
+    duty = next(tool for tool in body_of(listed_both)["result"]["tools"] if "requirements" in tool["inputSchema"]["properties"])
+    both_schema = duty["inputSchema"]
+    assert both_schema["anyOf"][0]["required"] == ["requirements", "limit"]
+    assert schema_accepts(both_schema, {"task_id": "task-2"})
+    assert schema_accepts(both_schema, {"task_id": "task-2", "score": 5})
+    assert not schema_accepts(both_schema, {"requirements": "把桌子搬到门口"})
+    assert schema_accepts(both_schema, {"requirements": "把桌子搬到门口", "limit": 2})
+    partial = await handle_mcp(
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": duty["name"], "arguments": {"requirements": "把桌子搬到门口"}}},
+        memory(store),
+    )
+    assert body_of(partial)["result"]["isError"] is True
+    assert "limit" in body_of(partial)["result"]["content"][0]["text"]
+    assert store["tasks"] == []
+
+
+async def test_task_id_only_polls_and_a_new_dispatch_still_requires_skill_fields():
+    store, _on = world()
+    tool = list_duty_tools(store)[0]
+    await handle_mcp(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool["name"], "arguments": {"scene": "三个圆"}}},
+        memory(store),
+    )
+    task_id = store["tasks"][0]["id"]
+    polled = await handle_mcp(
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": tool["name"], "arguments": {"task_id": task_id}}},
+        memory(store),
+    )
+    assert "isError" not in body_of(polled)["result"]
+    assert task_id in body_of(polled)["result"]["content"][0]["text"]
+    assert len(store["tasks"]) == 1
+    assert duty_step(store, tool["name"], {"task_id": "missing-task"}) == {"kind": "error", "text": "找不到这张任务"}
+    missing = await handle_mcp(
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": tool["name"], "arguments": {"task_id": "missing-task"}}},
+        memory(store),
+    )
+    assert body_of(missing)["result"]["isError"] is True
+    assert body_of(missing)["result"]["content"][0]["text"] == "找不到这张任务"
+    assert len(store["tasks"]) == 1
+    assert "scene" in duty_step(store, tool["name"], {})["text"]
+    refused = await handle_mcp(
+        {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": tool["name"], "arguments": {}}},
+        memory(store),
+    )
+    assert body_of(refused)["result"]["isError"] is True
+    assert "scene" in body_of(refused)["result"]["content"][0]["text"]
+    assert len(store["tasks"]) == 1
 
 
 async def test_a_tool_call_opens_an_a2a_task_and_asks_again_while_the_person_is_still_working():
