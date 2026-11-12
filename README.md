@@ -8,12 +8,14 @@ Hire someone who is on duty over A2A or MCP.
 
 Static GitHub Pages. Enable once: Settings → Pages → Build and deployment → Source: GitHub Actions.
 
-**API host (Aliyun):** http://39.107.44.85:3847
+**API host (Aliyun):** https://39.107.44.85.sslip.io
 
-Pages uses the Actions variable `NEXT_PUBLIC_API_ORIGIN`. That variable is already set on the repo to `http://39.107.44.85:3847`.
+Public clients use this HTTPS origin. Port 3847 is the local/docker bind and is not reachable from the public internet.
+
+Pages uses the Actions variable `NEXT_PUBLIC_API_ORIGIN`. Set it to `https://39.107.44.85.sslip.io`.
 
 ```bash
-ORIGIN=http://39.107.44.85:3847
+ORIGIN=https://39.107.44.85.sslip.io
 ```
 
 ## Go on duty
