@@ -23,8 +23,164 @@ export function canAddCustomSkill(skillCount: number) {
   return skillCount < 6
 }
 
-export function customSkillAddLabel(customCount: number): "customAdd" | "addSkill" {
-  return customCount > 0 ? "addSkill" : "customAdd"
+/** A second skill is an explicit action. The blank-template control never turns into it. */
+export function canStartAnother(skillCount: number) {
+  return skillCount > 0 && skillCount < 6
+}
+
+export type SlotIdentity = {
+  name: string
+  title: string
+  description: string
+  sample: string
+  template: string | null
+  nameTouched: boolean
+}
+
+export function blankIdentity(): SlotIdentity {
+  return { name: "", title: "", description: "", sample: "", template: null, nameTouched: false }
+}
+
+export function presetIdentity(
+  item: { name: string; title: string; description: string; sample: string },
+  taken: string[] = [],
+  skills: NamedSkill[] = [],
+): SlotIdentity {
+  const name = taken.includes(item.name) ? toolIdFromTitle(item.title, taken, skills) : item.name
+  return {
+    name,
+    title: item.title,
+    description: item.description,
+    sample: item.sample,
+    template: item.name,
+    nameTouched: true,
+  }
+}
+
+/** Replace the skill being edited. An empty list gains its first skill and does not grow past that. */
+export function applyToSlot<T>(slots: T[], index: number, next: T): T[] {
+  if (slots.length === 0) return [next]
+  const at = Math.min(Math.max(index, 0), slots.length - 1)
+  return slots.map((slot, item) => (item === at ? next : slot))
+}
+
+export function addAnotherSlot<T>(slots: T[], blank: T): T[] | null {
+  if (!canStartAnother(slots.length)) return null
+  return [...slots, blank]
+}
+
+export function toolIdProblem(value: string): "empty" | "invalid" | null {
+  if (!value) return "empty"
+  if (!TOOL_ID.test(value)) return "invalid"
+  return null
+}
+
+/** Keep a hand-edited id. An untouched id follows the display name, and a blank name does not invent `skill`. */
+export function toolIdAfterTitle(title: string, taken: Iterable<string>, skills: NamedSkill[], nameTouched: boolean, current: string) {
+  if (nameTouched) return current
+  const trimmed = title.trim()
+  if (!trimmed) return ""
+  return toolIdFromTitle(trimmed, taken, skills)
+}
+
+export function withToolId(slot: SlotIdentity, name: string): SlotIdentity {
+  return { ...slot, name, nameTouched: true }
+}
+
+export function previewFields(skill: { title: string; description: string; sample: string } | null) {
+  return {
+    title: skill?.title.trim() ?? "",
+    description: skill?.description.trim() ?? "",
+    task: skill?.sample.trim() ?? "",
+  }
+}
+
+/** Try-fill and check results are keyed to the slot, its template, and the delivery schema. */
+export function previewSessionKey(slot: number, template: string | null, delivery: string) {
+  return `${slot}\n${template ?? ""}\n${delivery}`
+}
+
+export function personNameIssue(name: string): "name.length" | null {
+  const length = [...name.trim()].length
+  if (length < 2 || length > 16) return "name.length"
+  return null
+}
+
+export function publishAction(bound: boolean, fresh: boolean): "save" | "publish" {
+  return bound && !fresh ? "save" : "publish"
+}
+
+export type PlayMode = "timed_draw" | "paper" | "roll" | "wetware" | "book" | "human_check"
+
+const PLAY_BY_NAME: Record<string, PlayMode> = {
+  hand_draw: "timed_draw",
+  paper_think: "paper",
+  human_roll: "roll",
+  wetware_run: "wetware",
+  offline_lookup: "book",
+  human_check: "human_check",
+}
+
+export function playMode(name: string): PlayMode | null {
+  return PLAY_BY_NAME[name] ?? null
+}
+
+export function playHintKey(mode: PlayMode): "playTimed" | "playPaper" | "playRoll" | "playWetware" | "playBook" | "playHuman" {
+  if (mode === "timed_draw") return "playTimed"
+  if (mode === "paper") return "playPaper"
+  if (mode === "roll") return "playRoll"
+  if (mode === "wetware") return "playWetware"
+  if (mode === "book") return "playBook"
+  return "playHuman"
+}
+
+export const DRAW_LIMIT_MS = 30_000
+
+export function usesTimedBoard(name: string, delivery: DeliveryKind) {
+  return playMode(name) === "timed_draw" && delivery === "image"
+}
+
+/** The play hint and timed board follow the delivery the person will actually publish. */
+export function activePlay(name: string, delivery: DeliveryKind | "custom"): PlayMode | null {
+  const mode = playMode(name)
+  if (!mode || delivery === "custom") return null
+  if (mode === "timed_draw") return delivery === "image" ? mode : null
+  if (mode === "paper" || mode === "roll") return delivery === "image_text" ? mode : null
+  return delivery === "text" ? mode : null
+}
+
+/** `{}` is an empty field form, not extra text beside an image-only delivery. */
+export function blankDeliveryText(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return true
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false
+    return Object.keys(parsed).length === 0
+  } catch {
+    return false
+  }
+}
+
+export function drawClock(startedAt: number | null, now: number): { phase: "idle" | "live" | "frozen"; leftMs: number } {
+  if (startedAt == null) return { phase: "idle", leftMs: DRAW_LIMIT_MS }
+  const elapsed = Math.max(0, now - startedAt)
+  if (elapsed >= DRAW_LIMIT_MS) return { phase: "frozen", leftMs: 0 }
+  return { phase: "live", leftMs: DRAW_LIMIT_MS - elapsed }
+}
+
+/** Prefer the bundled preset text so a stale API catalog cannot drop the play-mode contract. */
+export function mergePresetCatalog<T extends { name: string }>(remote: T[], bundled: T[]): T[] {
+  const local = new Map(bundled.map((item) => [item.name, item]))
+  const seen = new Set<string>()
+  const merged = remote.map((item) => {
+    seen.add(item.name)
+    return local.get(item.name) ?? item
+  })
+  for (const item of bundled) {
+    if (!seen.has(item.name)) merged.push(item)
+  }
+  return merged
 }
 
 export function defaultTaskInput(label: string): DraftField[] {

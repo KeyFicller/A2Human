@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAgent } from "@/components/agent-provider"
 import { useText } from "@/components/locale-provider"
@@ -11,8 +11,29 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ApiError, api } from "@/lib/client"
+import { localizeError, wire } from "@/lib/copy"
 import { go, pagesExport } from "@/lib/paths"
-import { canAddCustomSkill, customSkillAddLabel, defaultTaskInput, deliverySchema, fieldPill, skillPayload, toolIdFromTitle, type DeliveryKind } from "@/lib/publish-skills"
+import {
+  addAnotherSlot,
+  applyToSlot,
+  blankIdentity,
+  canStartAnother,
+  defaultTaskInput,
+  deliveryOf,
+  deliverySchema,
+  fieldPill,
+  mergePresetCatalog,
+  personNameIssue,
+  playMode,
+  presetIdentity,
+  previewSessionKey,
+  publishAction,
+  skillPayload,
+  toolIdAfterTitle,
+  toolIdProblem,
+  type DeliveryKind,
+  type SlotIdentity,
+} from "@/lib/publish-skills"
 import { draftFromSchema, duplicateFieldName, fieldTypeLabel, schemaPayload, type SchemaDraft, type SchemaField } from "@/lib/schema-fields"
 import { CUSTOM_SKILL_NAME, SKILL_CATALOG, catalogNames, type CatalogSkill } from "@/lib/skill-catalog"
 import type { Agent, Skill } from "@/lib/types"
@@ -25,6 +46,7 @@ type SkillDraft = PreviewSkill & {
   kind: SkillKind
   nameTouched: boolean
   originalName: string
+  template: string | null
 }
 
 function kindFor(name: string, names: Set<string>, previous: SkillKind): SkillKind {
@@ -33,19 +55,18 @@ function kindFor(name: string, names: Set<string>, previous: SkillKind): SkillKi
   return previous === "legacy" ? "legacy" : "custom"
 }
 
-function emptyCustom(taken: string[], taskLabel: string): SkillDraft {
-  const name = toolIdFromTitle("", taken)
+function draftOf(identity: SlotIdentity, item: CatalogSkill | null, taskLabel: string, names: Set<string>): SkillDraft {
   return {
-    name,
-    title: "",
-    description: "",
-    sample: "",
-    input: { mode: "fields", fields: defaultTaskInput(taskLabel), json: "" },
-    output: draftFromSchema(deliverySchema("text")),
-    kind: "custom",
-    nameTouched: false,
-    originalName: name,
+    ...identity,
+    input: item ? draftFromSchema(item.inputSchema) : { mode: "fields", fields: defaultTaskInput(taskLabel), json: "" },
+    output: item ? draftFromSchema(item.outputSchema) : draftFromSchema(deliverySchema("text")),
+    kind: names.has(identity.name) ? "catalog" : "custom",
+    originalName: identity.name,
   }
+}
+
+function emptyCustom(taskLabel: string, names: Set<string>): SkillDraft {
+  return draftOf(blankIdentity(), null, taskLabel, names)
 }
 
 function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[]): SkillDraft {
@@ -61,20 +82,7 @@ function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[]): S
     kind,
     nameTouched: true,
     originalName: skill.name,
-  }
-}
-
-function fromCatalog(item: CatalogSkill): SkillDraft {
-  return {
-    name: item.name,
-    title: item.title,
-    description: item.description,
-    sample: item.sample,
-    input: draftFromSchema(item.inputSchema),
-    output: draftFromSchema(item.outputSchema),
-    kind: "catalog",
-    nameTouched: true,
-    originalName: item.name,
+    template: preset?.name ?? null,
   }
 }
 
@@ -96,12 +104,15 @@ export default function PublishPage() {
   const [advanced, setAdvanced] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fresh, setFresh] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const nameRef = useRef<HTMLLabelElement>(null)
 
   useEffect(() => {
     let cancel = false
     api<{ skills: CatalogSkill[] }>("/api/skill-catalog")
       .then((body) => {
-        if (!cancel && Array.isArray(body.skills) && body.skills.length) setCatalog(body.skills)
+        if (!cancel && Array.isArray(body.skills) && body.skills.length) setCatalog(mergePresetCatalog(body.skills, SKILL_CATALOG))
       })
       .catch(() => {})
     return () => {
@@ -110,12 +121,13 @@ export default function PublishPage() {
   }, [])
 
   const names = catalogNames(catalog)
-  const nameValue = name ?? agent?.name ?? ""
-  const bioValue = bio ?? agent?.bio ?? ""
-  const skillValue = skills ?? (agent?.skills.length ? agent.skills.map((skill) => draftFrom(skill, names, catalog)) : [])
+  const editing = Boolean(agent) && !fresh
+  const nameValue = name ?? (editing ? agent?.name ?? "" : "")
+  const bioValue = bio ?? (editing ? agent?.bio ?? "" : "")
+  const skillValue = skills ?? (editing && agent?.skills.length ? agent.skills.map((skill) => draftFrom(skill, names, catalog)) : [])
   const focusIndex = skillValue.length ? Math.min(focus, skillValue.length - 1) : 0
   const active = skillValue[focusIndex]
-  const customCount = skillValue.filter((skill) => skill.kind !== "catalog").length
+  const action = publishAction(Boolean(agent), fresh)
 
   if (!ready) return <LoadingLine />
 
@@ -124,15 +136,13 @@ export default function PublishPage() {
       skillValue.map((skill, item) => {
         if (item !== index) return skill
         const next = { ...skill, ...patch }
-        if (patch.name !== undefined) {
-          next.nameTouched = true
-          next.kind = kindFor(next.name, names, skill.kind)
-        }
-        if (patch.title !== undefined && !next.nameTouched) {
+        const nameTouched = patch.name !== undefined ? true : skill.nameTouched
+        if (patch.title !== undefined) {
           const taken = skillValue.filter((_, other) => other !== index).map((other) => other.name)
-          next.name = toolIdFromTitle(next.title, taken, catalog)
-          next.kind = kindFor(next.name, names, "custom")
+          next.name = toolIdAfterTitle(next.title, taken, catalog, nameTouched, patch.name ?? skill.name)
         }
+        next.nameTouched = nameTouched
+        next.kind = kindFor(next.name, names, skill.kind)
         return next
       }),
     )
@@ -145,28 +155,58 @@ export default function PublishPage() {
     setAdvanced(false)
   }
 
-  function toggleCatalog(item: CatalogSkill) {
-    const found = skillValue.findIndex((skill) => skill.name === item.name)
-    if (found >= 0) {
-      removeSkill(found)
-      return
-    }
-    if (!canAddCustomSkill(skillValue.length)) return
-    setSkills([...skillValue, fromCatalog(item)])
-    setFocus(skillValue.length)
+  function applyPreset(item: CatalogSkill) {
+    const index = skillValue.length ? focusIndex : 0
+    const taken = skillValue.filter((_, itemIndex) => itemIndex !== index).map((skill) => skill.name)
+    const next = draftOf(presetIdentity(item, taken, catalog), item, t.publish.taskLabel, names)
+    setSkills(applyToSlot(skillValue, index, next))
+    setFocus(index)
     setAdvanced(false)
   }
 
-  function addBlank() {
-    if (!canAddCustomSkill(skillValue.length)) return
-    setSkills([...skillValue, emptyCustom(skillValue.map((skill) => skill.name), t.publish.taskLabel)])
-    setFocus(skillValue.length)
+  function writeOwn() {
+    const index = skillValue.length ? focusIndex : 0
+    setSkills(applyToSlot(skillValue, index, emptyCustom(t.publish.taskLabel, names)))
+    setFocus(index)
     setAdvanced(false)
+  }
+
+  function addAnother() {
+    const next = addAnotherSlot(skillValue, emptyCustom(t.publish.taskLabel, names))
+    if (!next) return
+    setSkills(next)
+    setFocus(next.length - 1)
+    setAdvanced(false)
+  }
+
+  function startFresh() {
+    setFresh(true)
+    setName("")
+    setBio("")
+    setSkills([])
+    setFocus(0)
+    setAdvanced(false)
+    setError(null)
+    setNameError(null)
+  }
+
+  function backToBound() {
+    setFresh(false)
+    setName(null)
+    setBio(null)
+    setSkills(null)
+    setFocus(0)
+    setAdvanced(false)
+    setError(null)
+    setNameError(null)
   }
 
   function setDelivery(kind: DeliveryKind) {
     if (!active) return
-    updateSkill(focusIndex, { output: draftFromSchema(deliverySchema(kind)) })
+    const preset = active.template ? catalog.find((item) => item.name === active.template) : undefined
+    const presetKind = preset?.outputSchema ? deliveryOf(preset.outputSchema) : "custom"
+    const output = preset && presetKind === kind ? preset.outputSchema : deliverySchema(kind)
+    updateSkill(focusIndex, { output: draftFromSchema(output) })
   }
 
   function patchInput(index: number, patch: Partial<SchemaField>) {
@@ -194,6 +234,15 @@ export default function PublishPage() {
         event.preventDefault()
         setPending(true)
         setError(null)
+        if (personNameIssue(nameValue)) {
+          setNameError(localizeError(wire("name.length"), locale))
+          setPending(false)
+          const field = nameRef.current?.querySelector("input")
+          if (field instanceof HTMLInputElement) field.focus()
+          nameRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+          return
+        }
+        setNameError(null)
         if (skillValue.length < 1) {
           setError(t.publish.needSkill)
           setPending(false)
@@ -264,7 +313,7 @@ export default function PublishPage() {
             }),
           ),
         }
-        const request = agent ? api<Agent>(`/api/agents/${agent.id}`, payload) : api<Agent>("/api/agents", payload)
+        const request = editing && agent ? api<Agent>(`/api/agents/${agent.id}`, payload) : api<Agent>("/api/agents", payload)
         request
           .then(async (next) => {
             if (agent) await refresh()
@@ -279,12 +328,47 @@ export default function PublishPage() {
       }}
     >
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">{t.brand}</p>
-      <h1 className="mt-2 max-w-3xl font-serif text-4xl leading-tight md:text-5xl">{t.publish.pageTitle}</h1>
+      <h1 className="mt-2 max-w-3xl font-serif text-4xl leading-tight md:text-5xl">
+        {editing && agent ? t.publish.editingTitle(agent.name) : t.publish.pageTitle}
+      </h1>
       <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{t.publish.pageLead}</p>
+      {editing && agent ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d9d0c0] bg-[#f7f1e4] px-4 py-3" role="status">
+          <p className="text-sm leading-6">{t.publish.editingBanner(agent.name)}</p>
+          <button type="button" className="text-sm text-stamp" onClick={startFresh}>
+            {t.publish.newCard}
+          </button>
+        </div>
+      ) : null}
+      {fresh && agent ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d9d0c0] px-4 py-3" role="status">
+          <p className="text-sm leading-6">{t.publish.freshLead}</p>
+          <button type="button" className="text-sm text-stamp" onClick={backToBound}>
+            {t.publish.backToCard}
+          </button>
+        </div>
+      ) : null}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
+        <label className="text-sm" htmlFor="person-name" ref={nameRef}>
           {t.publish.name}
-          <Input className="mt-1.5 h-10" value={nameValue} maxLength={16} onChange={(event) => setName(event.target.value)} />
+          <Input
+            id="person-name"
+            className="mt-1.5 h-10"
+            value={nameValue}
+            maxLength={16}
+            aria-invalid={nameError ? true : undefined}
+            aria-describedby={nameError ? "person-name-error" : undefined}
+            onChange={(event) => {
+              const next = event.target.value
+              setName(next)
+              if (nameError) setNameError(personNameIssue(next) ? localizeError(wire("name.length"), locale) : null)
+            }}
+          />
+          {nameError ? (
+            <span id="person-name-error" className="mt-1 block text-sm text-stamp" role="alert">
+              {nameError}
+            </span>
+          ) : null}
         </label>
         <label className="text-sm">
           {t.publish.bio}
@@ -305,23 +389,19 @@ export default function PublishPage() {
             <h2 className="font-mono text-[11px] tracking-[0.16em] text-stamp">01 / {t.publish.who}</h2>
             <div className="flex flex-wrap gap-2">
               {catalog.map((item) => {
-                const selected = skillValue.some((skill) => skill.name === item.name)
+                const selected = active?.template === item.name
                 return (
-                  <button
-                    key={item.name}
-                    type="button"
-                    aria-pressed={selected}
-                    disabled={!selected && skillValue.length >= 6}
-                    className={capsule(selected)}
-                    onClick={() => toggleCatalog(item)}
-                  >
+                  <button key={item.name} type="button" aria-pressed={selected} className={capsule(selected)} onClick={() => applyPreset(item)}>
                     {item.title || item.name}
                   </button>
                 )
               })}
-              {canAddCustomSkill(skillValue.length) ? (
-                <button type="button" className={capsule(false)} onClick={addBlank}>
-                  {t.publish[customSkillAddLabel(customCount)]}
+              <button type="button" aria-pressed={Boolean(active && active.template === null)} className={capsule(Boolean(active && active.template === null))} onClick={writeOwn}>
+                {t.publish.customAdd}
+              </button>
+              {canStartAnother(skillValue.length) ? (
+                <button type="button" className={capsule(false)} onClick={addAnother}>
+                  {t.publish.addSkill}
                 </button>
               ) : null}
             </div>
@@ -341,7 +421,7 @@ export default function PublishPage() {
                         setAdvanced(false)
                       }}
                     >
-                      {skill.title.trim() || skill.name}
+                      {skill.title.trim() || skill.name || t.publish.customAdd}
                     </button>
                   ))}
                 </div>
@@ -374,11 +454,16 @@ export default function PublishPage() {
                   <Input
                     className="mt-1.5 h-10 font-mono"
                     value={active.name}
-                    maxLength={24}
                     spellCheck={false}
-                    onChange={(event) => updateSkill(focusIndex, { name: event.target.value.trim() })}
+                    aria-invalid={toolIdProblem(active.name) ? true : undefined}
+                    onChange={(event) => updateSkill(focusIndex, { name: event.target.value })}
                   />
                   <span className="mt-1 block text-xs text-muted-foreground">{t.publish.toolIdHint}</span>
+                  {toolIdProblem(active.name) ? (
+                    <span className="mt-1 block text-sm text-stamp" role="alert">
+                      {toolIdProblem(active.name) === "empty" ? t.publish.toolIdEmpty : t.publish.toolIdInvalid}
+                    </span>
+                  ) : null}
                 </label>
                 <button type="button" className="text-sm text-stamp" onClick={() => removeSkill(focusIndex)}>
                   {t.publish.removeSkill}
@@ -484,7 +569,10 @@ export default function PublishPage() {
             </section>
           ) : null}
         </div>
-        <SkillPreview skill={active ?? null} />
+        <SkillPreview
+          skill={active ?? null}
+          resetKey={active ? previewSessionKey(focusIndex, active.template, `${delivery}:${playMode(active.name) ?? ""}`) : "none"}
+        />
       </div>
 
       {error ? (
@@ -493,7 +581,7 @@ export default function PublishPage() {
         </div>
       ) : null}
       <Button type="submit" className="mt-4 h-11 px-5" disabled={pending}>
-        {pending ? t.publish.writing : agent ? t.publish.save : t.publish.publish}
+        {pending ? t.publish.writing : action === "save" ? t.publish.save : t.publish.publish}
       </Button>
     </form>
   )

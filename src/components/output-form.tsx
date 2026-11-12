@@ -1,51 +1,70 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { DrawBoard } from "@/components/draw-board"
 import { FieldControl } from "@/components/field-control"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { parseFieldValue } from "@/lib/field-control"
-import { fieldTypeLabel, outputShape } from "@/lib/schema-fields"
+import { fieldTypeLabel, outputShape, type SchemaField } from "@/lib/schema-fields"
 import type { JsonSchema, TaskImage } from "@/lib/types"
+
+function fieldLabel(field: SchemaField) {
+  return field.description?.trim() || field.name
+}
 
 export function OutputForm({
   schema,
   pending,
   onSubmit,
   onError,
+  onDirty,
   submitLabel,
+  hint,
+  board,
 }: {
   schema: JsonSchema
   pending: boolean
   onSubmit: (text: string, image: TaskImage | null) => void
   onError: (message: string) => void
+  onDirty?: () => void
   submitLabel?: string
+  hint?: string
+  board?: boolean
 }) {
   const shape = outputShape(schema)
   const { locale, t } = useLocale()
   const [values, setValues] = useState<Record<string, string>>({})
   const [json, setJson] = useState("")
-  const [image, setImage] = useState<TaskImage | null>(null)
+  const imageRef = useRef<TaskImage | null>(null)
+
+  function takeImage(next: TaskImage | null) {
+    imageRef.current = next
+    onDirty?.()
+  }
 
   function fileInput(label: string) {
     return (
       <div className="block text-sm">
         {label}
-        <FieldControl type="image" ariaLabel={label} onImage={setImage} onImageError={onError} />
+        <FieldControl type="image" ariaLabel={label} onImage={takeImage} onImageError={onError} />
       </div>
     )
   }
 
   function submit(text: string) {
     onError("")
-    onSubmit(text, image)
+    onSubmit(text, imageRef.current)
   }
+
+  const note = hint ? <p className="text-sm leading-6">{hint}</p> : null
 
   if (shape.kind === "image") {
     return (
       <div className="space-y-3">
-        {fileInput(t.output.image)}
+        {note}
+        {board ? <DrawBoard onImage={takeImage} /> : fileInput(t.output.image)}
         <Button type="button" disabled={pending} onClick={() => submit("")}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
@@ -67,7 +86,10 @@ export function OutputForm({
             value={values.value ?? ""}
             blank={t.output.choose}
             ariaLabel={label}
-            onChange={(next) => setValues({ value: next })}
+            onChange={(next) => {
+              onDirty?.()
+              setValues({ value: next })
+            }}
           />
         </div>
         <Button
@@ -95,7 +117,14 @@ export function OutputForm({
   if (shape.kind === "json") {
     return (
       <div className="space-y-3">
-        <Textarea value={json} onChange={(event) => setJson(event.target.value)} placeholder={t.output.jsonPlaceholder} />
+        <Textarea
+          value={json}
+          onChange={(event) => {
+            onDirty?.()
+            setJson(event.target.value)
+          }}
+          placeholder={t.output.jsonPlaceholder}
+        />
         <Button type="button" disabled={pending} onClick={() => submit(json)}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
@@ -106,30 +135,38 @@ export function OutputForm({
   const images = shape.fields.filter((field) => field.type === "image")
   const dataFields = shape.fields.filter((field) => field.type !== "image")
 
+  const imageOnly = dataFields.length === 0 && images.length === 1
+
   return (
     <div className="space-y-3">
+      {note}
       {images.length > 1 ? <p className="text-sm text-stamp">{t.output.oneImage}</p> : null}
-      {dataFields.map((field) => (
-        <div key={field.name} className="block text-sm">
-          {field.name}
-          <span className="ml-2 text-xs text-muted-foreground">
-            {fieldTypeLabel(field.type, locale)}
-            {field.required ? t.output.requiredSuffix : ""}
-            {field.description ? `${t.output.noteColon}${field.description}` : ""}
-          </span>
-          <FieldControl
-            type={field.type}
-            name={field.name}
-            choices={field.enum}
-            choiceName={field.name}
-            value={values[field.name] ?? ""}
-            blank={field.required ? t.output.choose : t.output.skip}
-            ariaLabel={field.name}
-            onChange={(next) => setValues({ ...values, [field.name]: next })}
-          />
-        </div>
-      ))}
-      {images.length === 1 ? fileInput(images[0].name) : null}
+      {dataFields.map((field) => {
+        const label = fieldLabel(field)
+        return (
+          <div key={field.name} className="block text-sm">
+            {label}
+            <span className="ml-2 text-xs text-muted-foreground">
+              {fieldTypeLabel(field.type, locale)}
+              {field.required ? t.output.requiredSuffix : ""}
+            </span>
+            <FieldControl
+              type={field.type}
+              name={field.name}
+              choices={field.enum}
+              choiceName={field.name}
+              value={values[field.name] ?? ""}
+              blank={field.required ? t.output.choose : t.output.skip}
+              ariaLabel={label}
+              onChange={(next) => {
+                onDirty?.()
+                setValues({ ...values, [field.name]: next })
+              }}
+            />
+          </div>
+        )
+      })}
+      {images.length === 1 ? (board && imageOnly ? <DrawBoard onImage={takeImage} /> : fileInput(fieldLabel(images[0]))) : null}
       <Button
         type="button"
         disabled={pending || images.length > 1}
@@ -145,7 +182,7 @@ export function OutputForm({
             }
             data[field.name] = parsed.value
           }
-          submit(JSON.stringify(data))
+          submit(dataFields.length === 0 ? "" : JSON.stringify(data))
         }}
       >
         {pending ? t.output.submitting : submitLabel || t.output.submit}

@@ -378,22 +378,43 @@ def _data_image(value: str) -> bool:
     return value.startswith("data:image/png;base64,") or value.startswith("data:image/jpeg;base64,") or value.startswith("data:image/webp;base64,") or value.startswith("data:image/gif;base64,")
 
 
+def _blank_delivery_text(text: str) -> bool:
+    trimmed = text.strip()
+    if not trimmed:
+        return True
+    try:
+        parsed = loads(trimmed)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(parsed, dict) and not parsed
+
+
+def _field_label(field: dict[str, Any]) -> str:
+    description = field.get("description")
+    if isinstance(description, str) and description.strip():
+        return description.strip()
+    return str(field["name"])
+
+
 def _canonical_fields(fields: list[dict[str, Any]], text: str, has_image: bool) -> str:
     images = [field for field in fields if field["type"] == "image"]
     if len(images) > 1:
         raise ValueError(wire("output.oneImage"))
     image = images[0] if images else None
-    if image and image.get("required") and not has_image:
-        raise ValueError(wire("output.needImage"))
     if image is None and has_image:
         raise ValueError(wire("output.noImage"))
     data_fields = [field for field in fields if field["type"] != "image"]
+    missing: list[str] = []
+    if image and image.get("required") and not has_image:
+        missing.append(wire("output.needImage"))
     if not data_fields:
-        if text.strip():
+        if not _blank_delivery_text(text):
             raise ValueError(wire("output.imageOnly"))
+        if missing:
+            raise ValueError("\n".join(missing))
         return ""
     parsed: object = {}
-    if text.strip():
+    if not _blank_delivery_text(text):
         try:
             parsed = loads(text)
         except json.JSONDecodeError as error:
@@ -405,13 +426,15 @@ def _canonical_fields(fields: list[dict[str, Any]], text: str, has_image: bool) 
         value = parsed.get(field["name"])
         if value is None or value == "":
             if field.get("required"):
-                raise ValueError(wire("field.required", {"name": field["name"]}))
+                missing.append(wire("field.required", {"name": _field_label(field)}))
             continue
         check: JsonSchema = {"type": field["type"]}
         if field.get("enum"):
             check["enum"] = field["enum"]
-        _check_value(check, value, field["name"])
+        _check_value(check, value, _field_label(field))
         out[field["name"]] = value
+    if missing:
+        raise ValueError("\n".join(missing))
     image_name = image["name"] if image else None
     for key in parsed:
         if image_name and key == image_name:

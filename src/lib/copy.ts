@@ -60,7 +60,8 @@ const templates: Template[] = []
 walk(zhWire, enWire, exactEnglish, templates)
 templates.sort((left, right) => right.literal - left.literal || right.pattern.source.length - left.pattern.source.length)
 
-export function localizeError(message: string, locale: Locale) {
+export function localizeError(message: string, locale: Locale): string {
+  if (message.includes("\n")) return message.split("\n").map((line) => localizeError(line, locale)).join("\n")
   if (locale !== "en") return message
   const known = exactEnglish.get(message)
   if (known) return known

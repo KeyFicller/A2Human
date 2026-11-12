@@ -13,6 +13,7 @@ import { formatWhen, kindLabel, statusLabel, taskOpen } from "@/lib/format"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
+import { activePlay, deliveryOf, playHintKey, usesTimedBoard } from "@/lib/publish-skills"
 import { skillLabel } from "@/lib/skill-catalog"
 import type { Agent, ProtocolMessage, Task, TaskImage } from "@/lib/types"
 
@@ -102,6 +103,9 @@ export default function TaskScreen({ id }: { id?: string }) {
       ? claimant.skills[0]
       : undefined
   const needsImage = schemaRequiresImage(skill?.outputSchema)
+  const deliveryKind = skill?.outputSchema ? deliveryOf(skill.outputSchema) : "custom"
+  const play = skill && deliveryKind !== "custom" ? activePlay(skill.name, deliveryKind) : null
+  const board = Boolean(skill && deliveryKind !== "custom" && usesTimedBoard(skill.name, deliveryKind))
   const stance = [...messages].reverse().find((item) =>
     item.kind === "task.input" || item.kind === "task.scoreRequest" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
   )
@@ -231,7 +235,15 @@ export default function TaskScreen({ id }: { id?: string }) {
         {mine && answering && skill?.outputSchema ? (
           <div className="mt-6 space-y-3">
             <p className="text-sm leading-6 text-muted-foreground">{t.task.handBack(describeSchema(skill.outputSchema, locale))}</p>
-            <OutputForm schema={skill.outputSchema} pending={pending} onError={(message) => setNotice(message || null)} onSubmit={handIn} />
+            <OutputForm
+              key={`${task.id}:${skill.name}`}
+              schema={skill.outputSchema}
+              pending={pending}
+              hint={play ? t.output[playHintKey(play)] : undefined}
+              board={board}
+              onError={(message) => setNotice(message || null)}
+              onSubmit={handIn}
+            />
           </div>
         ) : null}
         {mine && answering && !skill?.outputSchema ? (
