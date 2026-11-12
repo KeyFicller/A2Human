@@ -98,3 +98,56 @@ def test_pages_and_local_origins_can_call_the_api():
         assert host.headers["access-control-allow-origin"] == "http://localhost:3000"
         denied = client.get("/api/agents", headers={"origin": "https://evil.example"})
         assert "access-control-allow-origin" not in denied.headers
+
+
+def test_an_empty_reject_fail_or_cancel_is_accepted():
+    with TestClient(app) as client:
+        created = client.post("/api/agents", json={"name": "米粒", "bio": "会数。", "skills": [{"name": "计数", "description": "数清楚。"}]})
+        assert created.status_code == 201
+        agent_id = created.json()["id"]
+        assert client.post(f"/api/agents/{agent_id}", json={"available": True}).status_code == 200
+
+        def assign(number):
+            sent = client.post(
+                f"/api/a2a/{agent_id}",
+                headers={"A2A-Version": "1.0"},
+                json={
+                    "jsonrpc": "2.0",
+                    "id": number,
+                    "method": "SendMessage",
+                    "params": {
+                        "configuration": {"returnImmediately": True},
+                        "metadata": {"caller": "某个大模型", "skill": "计数"},
+                        "message": {"role": "ROLE_USER", "messageId": f"blank-http-{number}", "parts": [{"text": "数一下。"}]},
+                    },
+                },
+            )
+            assert sent.status_code == 200
+            return sent.json()["result"]["task"]["id"]
+
+        cases = [
+            ("reject", "", "zh", "已拒绝。", "rejected", "task.reject"),
+            ("fail", "   ", "zh", "已失败。", "failed", "task.fail"),
+            ("cancel", None, "en", "Canceled.", "canceled", "task.cancel"),
+        ]
+        for index, (action, text, locale, expected, status, kind) in enumerate(cases, start=1):
+            task_id = assign(index)
+            body = {"action": action, "agentId": agent_id, "locale": locale}
+            if text is not None:
+                body["text"] = text
+            decided = client.post(f"/api/tasks/{task_id}", json=body)
+            assert decided.status_code == 200
+            assert decided.json()["status"] == status
+            detail = client.get(f"/api/tasks/{task_id}")
+            assert any(item["kind"] == kind and item["text"] == expected for item in detail.json()["messages"])
+
+        written_id = assign(4)
+        written = client.post(f"/api/tasks/{written_id}", json={"action": "reject", "agentId": agent_id, "text": "  这单不接。  "})
+        assert written.status_code == 200
+        written_detail = client.get(f"/api/tasks/{written_id}")
+        assert any(item["kind"] == "task.reject" and item["text"] == "这单不接。" for item in written_detail.json()["messages"])
+
+        supplement_id = assign(5)
+        supplement = client.post(f"/api/tasks/{supplement_id}", json={"action": "input", "agentId": agent_id, "text": "  "})
+        assert supplement.status_code == 400
+        assert "1 到 200" in supplement.json()["error"]

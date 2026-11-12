@@ -223,7 +223,9 @@ async def post_task(task_id: str, request: Request) -> Response:
             if body.get("action") == "skip":
                 return skip_score(store, task_id, agent_id)
             if body.get("action") in {"reject", "cancel", "fail", "input"}:
-                return decide_task(store, task_id, agent_id, body["action"], body.get("text"))
+                raw_locale = body.get("locale")
+                locale = raw_locale if raw_locale in {"zh", "en"} else "zh"
+                return decide_task(store, task_id, agent_id, body["action"], body.get("text"), locale)
             raise DomainError(wire("action.unknown"))
 
         return json_response(await update_store(run))

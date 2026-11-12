@@ -13,7 +13,7 @@ import uuid
 from typing import Any
 
 from a2human.clock import now_iso, now_ms, parse_ms
-from a2human.copy import wire
+from a2human.copy import phrase, wire
 from a2human.hooks import remember
 from a2human.skill_catalog import reserved_custom_name
 from a2human.audio import read_audio
@@ -34,6 +34,11 @@ DECISIONS = {
     "cancel": {"status": "canceled", "kind": "task.cancel"},
     "fail": {"status": "failed", "kind": "task.fail"},
     "input": {"status": "input-required", "kind": "task.input"},
+}
+BLANK_REASON = {
+    "reject": "task.rejectDefault",
+    "fail": "task.failDefault",
+    "cancel": "task.cancelDefault",
 }
 SCORE_DECISIONS = {"task.input", "task.scoreRequest", "task.reject", "task.fail", "task.cancel"}
 OPEN_STATUSES = {"submitted", "working", "input-required"}
@@ -594,7 +599,17 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
     return task
 
 
-def decide_task(store: dict[str, Any], task_id: str, agent_id: str, action: object, text: object) -> dict[str, Any]:
+def _decision_reason(action: str, text: object, locale: str) -> str:
+    reason = text.strip() if isinstance(text, str) else ""
+    if action in BLANK_REASON and text_len(reason) < 1:
+        chosen = locale if locale in {"zh", "en"} else "zh"
+        reason = phrase(BLANK_REASON[action], None, chosen)
+    if text_len(reason) < 1 or text_len(reason) > 200:
+        fail(wire("reason.length"))
+    return reason
+
+
+def decide_task(store: dict[str, Any], task_id: str, agent_id: str, action: object, text: object, locale: str = "zh") -> dict[str, Any]:
     task = _require_task(store, task_id)
     agent = _require_agent(store, agent_id)
     if task.get("claimantId") != agent["id"]:
@@ -606,9 +621,7 @@ def decide_task(store: dict[str, Any], task_id: str, agent_id: str, action: obje
     if _awaiting_score(store, task) and action != "cancel":
         fail(wire("artifact.waiting"))
     decision = DECISIONS[action]
-    reason = text.strip() if isinstance(text, str) else ""
-    if text_len(reason) < 1 or text_len(reason) > 200:
-        fail(wire("reason.length"))
+    reason = _decision_reason(action, text, locale)
     task["status"] = decision["status"]
     task["updatedAt"] = now_iso()
     _add_message(store, {
