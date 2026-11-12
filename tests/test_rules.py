@@ -1,6 +1,7 @@
 import pytest
 
-from a2human.rules import DomainError, publish_agent, receive_command, set_availability, submit_artifact
+from a2human.copy import wire
+from a2human.rules import DomainError, _command_title, publish_agent, receive_command, set_availability, set_progress, skip_score, submit_artifact, work_record
 from a2human.rules import create_seed
 
 counting = {"name": "计数", "description": "数清画面或文字里的东西，只交回数字。"}
@@ -21,13 +22,13 @@ def test_a_skill_can_declare_json_schema_for_the_input_and_the_output():
     store = create_seed()
     created = publish_agent(store, {
         "name": "阿梨",
-        "bio": "",
+        "bio": "接活。",
         "skills": [{**counting, "inputSchema": input_schema, "outputSchema": dumps_schema(output_schema)}],
     })
     assert created["skills"][0]["inputSchema"] == input_schema
     assert created["skills"][0]["outputSchema"] == output_schema
     with pytest.raises(DomainError, match="要一起写"):
-        publish_agent(store, {"name": "老周", "bio": "", "skills": [{**counting, "inputSchema": input_schema}]})
+        publish_agent(store, {"name": "老周", "bio": "接活。", "skills": [{**counting, "inputSchema": input_schema}]})
 
 
 def dumps_schema(value):
@@ -37,7 +38,7 @@ def dumps_schema(value):
 
 def test_a_person_is_discoverable_only_after_going_on_duty():
     store = create_seed()
-    created = publish_agent(store, {"name": "阿梨", "bio": "", "skills": [counting]})
+    created = publish_agent(store, {"name": "阿梨", "bio": "接活。", "skills": [counting]})
     assert created["available"] is False
     set_availability(store, created["id"], True)
     assert created["available"] is True
@@ -95,3 +96,59 @@ def test_a_declared_output_rejects_free_text():
         submit_artifact(store, task["id"], human["id"], "三个")
     done = submit_artifact(store, task["id"], human["id"], '{"count": 3}')
     assert done["artifact"] == '{"count":3}'
+
+
+def test_an_empty_or_placeholder_bio_is_refused():
+    store = create_seed()
+    with pytest.raises(DomainError, match="简介"):
+        publish_agent(store, {"name": "阿梨", "bio": "  ", "skills": [counting]})
+    with pytest.raises(DomainError, match="简介"):
+        publish_agent(store, {"name": "阿梨", "bio": wire("bio.default"), "skills": [counting]})
+
+
+def test_a_long_title_stops_on_a_character_and_marks_the_cut():
+    assert _command_title("短标题呀") == "短标题呀"
+    assert _command_title("甲" * 40) == ("甲" * 31) + "…"
+    assert _command_title("a\u0301" * 40) == ("a\u0301" * 31) + "…"
+
+
+def test_progress_is_saved_into_the_conversation():
+    store = create_seed()
+    human = publish_agent(store, {"name": "米粒", "bio": "会画。", "skills": [counting]})
+    set_availability(store, human["id"], True)
+    task = receive_command(store, {
+        "humanId": human["id"],
+        "text": "画一只猫。",
+        "messageId": "draw-1",
+        "callerName": "测试-找茬员",
+        "senderId": "not-used",
+    })
+    noted = set_progress(store, task["id"], human["id"], "  正在画，马上交图  ")
+    assert noted["progress"] == "正在画，马上交图"
+    assert any(item["kind"] == "task.progress" and item["text"] == "正在画，马上交图" for item in store["messages"])
+
+
+def test_handed_in_work_counts_and_a_skipped_score_is_explicit():
+    store = create_seed()
+    human = publish_agent(store, {"name": "米粒", "bio": "会画。", "skills": [counting]})
+    sender = publish_agent(store, {"name": "测试-找茬员", "bio": "找茬。", "skills": [counting]})
+    set_availability(store, human["id"], True)
+    task = receive_command(store, {
+        "humanId": human["id"],
+        "text": "数一下。",
+        "messageId": "count-1",
+        "callerName": sender["name"],
+        "senderId": sender["id"],
+        "skill": "计数",
+    })
+    assert task["posterName"] == "测试-找茬员"
+    assert task["senderId"] == sender["id"]
+    submit_artifact(store, task["id"], human["id"], "7")
+    assert work_record(store["tasks"], human["id"])["completed"] == 1
+    assert work_record(store["tasks"], human["id"])["averageScore"] is None
+    skipped = skip_score(store, task["id"], sender["id"])
+    assert skipped["status"] == "completed"
+    assert skipped["scoreSkipped"] is True
+    assert skipped.get("workScore") is None
+    with pytest.raises(DomainError, match="自己"):
+        skip_score(store, task["id"], human["id"])

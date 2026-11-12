@@ -11,10 +11,11 @@
     "working": "上工中",
     "clockedOff": "没上工",
     "clockOut": "收工",
-    "clockIn": "上工"
+    "clockIn": "上工",
+    "opening": "正在打开你的卡…"
   },
   "footer": "发布技能，上工之后出现在名单里。模型按技能把对得上的活派来。",
-  "record": { "completed": "完成", "score": "平均分", "time": "平均耗时", "empty": "—" },
+  "record": { "completed": "完成", "score": "平均分", "time": "平均耗时", "empty": "—", "unscored": "没打分" },
   "copy": {
     "loading": "加载中",
     "copied": "已复制",
@@ -54,7 +55,10 @@
     "mcpHint": "只会 MCP 的客户端用这个备用入口雇人。工具调用仍走每个人自己的 A2A 地址。",
     "rosterError": "在岗名单读不出来",
     "loading": "正在读取在岗名单…",
-    "empty": "现在没有人上工。"
+    "empty": "现在没有人上工。",
+    "refresh": "刷新",
+    "updated": "名单更新于 {time}",
+    "onDutyCount": "{count} 人在岗"
   },
   "profile": {
     "forModels": "给模型",
@@ -64,7 +68,18 @@
     "send": "要雇这个人，把 SendMessage 打到这个地址，configuration.returnImmediately 为 true。人交完产物后，用 GetTask 取回。",
     "sample": "请按你的技能完成这件事。",
     "loadError": "这张卡读不出来",
-    "opening": "正在打开这张卡…"
+    "opening": "正在打开这张卡…",
+    "hire": "雇这个人",
+    "hireTask": "要做什么",
+    "hireSkill": "用哪项技能",
+    "hireSend": "派过去",
+    "hireSending": "正在派…",
+    "hireNeed": "写上要做的事。",
+    "hirePick": "选一项技能。",
+    "hireResult": "已派出。任务 {id}，状态 {status}。",
+    "hireOpen": "打开这张任务",
+    "callHint": "下面这段就是复制出去的 SendMessage，不是这张卡的 JSON。",
+    "sentHere": "我派给这个人的"
   },
   "me": {
     "noneTitle": "还没有你的卡",
@@ -80,7 +95,13 @@
     "openTasks": "{count} 张还开着",
     "tasksError": "任务列表读不出来",
     "loading": "正在整理你的任务…",
-    "empty": "还没有。上工之后，对得上的活会派到这里。"
+    "empty": "还没有。上工之后，对得上的活会派到这里。",
+    "sent": "我派出的任务",
+    "sentEmpty": "还没有派出的任务。",
+    "refresh": "刷新",
+    "updated": "更新于 {time}",
+    "published": "卡写好了。上工之后，别人就能雇你。",
+    "toolId": "调用标识 {id}"
   },
   "publish": {
     "edit": "改我的卡",
@@ -149,7 +170,13 @@
     "writing": "正在写入…",
     "save": "保存",
     "publish": "装上并发布",
-    "saveError": "这张卡没有写上"
+    "saveError": "这张卡没有写上",
+    "needBio": "写一句真的简介。空着不会写入。",
+    "confirmPublish": "确认发布",
+    "previewPerson": "名字：{name}",
+    "previewNoPerson": "还没有名字。",
+    "previewSkill": "技能名称：{title}",
+    "nameVsSkill": "名字是这张卡怎么称呼你。技能名称是这一项技能的名字。智能体两样都会看见。"
   },
   "schema": {
     "identifierHint": "名称写成英文标识符时，模型按这一项单独填写。",
@@ -238,7 +265,19 @@
     "progressPlaceholder": "正在搜索脑内知识库",
     "progressSave": "更新进度",
     "progressSaved": "进度已更新。",
-    "progressError": "进度没写上"
+    "progressError": "进度没写上",
+    "progressDraw": "例如：正在画，马上交图",
+    "progressPaper": "例如：正在纸上算",
+    "progressRoll": "例如：骰子还在桌上",
+    "progressWetware": "例如：正在按步骤做",
+    "progressBook": "例如：正在翻手边的书",
+    "progressHuman": "例如：正在逐句看",
+    "progressCustom": "例如：做到哪一步了",
+    "scoreNow": "给这单打分",
+    "scoreSkip": "这单不打分",
+    "scoreLeft": "还剩 {seconds} 秒。超时就跳过，不记分。",
+    "scoreSkipped": "这单没有打分。",
+    "scoreDone": "分打好了。"
   },
   "output": {
     "image": "图片",
@@ -267,7 +306,11 @@
     "drawLeft": "还剩 {seconds} 秒",
     "drawFrozen": "时间到。就交这张。",
     "drawIdle": "点开始之后再画。",
-    "drawLabel": "三十秒画板"
+    "drawLabel": "三十秒画板",
+    "drawClear": "清空",
+    "drawUndo": "撤销",
+    "drawRestart": "重来",
+    "drawLocked": "时间到，画板锁住了。就交这张。"
   },
   "status": { "loading": "正在读取协议状态…", "retry": "重试" },
   "format": {
@@ -290,7 +333,8 @@
       "fail": "失败",
       "input": "要补充",
       "scoreRequest": "请打分",
-      "score": "打分"
+      "score": "打分",
+      "progress": "进度"
     },
     "units": { "sec": "秒", "min": "分钟", "hr": "小时", "day": "天" },
     "dayOne": "天",

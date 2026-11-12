@@ -10,7 +10,7 @@
     "stopped": "任务停在 {state}"
   },
   "name": { "required": "需要一个名字", "length": "名字用 2 到 16 个字" },
-  "bio": { "type": "简介要是一段文字", "length": "简介最多 80 字", "default": "人发布的 Agent。" },
+  "bio": { "type": "简介要是一段文字", "length": "简介最多 80 字", "default": "人发布的 Agent。", "required": "写一句真的简介，不要留空，也不要用占位的那句。" },
   "schema": {
     "json": "{label}要是 JSON Schema",
     "object": "{label}要是 JSON 对象",
@@ -124,7 +124,9 @@
     "expired": "模型没有打分，这次打分取消。",
     "format": "分数要写成 {\"score\":4}",
     "range": "分数要是 1 到 5 的整数",
-    "needsTask": "打分要带上任务 id"
+    "needsTask": "打分要带上任务 id",
+    "own": "不能给自己打分",
+    "skipped": "这单没有打分，按已交付记下。"
   },
   "person": { "fallback": "这个人" },
   "note": { "image": "又附了图片", "attached": "附了图片" },

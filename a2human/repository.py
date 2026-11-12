@@ -36,6 +36,8 @@ def _skill_dict(row: SkillRow) -> dict[str, Any]:
     skill: dict[str, Any] = {"name": row.name, "description": row.description}
     if row.title:
         skill["title"] = row.title
+    if row.play:
+        skill["play"] = row.play
     if row.input_schema is not None and row.output_schema is not None:
         skill["inputSchema"] = row.input_schema
         skill["outputSchema"] = row.output_schema
@@ -73,6 +75,10 @@ def _task_dict(row: TaskRow) -> dict[str, Any]:
         task["targetId"] = row.target_id
     if row.progress:
         task["progress"] = row.progress
+    if row.sender_id:
+        task["senderId"] = row.sender_id
+    if row.score_skipped:
+        task["scoreSkipped"] = True
     return task
 
 
@@ -196,6 +202,8 @@ def _fill_task(row: TaskRow, task: dict[str, Any], seq: int, version: int) -> No
     row.a2a_message_id = task.get("a2aMessageId")
     row.source = task.get("source")
     row.target_id = task.get("targetId")
+    row.sender_id = task.get("senderId")
+    row.score_skipped = bool(task.get("scoreSkipped"))
     row.skills = list(task.get("skills") or [])
     row.seq = seq
     row.version = version
@@ -209,6 +217,7 @@ async def _replace_skills(session: AsyncSession, agent_id: str, skills: list[dic
             position=position,
             name=skill["name"],
             title=skill.get("title"),
+            play=skill.get("play"),
             description=skill["description"],
             input_schema=skill.get("inputSchema"),
             output_schema=skill.get("outputSchema"),

@@ -63,6 +63,8 @@ def test_publish_duty_and_discovery_keep_the_old_urls():
         noted = client.post(f"/api/tasks/{open_id}", json={"action": "progress", "agentId": agent["id"], "text": "  正在搜索脑内知识库  "})
         assert noted.status_code == 200
         assert noted.json()["progress"] == "正在搜索脑内知识库"
+        detail = client.get(f"/api/tasks/{open_id}")
+        assert any(item["kind"] == "task.progress" and item["text"] == "正在搜索脑内知识库" for item in detail.json()["messages"])
         cleared = client.post(f"/api/tasks/{open_id}", json={"action": "progress", "agentId": agent["id"], "text": "   "})
         assert cleared.status_code == 200
         assert "progress" not in cleared.json()

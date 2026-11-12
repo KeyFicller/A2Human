@@ -14,6 +14,7 @@ from a2human.images import read_image
 from a2human.jsonutil import dumps, loads
 from a2human.rules import (
     DomainError,
+    artifact_reference,
     cancel_commanded_task,
     command_for_message,
     expire_scores,
@@ -91,11 +92,19 @@ def _output_schema(store: dict[str, Any], task: dict[str, Any]) -> dict[str, Any
 
 
 def _image_part(image: dict[str, Any]) -> dict[str, Any]:
-    part: dict[str, Any] = {"mediaType": image["mediaType"]}
+    file_part: dict[str, Any] = {"mediaType": image["mediaType"]}
+    if image.get("filename"):
+        file_part["name"] = image["filename"]
+    if image.get("raw"):
+        file_part["bytes"] = image["raw"]
+    if image.get("url"):
+        file_part["uri"] = image["url"]
+    part: dict[str, Any] = {"kind": "file", "mediaType": image["mediaType"], "file": file_part}
     if image.get("filename"):
         part["filename"] = image["filename"]
     if image.get("raw"):
         part["raw"] = image["raw"]
+        part["bytes"] = image["raw"]
     if image.get("url"):
         part["url"] = image["url"]
     return part
@@ -106,19 +115,19 @@ def _artifact_parts(store: dict[str, Any], task: dict[str, Any]) -> list[dict[st
     if task.get("artifact"):
         schema = _output_schema(store, task)
         if not schema:
-            parts.append({"text": task["artifact"], "mediaType": "text/plain"})
+            parts.append({"kind": "text", "text": task["artifact"], "mediaType": "text/plain"})
         else:
             try:
-                parts.append({"data": loads(task["artifact"]), "mediaType": "application/json"})
+                parts.append({"kind": "data", "data": loads(task["artifact"]), "mediaType": "application/json"})
             except Exception:
-                parts.append({"text": task["artifact"], "mediaType": "text/plain"})
+                parts.append({"kind": "text", "text": task["artifact"], "mediaType": "text/plain"})
     if task.get("artifactImage"):
         parts.append(_image_part(task["artifactImage"]))
     return parts
 
 
 def _project_message(message: dict[str, Any], context_id: str, claimant_id: str | None) -> dict[str, Any]:
-    from_human = message["kind"] in {"task.artifact", "task.reject", "task.fail", "task.input", "task.scoreRequest"} or (
+    from_human = message["kind"] in {"task.artifact", "task.progress", "task.reject", "task.fail", "task.input", "task.scoreRequest"} or (
         message["kind"] == "task.cancel" and message.get("fromId") == claimant_id
     )
     return {
@@ -126,7 +135,7 @@ def _project_message(message: dict[str, Any], context_id: str, claimant_id: str 
         "contextId": context_id,
         "taskId": message["taskId"],
         "role": "ROLE_AGENT" if from_human else "ROLE_USER",
-        "parts": [{"text": message["text"], "mediaType": "text/plain"}],
+        "parts": [{"kind": "text", "text": message["text"], "mediaType": "text/plain"}],
     }
 
 
@@ -142,12 +151,23 @@ def _status_message(store: dict[str, Any], task: dict[str, Any], context_id: str
     elif task["status"] == "submitted":
         waiting = wire("submitted.poll")
     elif decision and decision["kind"] == "task.scoreRequest":
-        waiting = dumps({
+        text = task.get("artifact") if isinstance(task.get("artifact"), str) else ""
+        payload: dict[str, Any] = {
             "request": "score",
             "taskId": task["id"],
             "person": task.get("claimantName") or "",
-            "artifact": task.get("artifact") or "",
-        })
+            "artifact": text or artifact_reference(task),
+        }
+        image = task.get("artifactImage")
+        if isinstance(image, dict):
+            reference: dict[str, Any] = {
+                "mediaType": image.get("mediaType") or "",
+                "artifactId": f"{task['id']}:artifact",
+            }
+            if image.get("filename"):
+                reference["filename"] = image["filename"]
+            payload["image"] = reference
+        waiting = dumps(payload)
     else:
         waiting = decision["text"] if decision else None
     if not waiting:
@@ -159,7 +179,7 @@ def _status_message(store: dict[str, Any], task: dict[str, Any], context_id: str
             "contextId": context_id,
             "taskId": task["id"],
             "role": "ROLE_AGENT",
-            "parts": [{"text": waiting, "mediaType": "text/plain"}],
+            "parts": [{"kind": "text", "text": waiting, "mediaType": "text/plain"}],
         }
     }
 
@@ -185,6 +205,8 @@ def project_task(store: dict[str, Any], task: dict[str, Any], options: dict[str,
                 if isinstance(task.get("workScore"), (int, float)) and not isinstance(task.get("workScore"), bool)
                 else {}
             ),
+            **({"scoreSkipped": True} if task.get("scoreSkipped") else {}),
+            **({"senderId": task["senderId"]} if task.get("senderId") else {}),
         },
     }
     history_length = options.get("historyLength", None)
@@ -235,13 +257,28 @@ def _read_parts(parts: object) -> dict[str, Any]:
         if not isinstance(part, dict):
             raise DomainError(wire("part.bad"), -32602)
         media = part.get("mediaType", part.get("media_type"))
+        file_part = part.get("file") if isinstance(part.get("file"), dict) else None
+        if file_part and not isinstance(media, str):
+            nested = file_part.get("mediaType", file_part.get("mimeType"))
+            media = nested if isinstance(nested, str) else media
         if isinstance(media, str) and media.startswith("image/"):
-            read = read_image(part)
+            source = dict(part)
+            source["mediaType"] = media
+            if file_part:
+                if not isinstance(source.get("raw"), str) and isinstance(file_part.get("bytes"), str):
+                    source["raw"] = file_part["bytes"]
+                if not isinstance(source.get("url"), str) and isinstance(file_part.get("uri"), str):
+                    source["url"] = file_part["uri"]
+                if not source.get("filename") and isinstance(file_part.get("name"), str):
+                    source["filename"] = file_part["name"]
+            if not isinstance(source.get("raw"), str) and isinstance(part.get("bytes"), str):
+                source["raw"] = part["bytes"]
+            read = read_image(source)
             if "error" in read:
                 raise DomainError(read["error"], -32602)
             images.append(read["image"])
             continue
-        if "raw" in part or "url" in part or "file" in part:
+        if "raw" in part or "url" in part or "file" in part or "bytes" in part:
             raise DomainError(wire("part.kind"), -32005)
         if "data" in part and part.get("data") is not None:
             if isinstance(media, str) and media not in {"application/json", "*/*"}:
@@ -285,6 +322,20 @@ def _read_agent_id(params: dict[str, Any], message: dict[str, Any]) -> str | Non
     if not isinstance(value, str) or not value.strip():
         raise DomainError(wire("dispatch.agent"), -32602)
     return value.strip()
+
+
+def _resolve_sender(store: dict[str, Any], params: dict[str, Any], message: dict[str, Any]) -> tuple[str | None, str]:
+    raw_id = _metadata_value(params, message, "senderId")
+    if isinstance(raw_id, str) and raw_id.strip():
+        agent = next((item for item in store["agents"] if item["id"] == raw_id.strip() and item.get("human")), None)
+        if agent:
+            return agent["id"], agent["name"]
+    name = _caller_name(params, message)
+    if name != wire("caller.name"):
+        matches = [item for item in store["agents"] if item.get("human") and item.get("name") == name]
+        if len(matches) == 1:
+            return matches[0]["id"], matches[0]["name"]
+    return None, name
 
 
 def _caller_name(params: dict[str, Any], message: dict[str, Any]) -> str:
@@ -389,7 +440,7 @@ def _send_message(store: dict[str, Any], scope: dict[str, Any], params: dict[str
     replay = command_for_message(store, message_id)
     if not replay and not _wants_immediate(config):
         raise DomainError(wire("returnImmediately"), -32004)
-    caller_name = _caller_name(params, message)
+    sender_id, caller_name = _resolve_sender(store, params, message)
     source = "direct"
     human_id = scope["agentId"] if scope["kind"] == "human" else ""
     if not replay and scope["kind"] == "pool":
@@ -414,6 +465,7 @@ def _send_message(store: dict[str, Any], scope: dict[str, Any], params: dict[str
         "contextId": context_id,
         "skill": skill,
         "callerName": caller_name,
+        "senderId": sender_id,
         "source": source,
     })
     return {"task": project_task(store, task, {"historyLength": _history_length(config.get("historyLength", config.get("history_length"))), "includeArtifacts": True})}

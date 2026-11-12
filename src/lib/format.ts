@@ -22,6 +22,7 @@ const KIND_PATH: Record<MessageKind, string> = {
   "task.input": "format.kind.input",
   "task.scoreRequest": "format.kind.scoreRequest",
   "task.score": "format.kind.score",
+  "task.progress": "format.kind.progress",
 }
 
 function durationParts(seconds: number) {

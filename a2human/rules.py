@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import locale
 import math
+import unicodedata
 import uuid
 from typing import Any
 
@@ -23,6 +24,8 @@ CALLER_ID = "agent_a2a"
 COMMAND_TEXT_MAX = 4000
 SCHEMA_MAX = 2000
 SCORE_WAIT_MS = 60_000
+TITLE_LIMIT = 32
+PLAY_MODES = {"timed_draw", "paper", "roll", "wetware", "book", "human_check"}
 
 DECISIONS = {
     "reject": {"status": "rejected", "kind": "task.reject"},
@@ -101,13 +104,24 @@ def _clean_name(name: object) -> str:
 
 
 def _clean_bio(bio: object) -> str:
-    if bio is None or bio == "":
-        return ""
     if not isinstance(bio, str):
-        fail(wire("bio.type"))
+        fail(wire("bio.required"))
     trimmed = bio.strip()
+    if not trimmed or trimmed == wire("bio.default"):
+        fail(wire("bio.required"))
     if text_len(trimmed) > 80:
         fail(wire("bio.length"))
+    return trimmed
+
+
+def _clean_play(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        return None
+    trimmed = value.strip()
+    if trimmed not in PLAY_MODES:
+        return None
     return trimmed
 
 
@@ -178,6 +192,9 @@ def _clean_skills(skills: object) -> list[dict[str, Any]]:
         entry: dict[str, Any] = {"name": name, "description": description}
         if title:
             entry["title"] = title
+        play = _clean_play(item.get("play"))
+        if play:
+            entry["play"] = play
         if input_schema and output_schema:
             entry["inputSchema"] = input_schema
             entry["outputSchema"] = output_schema
@@ -189,7 +206,7 @@ def publish_agent(store: dict[str, Any], payload: dict[str, Any]) -> dict[str, A
     agent = {
         "id": str(uuid.uuid4()),
         "name": _clean_name(payload.get("name")),
-        "bio": _clean_bio(payload.get("bio")) or wire("bio.default"),
+        "bio": _clean_bio(payload.get("bio")),
         "human": True,
         "available": False,
         "skills": _clean_skills(payload.get("skills")),
@@ -205,7 +222,7 @@ def update_agent(store: dict[str, Any], agent_id: str, payload: dict[str, Any]) 
     if not agent["human"]:
         fail(wire("card.locked"))
     agent["name"] = _clean_name(payload.get("name"))
-    agent["bio"] = _clean_bio(payload.get("bio")) or wire("bio.default")
+    agent["bio"] = _clean_bio(payload.get("bio"))
     agent["skills"] = _clean_skills(payload.get("skills"))
     if len(agent["skills"]) < 1:
         agent["available"] = False
@@ -233,8 +250,19 @@ def _round_tenths(value: float) -> int | float:
     return tenths / 10
 
 
+def _delivered_task(task: dict[str, Any]) -> bool:
+    """Work the person already handed back, including the scoring window."""
+    if task.get("status") == "completed":
+        return True
+    if task.get("status") != "input-required":
+        return False
+    if isinstance(task.get("artifact"), str) and task["artifact"].strip():
+        return True
+    return isinstance(task.get("artifactImage"), dict)
+
+
 def work_record(tasks: list[dict[str, Any]], agent_id: str) -> dict[str, Any]:
-    done = [task for task in tasks if task.get("claimantId") == agent_id and task.get("status") == "completed"]
+    done = [task for task in tasks if task.get("claimantId") == agent_id and _delivered_task(task)]
     scores = [task["workScore"] for task in done if isinstance(task.get("workScore"), (int, float)) and not isinstance(task.get("workScore"), bool)]
     average_score = _round_tenths(sum(scores) / len(scores)) if scores else None
     durations: list[float] = []
@@ -365,12 +393,37 @@ def command_for_message(store: dict[str, Any], message_id: str) -> dict[str, Any
     return _find_command_task(store, message_id)
 
 
+def _graphemes(value: str) -> list[str]:
+    chars: list[str] = []
+    for char in value:
+        if chars and unicodedata.combining(char):
+            chars[-1] += char
+        else:
+            chars.append(char)
+    return chars
+
+
 def _command_title(text: str) -> str:
     flat = " ".join(text.split()).strip()
-    slice_ = flat[:32]
-    if text_len(slice_) >= 4:
-        return slice_
-    return wire("task.defaultTitle")
+    chars = _graphemes(flat)
+    if len(chars) < 4:
+        return wire("task.defaultTitle")
+    if len(chars) <= TITLE_LIMIT:
+        return "".join(chars)
+    return "".join(chars[: TITLE_LIMIT - 1]) + "…"
+
+
+def artifact_reference(task: dict[str, Any]) -> str:
+    """Text the score request can point at, including an image-only delivery."""
+    text = task.get("artifact") if isinstance(task.get("artifact"), str) else ""
+    if text:
+        return text
+    image = task.get("artifactImage")
+    if not isinstance(image, dict):
+        return ""
+    media = image.get("mediaType") if isinstance(image.get("mediaType"), str) else "image"
+    name = image.get("filename") if isinstance(image.get("filename"), str) else ""
+    return f"{media} {name}".strip()
 
 
 def _require_work_score(text: str) -> int:
@@ -444,6 +497,7 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
                 "kind": "task.complete",
                 "text": wire("artifact.done"),
             })
+            task.pop("scoreSkipped", None)
             task["status"] = "completed"
             task["updatedAt"] = now_iso()
             remember(store)
@@ -495,6 +549,7 @@ def receive_command(store: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         "a2aMessageId": payload["messageId"],
         "source": payload["source"] if payload.get("source") in {"direct", "dispatch"} else "direct",
         "targetId": human["id"],
+        **({"senderId": payload["senderId"]} if isinstance(payload.get("senderId"), str) and payload["senderId"].strip() else {}),
     }
     store["tasks"].insert(0, task)
     _add_message(store, {
@@ -557,6 +612,7 @@ def _expire_score(store: dict[str, Any], task: dict[str, Any], at: int | None = 
         "kind": "task.complete",
         "text": wire("score.expired"),
     })
+    task["scoreSkipped"] = True
     task["status"] = "completed"
     task["updatedAt"] = now_iso(moment)
     return True
@@ -611,8 +667,72 @@ def set_progress(store: dict[str, Any], task_id: str, agent_id: str, text: objec
         fail(wire("progress.length", {"max": PROGRESS_MAX}))
     if line:
         task["progress"] = line
+        _add_message(store, {
+            "taskId": task["id"],
+            "fromId": agent["id"],
+            "fromName": agent["name"],
+            "kind": "task.progress",
+            "text": line,
+        })
     else:
         task.pop("progress", None)
+    task["updatedAt"] = now_iso()
+    remember(store)
+    return task
+
+
+def _require_score_window(store: dict[str, Any], task_id: str, agent_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    task = _require_task(store, task_id)
+    agent = _require_agent(store, agent_id)
+    if task.get("claimantId") == agent["id"]:
+        fail(wire("score.own"))
+    if not _awaiting_score(store, task):
+        fail(wire("mcp.scoreNotReady"))
+    return task, agent
+
+
+def score_task(store: dict[str, Any], task_id: str, agent_id: str, score: object) -> dict[str, Any]:
+    task, agent = _require_score_window(store, task_id, agent_id)
+    if isinstance(score, bool) or not isinstance(score, int) or score < 1 or score > 5:
+        fail(wire("score.range"))
+    task["workScore"] = score
+    task.pop("scoreSkipped", None)
+    _add_message(store, {
+        "taskId": task["id"],
+        "fromId": agent["id"],
+        "fromName": agent["name"],
+        "kind": "task.score",
+        "text": wire("score.line", {
+            "caller": agent["name"],
+            "person": task.get("claimantName") or wire("person.fallback"),
+            "score": score,
+        }),
+    })
+    _add_message(store, {
+        "taskId": task["id"],
+        "fromId": task["posterId"],
+        "fromName": task["posterName"],
+        "kind": "task.complete",
+        "text": wire("artifact.done"),
+    })
+    task["status"] = "completed"
+    task["updatedAt"] = now_iso()
+    remember(store)
+    return task
+
+
+def skip_score(store: dict[str, Any], task_id: str, agent_id: str) -> dict[str, Any]:
+    task, _agent = _require_score_window(store, task_id, agent_id)
+    task["scoreSkipped"] = True
+    task.pop("workScore", None)
+    _add_message(store, {
+        "taskId": task["id"],
+        "fromId": task["posterId"],
+        "fromName": task["posterName"],
+        "kind": "task.complete",
+        "text": wire("score.skipped"),
+    })
+    task["status"] = "completed"
     task["updatedAt"] = now_iso()
     remember(store)
     return task

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { OutputForm } from "@/components/output-form"
 import { useLocale } from "@/components/locale-provider"
 import { localizeError } from "@/lib/copy"
@@ -14,6 +14,7 @@ export type PreviewSkill = {
   name: string
   description: string
   sample: string
+  play?: string | null
   input: SchemaDraft
   output: SchemaDraft
 }
@@ -48,7 +49,12 @@ function WorkerCheck({ skill, schema, play }: { skill: PreviewSkill; schema: Jso
   const shown = previewFields(skill)
   const image = showsImage(schema)
   const delivery = deliveryOf(schema)
-  const board = delivery !== "custom" && usesTimedBoard(skill.name, delivery)
+  const board = delivery !== "custom" && usesTimedBoard(skill.name, delivery, skill.play)
+  const schemaKey = JSON.stringify(schema)
+
+  useEffect(() => {
+    setNotice(null)
+  }, [schemaKey])
 
   return (
     <div className="mt-6 space-y-4">
@@ -65,6 +71,7 @@ function WorkerCheck({ skill, schema, play }: { skill: PreviewSkill; schema: Jso
         schema={schema}
         pending={false}
         submitLabel={t.publish.simulate}
+        submitVariant="outline"
         hint={play ? t.output[playHintKey(play)] : undefined}
         board={board}
         onDirty={() => setNotice(null)}
@@ -84,13 +91,21 @@ function WorkerCheck({ skill, schema, play }: { skill: PreviewSkill; schema: Jso
   )
 }
 
-export function SkillPreview({ skill, resetKey }: { skill: PreviewSkill | null; resetKey?: string }) {
+export const SkillPreview = memo(function SkillPreview({
+  skill,
+  resetKey,
+  personName = "",
+}: {
+  skill: PreviewSkill | null
+  resetKey?: string
+  personName?: string
+}) {
   const { locale, t } = useLocale()
   const [tab, setTab] = useState<"agent" | "worker">("worker")
   const schema = skill ? readSchema(skill.output) : null
   const shown = previewFields(skill)
   const inputFields = skill?.input.mode === "fields" ? skill.input.fields.filter((field) => field.name.trim() || field.description?.trim()) : []
-  const play = skill && schema ? activePlay(skill.name, deliveryOf(schema)) : null
+  const play = skill && schema ? activePlay(skill.name, deliveryOf(schema), skill.play) : null
 
   return (
     <aside className="sheet p-5 lg:sticky lg:top-24">
@@ -107,7 +122,10 @@ export function SkillPreview({ skill, resetKey }: { skill: PreviewSkill | null; 
       {skill && tab === "agent" ? (
         <div className="mt-6 space-y-3">
           <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{t.publish.agentSees}</p>
-          {shown.title ? <h3 className="font-serif text-3xl">{shown.title}</h3> : <p className="text-sm text-muted-foreground">{t.publish.previewNoName}</p>}
+          <p className="text-sm leading-6">{personName.trim() ? t.publish.previewPerson(personName.trim()) : t.publish.previewNoPerson}</p>
+          {shown.title ? <p className="text-sm leading-6">{t.publish.previewSkill(shown.title)}</p> : <p className="text-sm text-muted-foreground">{t.publish.previewNoName}</p>}
+          <p className="text-xs leading-5 text-muted-foreground">{t.publish.nameVsSkill}</p>
+          {shown.title ? <h3 className="font-serif text-3xl">{shown.title}</h3> : null}
           {shown.description ? <p className="text-sm leading-6">{shown.description}</p> : <p className="text-sm text-muted-foreground">{t.publish.previewNoCall}</p>}
           {skill.name ? <p className="font-mono text-xs text-muted-foreground">{skill.name}</p> : null}
           {inputFields.length ? (
@@ -126,7 +144,7 @@ export function SkillPreview({ skill, resetKey }: { skill: PreviewSkill | null; 
       <p className="mt-6 text-xs leading-5 text-muted-foreground">{t.publish.deliveryHint}</p>
     </aside>
   )
-}
+})
 
 export function deliveryKindOf(draft: SchemaDraft) {
   return deliveryOf(readSchema(draft) ?? undefined)

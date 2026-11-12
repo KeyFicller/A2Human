@@ -107,7 +107,7 @@ def test_a_catalog_skill_publishes_and_the_description_can_be_edited():
     store = create_seed()
     created = publish_agent(store, {
         "name": "阿梨",
-        "bio": "",
+        "bio": "接活。",
         "skills": [{"name": "hand_draw", "title": "碳基图像生成", "description": "只交一张手绘。"}],
     })
     assert created["skills"] == [{"name": "hand_draw", "description": "只交一张手绘。", "title": "碳基图像生成"}]
@@ -117,34 +117,34 @@ def test_publish_stores_the_display_name_apart_from_the_tool_id():
     store = create_seed()
     created = publish_agent(store, {
         "name": "阿梨",
-        "bio": "",
+        "bio": "接活。",
         "skills": [{"name": "carbon_reason", "title": "碳基推理引擎", "description": "在纸上推完再交。"}],
     })
     assert created["skills"][0]["name"] == "carbon_reason"
     assert created["skills"][0]["title"] == "碳基推理引擎"
-    kept = publish_agent(store, {"name": "老周", "bio": "", "skills": [{"name": "计数", "description": "数清楚。"}]})
+    kept = publish_agent(store, {"name": "老周", "bio": "接活。", "skills": [{"name": "计数", "description": "数清楚。"}]})
     assert "title" not in kept["skills"][0]
     with pytest.raises(DomainError, match="显示名"):
-        publish_agent(store, {"name": "小北", "bio": "", "skills": [{"name": "note", "title": "名" * 33, "description": "太长了。"}]})
+        publish_agent(store, {"name": "小北", "bio": "接活。", "skills": [{"name": "note", "title": "名" * 33, "description": "太长了。"}]})
 
 
 def test_a_custom_name_cannot_shadow_a_catalog_id():
     store = create_seed()
     with pytest.raises(DomainError, match="预置技能"):
-        publish_agent(store, {"name": "阿梨", "bio": "", "skills": [{"name": "Hand_Draw", "description": "自己起的名"}]})
-    kept = publish_agent(store, {"name": "老周", "bio": "", "skills": [{"name": "neighborhood", "description": "邻里通知写顺。"}]})
+        publish_agent(store, {"name": "阿梨", "bio": "接活。", "skills": [{"name": "Hand_Draw", "description": "自己起的名"}]})
+    kept = publish_agent(store, {"name": "老周", "bio": "接活。", "skills": [{"name": "neighborhood", "description": "邻里通知写顺。"}]})
     assert kept["skills"][0]["name"] == "neighborhood"
     with pytest.raises(DomainError, match="预置技能"):
         from a2human.rules import update_agent
 
-        update_agent(store, kept["id"], {"name": "老周", "bio": "", "skills": [{"name": "Paper_Think", "description": "自己起的名"}]})
+        update_agent(store, kept["id"], {"name": "老周", "bio": "接活。", "skills": [{"name": "Paper_Think", "description": "自己起的名"}]})
 
 
 def test_custom_skills_share_the_six_skill_cap():
     store = create_seed()
     mixed = publish_agent(store, {
         "name": "阿梨",
-        "bio": "",
+        "bio": "接活。",
         "skills": [
             {"name": "translate", "description": "中英互译"},
             {"name": "neighborhood", "description": "邻里通知写顺。"},
@@ -154,24 +154,24 @@ def test_custom_skills_share_the_six_skill_cap():
     })
     assert [item["name"] for item in mixed["skills"]] == ["translate", "neighborhood", "do_anything", "计数"]
     six = [{"name": f"custom_{index}", "description": "一项自定义技能。"} for index in range(6)]
-    full = publish_agent(store, {"name": "老周", "bio": "", "skills": six})
+    full = publish_agent(store, {"name": "老周", "bio": "接活。", "skills": six})
     assert [item["name"] for item in full["skills"]] == [item["name"] for item in six]
 
 
 def test_existing_length_and_count_rules_still_apply():
     store = create_seed()
-    publish_agent(store, {"name": "阿梨", "bio": "", "skills": [{"name": "计数", "description": "数清楚。"}]})
+    publish_agent(store, {"name": "阿梨", "bio": "接活。", "skills": [{"name": "计数", "description": "数清楚。"}]})
     with pytest.raises(DomainError, match="最多 6"):
         publish_agent(store, {
             "name": "老周",
-            "bio": "",
+            "bio": "接活。",
             "skills": [{"name": name, "description": title} for name, title in PRESETS[:6]]
             + [{"name": "extra_note", "description": "多出来的一项。"}],
         })
     with pytest.raises(DomainError, match="不能重复"):
         publish_agent(store, {
             "name": "小北",
-            "bio": "",
+            "bio": "接活。",
             "skills": [
                 {"name": "translate", "description": "中英互译"},
                 {"name": "translate", "description": "再写一次"},
@@ -298,7 +298,7 @@ def test_http_catalog_and_dispatch_routes():
         assert duty.status_code == 200
         shadowed = client.post("/api/agents", json={
             "name": "阿梨",
-            "bio": "",
+            "bio": "接活。",
             "skills": [{"name": "Hand_Draw", "description": "不行"}],
         })
         assert shadowed.status_code == 400

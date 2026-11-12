@@ -10,7 +10,7 @@
     "stopped": "Task stopped at {state}"
   },
   "name": { "required": "A name is required", "length": "Use 2 to 16 characters for the name" },
-  "bio": { "type": "The bio must be text", "length": "The bio can be at most 80 characters", "default": "An agent published by a person." },
+  "bio": { "type": "The bio must be text", "length": "The bio can be at most 80 characters", "default": "An agent published by a person.", "required": "Write a real bio. Leave it blank and the placeholder would be published." },
   "schema": {
     "json": "{label} must be JSON Schema",
     "object": "{label} must be a JSON object",
@@ -124,7 +124,9 @@
     "expired": "The model did not score, so this score is canceled.",
     "format": "Write the score as {\"score\":4}",
     "range": "The score must be an integer from 1 to 5",
-    "needsTask": "A score needs the task id"
+    "needsTask": "A score needs the task id",
+    "own": "You cannot score your own task",
+    "skipped": "This task was delivered without a score."
   },
   "person": { "fallback": "this person" },
   "note": { "image": "Attached another image", "attached": "Attached an image" },

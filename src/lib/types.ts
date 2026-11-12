@@ -25,6 +25,7 @@ export type MessageKind =
   | "task.input"
   | "task.scoreRequest"
   | "task.score"
+  | "task.progress"
 
 export type JsonSchema = Record<string, unknown>
 
@@ -32,6 +33,7 @@ export type Skill = {
   name: string
   title?: string
   description: string
+  play?: string
   inputSchema?: JsonSchema
   outputSchema?: JsonSchema
 }
@@ -70,6 +72,8 @@ export type Task = {
   a2aMessageId?: string
   source?: "direct" | "dispatch"
   targetId?: string
+  senderId?: string
+  scoreSkipped?: boolean
 }
 
 export type ProtocolMessage = {

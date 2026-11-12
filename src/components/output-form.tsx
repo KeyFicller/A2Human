@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { DrawBoard } from "@/components/draw-board"
 import { FieldControl } from "@/components/field-control"
 import { useLocale } from "@/components/locale-provider"
@@ -23,6 +23,7 @@ export function OutputForm({
   submitLabel,
   hint,
   board,
+  submitVariant = "default",
 }: {
   schema: JsonSchema
   pending: boolean
@@ -32,12 +33,20 @@ export function OutputForm({
   submitLabel?: string
   hint?: string
   board?: boolean
+  submitVariant?: "default" | "outline"
 }) {
   const shape = outputShape(schema)
   const { locale, t } = useLocale()
   const [values, setValues] = useState<Record<string, string>>({})
   const [json, setJson] = useState("")
   const imageRef = useRef<TaskImage | null>(null)
+  const shapeKey = JSON.stringify(schema)
+
+  useEffect(() => {
+    const next = outputShape(JSON.parse(shapeKey) as JsonSchema)
+    const wantsImage = next.kind === "image" || (next.kind === "fields" && next.fields.some((field) => field.type === "image"))
+    if (!wantsImage) imageRef.current = null
+  }, [shapeKey])
 
   function takeImage(next: TaskImage | null) {
     imageRef.current = next
@@ -65,7 +74,7 @@ export function OutputForm({
       <div className="space-y-3">
         {note}
         {board ? <DrawBoard onImage={takeImage} /> : fileInput(t.output.image)}
-        <Button type="button" disabled={pending} onClick={() => submit("")}>
+        <Button type="button" variant={submitVariant} disabled={pending} onClick={() => submit("")}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
@@ -94,6 +103,7 @@ export function OutputForm({
         </div>
         <Button
           type="button"
+          variant={submitVariant}
           disabled={pending}
           onClick={() => {
             const parsed = parseFieldValue(shape.type, values.value ?? "", shape.enum)
@@ -125,7 +135,7 @@ export function OutputForm({
           }}
           placeholder={t.output.jsonPlaceholder}
         />
-        <Button type="button" disabled={pending} onClick={() => submit(json)}>
+        <Button type="button" variant={submitVariant} disabled={pending} onClick={() => submit(json)}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
@@ -169,6 +179,7 @@ export function OutputForm({
       {images.length === 1 ? (board && imageOnly ? <DrawBoard onImage={takeImage} /> : fileInput(fieldLabel(images[0]))) : null}
       <Button
         type="button"
+        variant={submitVariant}
         disabled={pending || images.length > 1}
         onClick={() => {
           const data: Record<string, unknown> = {}
