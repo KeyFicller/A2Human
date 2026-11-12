@@ -17,7 +17,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
         <p className="shrink-0 font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{agent.available ? t.duty.on : t.duty.off}</p>
       </div>
       <RecordFigures completed={agent.completed} averageScore={agent.averageScore} averageDuration={agent.averageDuration} />
-      <p className="mt-3 text-sm leading-6">{agent.bio}</p>
+      <p className="mt-3 break-words text-sm leading-6">{agent.bio}</p>
       <ul className="mt-4 space-y-2">
         {agent.skills.map((skill) => (
           <li key={skill.name}>

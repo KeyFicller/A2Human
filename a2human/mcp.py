@@ -29,7 +29,7 @@ from a2human.copy import wire
 from a2human.format import record_line
 from a2human.jsonutil import dumps, loads
 from a2human.schema_fields import enum_values
-from a2human.rules import SCORE_WAIT_MS, expire_scores, on_duty, work_record
+from a2human.rules import SCORE_WAIT_MS, artifact_reference, expire_scores, on_duty, work_record
 
 PROTOCOL_VERSIONS = {"2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"}
 TASKS_PROTOCOL = "2025-11-25"
@@ -553,7 +553,7 @@ def _mcp_status_message(store: dict[str, Any], task: dict[str, Any]) -> str:
         return _with_progress(wire("mcp.workingStatus"), task)
     if status == "input_required":
         if _score_pending(store, task):
-            return wire("mcp.scoreStatus", {"id": task["id"], "seconds": round(SCORE_WAIT_MS / 1000), "artifact": task.get("artifact") or ""})
+            return wire("mcp.scoreStatus", {"id": task["id"], "seconds": round(SCORE_WAIT_MS / 1000), "artifact": artifact_reference(task)})
         return wire("mcp.inputStatus", {"text": (_latest_decision(store, task) or {}).get("text") or ""})
     if status == "completed":
         return wire("mcp.completedStatus") if task.get("artifact") else wire("mcp.emptyArtifact")

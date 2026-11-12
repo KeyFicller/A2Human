@@ -2,6 +2,7 @@ import { apiUrl } from "./api-origin"
 import { wire } from "./copy"
 
 export const AGENT_KEY = "a2human-agent-id"
+export const PUBLISHED_KEY = "a2human-just-published"
 
 export class ApiError extends Error {}
 

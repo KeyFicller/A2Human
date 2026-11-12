@@ -100,9 +100,22 @@ export function previewSessionKey(slot: number, template: string | null, deliver
   return `${slot}\n${template ?? ""}\n${delivery}`
 }
 
+/** Remount the worker check when the slot or template changes. Delivery changes keep compatible text. */
+export function workerSessionKey(slot: number, template: string | null) {
+  return `${slot}\n${template ?? ""}`
+}
+
 export function personNameIssue(name: string): "name.length" | null {
   const length = [...name.trim()].length
   if (length < 2 || length > 16) return "name.length"
+  return null
+}
+
+/** Empty and the old placeholder bio are not a real introduction. */
+export function bioIssue(bio: string, blocked: string[] = []): "empty" | "placeholder" | null {
+  const trimmed = bio.trim()
+  if (!trimmed) return "empty"
+  if (blocked.some((item) => item.trim() && trimmed === item.trim())) return "placeholder"
   return null
 }
 
@@ -125,6 +138,13 @@ export function playMode(name: string): PlayMode | null {
   return PLAY_BY_NAME[name] ?? null
 }
 
+export function asPlayMode(value: string | null | undefined): PlayMode | null {
+  if (value === "timed_draw" || value === "paper" || value === "roll" || value === "wetware" || value === "book" || value === "human_check") {
+    return value
+  }
+  return null
+}
+
 export function playHintKey(mode: PlayMode): "playTimed" | "playPaper" | "playRoll" | "playWetware" | "playBook" | "playHuman" {
   if (mode === "timed_draw") return "playTimed"
   if (mode === "paper") return "playPaper"
@@ -136,17 +156,24 @@ export function playHintKey(mode: PlayMode): "playTimed" | "playPaper" | "playRo
 
 export const DRAW_LIMIT_MS = 30_000
 
-export function usesTimedBoard(name: string, delivery: DeliveryKind) {
-  return playMode(name) === "timed_draw" && delivery === "image"
+export function usesTimedBoard(name: string, delivery: DeliveryKind, play?: string | null) {
+  return (asPlayMode(play) ?? playMode(name)) === "timed_draw" && delivery === "image"
 }
 
 /** The play hint and timed board follow the delivery the person will actually publish. */
-export function activePlay(name: string, delivery: DeliveryKind | "custom"): PlayMode | null {
-  const mode = playMode(name)
+export function activePlay(name: string, delivery: DeliveryKind | "custom", play?: string | null): PlayMode | null {
+  const mode = asPlayMode(play) ?? playMode(name)
   if (!mode || delivery === "custom") return null
   if (mode === "timed_draw") return delivery === "image" ? mode : null
   if (mode === "paper" || mode === "roll") return delivery === "image_text" ? mode : null
   return delivery === "text" ? mode : null
+}
+
+/** A custom tool id can still be the carbon drawing preset. The description is the fallback when play was not stored. */
+const TIMED_DRAW = /\u4e09\u5341\u79d2|30\s*\u79d2|30s/i
+
+export function promisesTimedDraw(text: string) {
+  return TIMED_DRAW.test(text)
 }
 
 /** `{}` is an empty field form, not extra text beside an image-only delivery. */
@@ -257,14 +284,16 @@ export function toolIdFromTitle(title: string, taken: Iterable<string> = [], ski
   return "skill"
 }
 
-export function skillPayload(skill: { name: string; title: string; description: string; inputSchema: string; outputSchema: string }) {
+export function skillPayload(skill: { name: string; title: string; description: string; inputSchema: string; outputSchema: string; play?: string | null }) {
   const title = skill.title.trim()
   const inputSchema = skill.inputSchema.trim()
   const outputSchema = skill.outputSchema.trim()
+  const play = asPlayMode(skill.play)
   return {
     name: skill.name,
     description: skill.description,
     ...(title ? { title } : {}),
+    ...(play ? { play } : {}),
     ...(inputSchema ? { inputSchema } : {}),
     ...(outputSchema ? { outputSchema } : {}),
   }

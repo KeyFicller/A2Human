@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
-import { formatWhen, kindLabel, statusLabel, taskOpen } from "@/lib/format"
+import { formatWhen, kindLabel, statusLabel } from "@/lib/format"
+import { needsWorker, readableArtifact, scoreWasSkipped } from "@/lib/task-view"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
-import { activePlay, deliveryOf, playHintKey, usesTimedBoard } from "@/lib/publish-skills"
+import { activePlay, deliveryOf, playHintKey, promisesTimedDraw, usesTimedBoard, type PlayMode } from "@/lib/publish-skills"
 import { skillLabel } from "@/lib/skill-catalog"
 import type { Agent, ProtocolMessage, Task, TaskImage } from "@/lib/types"
 
@@ -29,12 +30,16 @@ function imageSrc(image: TaskImage) {
   return ""
 }
 
-function shownArtifact(text: string) {
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2)
-  } catch {
-    return text
-  }
+const SCORE_WAIT_MS = 60_000
+
+function progressHint(play: PlayMode | null, text: { progressDraw: string; progressPaper: string; progressRoll: string; progressWetware: string; progressBook: string; progressHuman: string; progressCustom: string }) {
+  if (play === "timed_draw") return text.progressDraw
+  if (play === "paper") return text.progressPaper
+  if (play === "roll") return text.progressRoll
+  if (play === "wetware") return text.progressWetware
+  if (play === "book") return text.progressBook
+  if (play === "human_check") return text.progressHuman
+  return text.progressCustom
 }
 
 function Picture({ image, alt, className }: { image: TaskImage; alt: string; className: string }) {
@@ -65,6 +70,8 @@ export default function TaskScreen({ id }: { id?: string }) {
   const [decision, setDecision] = useState<"reject" | "cancel" | "fail" | "input" | null>(null)
   const [reason, setReason] = useState("")
   const [progress, setProgress] = useState("")
+  const [score, setScore] = useState<number | null>(null)
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
   const progressTask = useRef("")
 
   const load = useCallback(() => {
@@ -90,6 +97,32 @@ export default function TaskScreen({ id }: { id?: string }) {
     return () => window.clearInterval(timer)
   }, [load])
 
+  const scoreAsked = (() => {
+    if (!detail) return Number.NaN
+    const latest = [...detail.messages].reverse().find((item) => item.kind === "task.scoreRequest")
+    if (detail.task.status === "input-required" && latest) return Date.parse(latest.createdAt)
+    return Number.NaN
+  })()
+
+  useEffect(() => {
+    if (!Number.isFinite(scoreAsked)) {
+      setSecondsLeft(null)
+      return
+    }
+    let expired = false
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((scoreAsked + SCORE_WAIT_MS - Date.now()) / 1000))
+      setSecondsLeft(left)
+      if (left === 0 && !expired) {
+        expired = true
+        load()
+      }
+    }
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => window.clearInterval(timer)
+  }, [scoreAsked, load])
+
   if (!ready || (!detail && !error)) return <LoadingLine text={t.task.opening} />
   if (error && !detail) return <ErrorNote text={error} onRetry={load} />
   if (!detail) return null
@@ -104,22 +137,23 @@ export default function TaskScreen({ id }: { id?: string }) {
       : undefined
   const needsImage = schemaRequiresImage(skill?.outputSchema)
   const deliveryKind = skill?.outputSchema ? deliveryOf(skill.outputSchema) : "custom"
-  const play = skill && deliveryKind !== "custom" ? activePlay(skill.name, deliveryKind) : null
-  const board = Boolean(skill && deliveryKind !== "custom" && usesTimedBoard(skill.name, deliveryKind))
+  const play = skill && deliveryKind !== "custom" ? activePlay(skill.name, deliveryKind, skill.play) : null
+  const board = Boolean(
+    skill &&
+      deliveryKind === "image" &&
+      (usesTimedBoard(skill.name, "image", skill.play) || (!skill.play && promisesTimedDraw(`${skill.title || ""}\n${skill.description}`))),
+  )
   const stance = [...messages].reverse().find((item) =>
     item.kind === "task.input" || item.kind === "task.scoreRequest" || item.kind === "task.reject" || item.kind === "task.fail" || item.kind === "task.cancel",
   )
   const waitingForScore = task.status === "input-required" && stance?.kind === "task.scoreRequest"
   const answering = (task.status === "working" || task.status === "input-required") && !waitingForScore
-  const decisions = waitingForScore
-    ? ([["cancel", t.task.cancel]] as const)
-    : ([
+  const decisions = ([
         ["input", t.task.needInput],
         ["reject", t.task.reject],
         ["fail", t.task.fail],
         ["cancel", t.task.cancel],
       ] as const)
-
   function handIn(nextText: string, nextImage: TaskImage | null) {
     if (!agent) return
     setPending(true)
@@ -182,7 +216,7 @@ export default function TaskScreen({ id }: { id?: string }) {
         {stance && !waitingForScore && task.status !== "working" && task.status !== "completed" ? (
           <p className="mt-3 leading-7">{stance.text}</p>
         ) : null}
-        <h1 className="mt-3 font-serif text-4xl">{task.title}</h1>
+        <h1 className="mt-3 font-serif text-4xl break-words">{task.title}</h1>
         {skill ? (
           <div className="mt-4">
             <p className="font-serif text-xl">{skillLabel(skill)}</p>
@@ -203,17 +237,17 @@ export default function TaskScreen({ id }: { id?: string }) {
             ))}
           </div>
         ) : null}
-        {task.progress && !(mine && task.status === "working") ? <p className="mt-4 leading-7">{task.progress}</p> : null}
+        {task.progress && !(mine && task.status === "working") ? <p className="mt-4 break-words leading-7">{task.progress}</p> : null}
         {mine && task.status === "working" ? (
-          <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={saveProgress}>
-            <label className="block min-w-0 flex-1 text-sm">
+          <form className="mt-4 space-y-3" onSubmit={saveProgress}>
+            <label className="block text-sm">
               {t.task.progress}
               <Input
-                className="mt-1.5"
+                className="mt-1.5 w-full min-w-0"
                 value={progress}
                 maxLength={80}
                 onChange={(event) => setProgress(event.target.value)}
-                placeholder={t.task.progressPlaceholder}
+                placeholder={progressHint(play, t.task)}
               />
             </label>
             <Button type="submit" disabled={pending}>
@@ -223,10 +257,59 @@ export default function TaskScreen({ id }: { id?: string }) {
         ) : null}
         <p className="mt-4 text-sm text-muted-foreground">{t.task.from(task.posterName)}</p>
         {typeof task.workScore === "number" ? <p className="mt-2 text-sm">{t.task.scoredBy(task.posterName, task.workScore)}</p> : null}
+        {scoreWasSkipped(task) ? <p className="mt-2 text-sm">{t.task.scoreSkipped}</p> : null}
+        {waitingForScore && secondsLeft != null ? <p className="mt-3 text-sm text-stamp">{t.task.scoreLeft(secondsLeft)}</p> : null}
+        {agent && !mine && waitingForScore ? (
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (!agent || score == null) return
+              setPending(true)
+              setNotice(null)
+              api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id, score })
+                .then(() => {
+                  setNotice(t.task.scoreDone)
+                  load()
+                })
+                .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
+                .finally(() => setPending(false))
+            }}
+          >
+            <p className="text-sm">{t.task.scoreNow}</p>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Button key={value} type="button" variant={score === value ? "default" : "outline"} onClick={() => setScore(value)}>
+                  {value}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={pending || score == null}>
+                {pending ? t.task.submitting : t.task.scoreNow}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  if (!agent) return
+                  setPending(true)
+                  api<Task>(`/api/tasks/${task.id}`, { action: "skip", agentId: agent.id })
+                    .then(() => load())
+                    .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
+                    .finally(() => setPending(false))
+                }}
+              >
+                {t.task.scoreSkip}
+              </Button>
+            </div>
+          </form>
+        ) : null}
         {task.artifact || task.artifactImage ? (
           <div className="mt-6 rounded-2xl bg-[#f7f1e4] p-4">
             <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.task.artifact}</p>
-            {task.artifact ? <p className="mt-2 whitespace-pre-wrap font-mono text-sm leading-7">{shownArtifact(task.artifact)}</p> : null}
+            {task.artifact ? <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7">{readableArtifact(task.artifact)}</p> : null}
             {task.artifactImage ? (
               <Picture image={task.artifactImage} alt={task.artifactImage.filename || t.task.returnedAlt} className="mt-3 max-h-80 rounded-2xl object-contain" />
             ) : null}
@@ -302,7 +385,7 @@ export default function TaskScreen({ id }: { id?: string }) {
             </Button>
           </form>
         ) : null}
-        {mine && taskOpen(task.status) ? (
+        {mine && needsWorker(task) ? (
           <div className="mt-6 space-y-3">
             <div className="flex flex-wrap gap-2">
               {decisions.map(([action, label]) => (
@@ -342,7 +425,7 @@ export default function TaskScreen({ id }: { id?: string }) {
             <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">
               {kindLabel(message.kind, locale)} · {message.fromName} · {formatWhen(message.createdAt, locale)}
             </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.text}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{readableArtifact(message.text)}</p>
           </article>
         ))}
       </section>

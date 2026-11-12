@@ -8,6 +8,7 @@ import type { Agent } from "@/lib/types"
 type AgentContextValue = {
   agent: Agent | null
   ready: boolean
+  identity: "unknown" | "guest" | "member"
   error: string | null
   refresh: () => Promise<void>
   signIn: (id: string) => Promise<void>
@@ -18,10 +19,12 @@ const AgentContext = createContext<AgentContextValue | null>(null)
 export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [agent, setAgent] = useState<Agent | null>(null)
   const [ready, setReady] = useState(false)
+  const [identity, setIdentity] = useState<"unknown" | "guest" | "member">("unknown")
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(() => {
     const id = localStorage.getItem(AGENT_KEY)
+    setIdentity(id ? "member" : "guest")
     if (!id) {
       return Promise.resolve().then(() => {
         setAgent(null)
@@ -38,6 +41,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         const missing = caught instanceof ApiError && [wire("agent.missing"), wire("task.missing")].some((item) => caught.message.includes(item))
         if (missing) {
           localStorage.removeItem(AGENT_KEY)
+          setIdentity("guest")
           setAgent(null)
           setError(null)
         } else {
@@ -62,7 +66,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   }, [refresh])
 
   return (
-    <AgentContext.Provider value={{ agent, ready, error, refresh, signIn }}>
+    <AgentContext.Provider value={{ agent, ready, identity, error, refresh, signIn }}>
       {children}
     </AgentContext.Provider>
   )

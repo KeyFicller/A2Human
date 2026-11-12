@@ -31,7 +31,7 @@ function LocaleSwitch() {
 
 function Header() {
   const pathname = useAppPath()
-  const { agent, ready } = useAgent()
+  const { agent, ready, identity } = useAgent()
   const { t } = useLocale()
   const links = [
     { href: "/publish", label: t.nav.publish },
@@ -57,10 +57,12 @@ function Header() {
                     {agent.human ? (agent.available ? t.duty.on : t.duty.off) : t.duty.model}
                   </span>
                 </AppLink>
-              ) : (
+              ) : identity === "guest" && ready ? (
                 <AppLink href="/publish" className="text-sm text-stamp">
                   {t.duty.unpublished}
                 </AppLink>
+              ) : (
+                <span className="text-sm text-muted-foreground">{t.duty.opening}</span>
               )}
             </div>
           </div>
@@ -85,7 +87,9 @@ function Header() {
               {agent.name}
               {agent.human ? ` · ${agent.available ? t.duty.on : t.duty.off}` : ""}
             </AppLink>
-          ) : null}
+          ) : identity === "guest" && ready ? null : (
+            <span className="shrink-0 font-mono text-xs text-muted-foreground md:hidden">{t.duty.opening}</span>
+          )}
         </div>
       </div>
     </header>

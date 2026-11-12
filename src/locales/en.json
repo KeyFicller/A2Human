@@ -11,10 +11,11 @@
     "working": "On duty",
     "clockedOff": "Off duty",
     "clockOut": "Clock out",
-    "clockIn": "Go on duty"
+    "clockIn": "Go on duty",
+    "opening": "Opening your card…"
   },
   "footer": "Publish your skills and go on duty. Models find you and send the work that matches.",
-  "record": { "completed": "Done", "score": "Score", "time": "Time", "empty": "—" },
+  "record": { "completed": "Done", "score": "Score", "time": "Time", "empty": "—", "unscored": "No score" },
   "copy": {
     "loading": "Loading",
     "copied": "Copied",
@@ -54,7 +55,10 @@
     "mcpHint": "A client that only speaks MCP uses this fallback to hire. Tool calls still go to each person's own A2A address.",
     "rosterError": "The on-duty list could not be loaded",
     "loading": "Loading the on-duty list…",
-    "empty": "Nobody is on duty."
+    "empty": "Nobody is on duty.",
+    "refresh": "Refresh",
+    "updated": "List updated {time}",
+    "onDutyCount": "{count} on duty"
   },
   "profile": {
     "forModels": "For models",
@@ -64,7 +68,18 @@
     "send": "To hire this person, SendMessage goes to this address, with configuration.returnImmediately set to true. After they deliver, call GetTask to pick it up.",
     "sample": "Please finish this using your skill.",
     "loadError": "This card could not be loaded",
-    "opening": "Opening this card…"
+    "opening": "Opening this card…",
+    "hire": "Hire this person",
+    "hireTask": "What should they do",
+    "hireSkill": "Which skill",
+    "hireSend": "Send",
+    "hireSending": "Sending…",
+    "hireNeed": "Write what you want done.",
+    "hirePick": "Pick a skill.",
+    "hireResult": "Sent. Task {id}, status {status}.",
+    "hireOpen": "Open this task",
+    "callHint": "This is the SendMessage that gets copied, not the card JSON.",
+    "sentHere": "Tasks I sent here"
   },
   "me": {
     "noneTitle": "No card yet",
@@ -80,7 +95,13 @@
     "openTasks": "{count} still open",
     "tasksError": "The task list could not be loaded",
     "loading": "Sorting your tasks…",
-    "empty": "None yet. After you go on duty, matching work shows up here."
+    "empty": "None yet. After you go on duty, matching work shows up here.",
+    "sent": "Tasks I sent",
+    "sentEmpty": "You have not sent a task yet.",
+    "refresh": "Refresh",
+    "updated": "Updated {time}",
+    "published": "The card is up. Go on duty and other people can hire you.",
+    "toolId": "Tool id {id}"
   },
   "publish": {
     "edit": "Edit my card",
@@ -149,7 +170,13 @@
     "writing": "Saving…",
     "save": "Save",
     "publish": "Install and publish",
-    "saveError": "This card was not saved"
+    "saveError": "This card was not saved",
+    "needBio": "Write a real bio. An empty one is not saved.",
+    "confirmPublish": "Confirm publish",
+    "previewPerson": "Name: {name}",
+    "previewNoPerson": "No name yet.",
+    "previewSkill": "Skill name: {title}",
+    "nameVsSkill": "The name is what this card calls you. The skill name is the name of this one skill. An agent sees both."
   },
   "schema": {
     "identifierHint": "When a name is an English identifier, the model fills that field on its own.",
@@ -238,7 +265,19 @@
     "progressPlaceholder": "Searching the mental library",
     "progressSave": "Update progress",
     "progressSaved": "Progress updated.",
-    "progressError": "The progress line was not saved"
+    "progressError": "The progress line was not saved",
+    "progressDraw": "e.g. drawing now, handing it in soon",
+    "progressPaper": "e.g. still working it out on paper",
+    "progressRoll": "e.g. the die is still on the table",
+    "progressWetware": "e.g. doing the steps now",
+    "progressBook": "e.g. looking through a book nearby",
+    "progressHuman": "e.g. reading it line by line",
+    "progressCustom": "e.g. here is where I am",
+    "scoreNow": "Score this task",
+    "scoreSkip": "Skip the score",
+    "scoreLeft": "{seconds}s left. After that the score is skipped.",
+    "scoreSkipped": "This task was not scored.",
+    "scoreDone": "Score saved."
   },
   "output": {
     "image": "Image",
@@ -267,7 +306,11 @@
     "drawLeft": "{seconds}s left",
     "drawFrozen": "Time is up. This drawing is the one you hand back.",
     "drawIdle": "Start, then draw.",
-    "drawLabel": "Thirty-second drawing board"
+    "drawLabel": "Thirty-second drawing board",
+    "drawClear": "Clear",
+    "drawUndo": "Undo",
+    "drawRestart": "Start over",
+    "drawLocked": "Time is up and the board is locked. This drawing is the one you hand back."
   },
   "status": { "loading": "Loading…", "retry": "Retry" },
   "format": {
@@ -290,7 +333,8 @@
       "fail": "Failed",
       "input": "Needs input",
       "scoreRequest": "Score request",
-      "score": "Score"
+      "score": "Score",
+      "progress": "Progress"
     },
     "units": { "sec": "sec", "min": "min", "hr": "hr", "day": "days" },
     "dayOne": "day",

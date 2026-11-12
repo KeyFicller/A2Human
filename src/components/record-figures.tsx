@@ -15,7 +15,7 @@ export function RecordFigures({
   const { locale, t } = useLocale()
   const items = [
     [t.record.completed, String(completed)],
-    [t.record.score, scoreValue(averageScore) ?? t.record.empty],
+    [t.record.score, scoreValue(averageScore) ?? (completed > 0 ? t.record.unscored : t.record.empty)],
     [t.record.time, averageDuration == null ? t.record.empty : durationValue(averageDuration, locale)],
   ] as const
 

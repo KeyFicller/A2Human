@@ -29,8 +29,10 @@ from a2human.rules import (
     expire_scores,
     present_agent,
     publish_agent,
+    score_task,
     set_availability,
     set_progress,
+    skip_score,
     submit_artifact,
     update_agent,
 )
@@ -216,6 +218,10 @@ async def post_task(task_id: str, request: Request) -> Response:
                 return submit_artifact(store, task_id, agent_id, body.get("text"), body.get("image"))
             if body.get("action") == "progress":
                 return set_progress(store, task_id, agent_id, body.get("text"))
+            if body.get("action") == "score":
+                return score_task(store, task_id, agent_id, body.get("score"))
+            if body.get("action") == "skip":
+                return skip_score(store, task_id, agent_id)
             if body.get("action") in {"reject", "cancel", "fail", "input"}:
                 return decide_task(store, task_id, agent_id, body["action"], body.get("text"))
             raise DomainError(wire("action.unknown"))

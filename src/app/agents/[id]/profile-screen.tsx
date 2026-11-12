@@ -1,19 +1,28 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type FormEvent } from "react"
 import { useParams } from "next/navigation"
+import { useAgent } from "@/components/agent-provider"
+import { AppLink } from "@/components/app-link"
 import { CopyField } from "@/components/copy-field"
 import { useText } from "@/components/locale-provider"
 import { LoadingLine } from "@/components/status"
 import { SchemaSummary } from "@/components/schema-summary"
-import { Badge } from "@/components/ui/badge"
+import { TaskRow } from "@/components/task-row"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote } from "@/components/status"
+import { RecordFigures } from "@/components/record-figures"
 import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
-import { RecordFigures } from "@/components/record-figures"
+import { statusLabel } from "@/lib/format"
+import { hireIssue, statusFromState } from "@/lib/task-view"
+import { sendMessageBody } from "@/lib/hire"
 import { skillLabel } from "@/lib/skill-catalog"
-import type { Agent } from "@/lib/types"
+import type { Agent, Task } from "@/lib/types"
+
+type RpcTask = { id?: string; status?: { state?: string } }
+type RpcResult = { result?: { task?: RpcTask }; error?: { message?: string } }
 
 export function ProfileFallback() {
   const { t } = useText()
@@ -23,19 +32,25 @@ export function ProfileFallback() {
 export default function AgentProfilePage({ id }: { id?: string }) {
   const params = useParams<{ id?: string }>()
   const agentId = id || params.id || ""
+  const { agent: me } = useAgent()
   const [agent, setAgent] = useState<Agent | null>(null)
-  const [card, setCard] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [taskText, setTaskText] = useState("")
+  const [skillName, setSkillName] = useState("")
+  const [hireError, setHireError] = useState<string | null>(null)
+  const [hirePending, setHirePending] = useState(false)
+  const [hired, setHired] = useState<{ id: string; status: string } | null>(null)
+  const [sent, setSent] = useState<Task[]>([])
   const origin = useApiOrigin()
-  const { t, error: showError } = useText()
+  const { locale, t, error: showError } = useText()
 
   const load = useCallback(() => {
     if (!agentId) return
-    Promise.all([api<Agent>(`/api/agents/${agentId}`), api<unknown>(`/api/a2a/${agentId}`)])
-      .then(([nextAgent, nextCard]) => {
+    api<Agent>(`/api/agents/${agentId}`)
+      .then((nextAgent) => {
         setAgent(nextAgent)
-        setCard(nextCard)
+        setSkillName((current) => current || (nextAgent.skills.length === 1 ? nextAgent.skills[0].name : ""))
         setError(null)
       })
       .catch((caught: unknown) => {
@@ -43,57 +58,151 @@ export default function AgentProfilePage({ id }: { id?: string }) {
       })
   }, [agentId, showError, t.profile.loadError])
 
+  const loadSent = useCallback(() => {
+    if (!me) {
+      setSent([])
+      return
+    }
+    api<Task[]>("/api/tasks")
+      .then((tasks) => {
+        setSent(tasks.filter((task) => task.senderId === me.id && task.targetId === agentId))
+      })
+      .catch(() => {})
+  }, [agentId, me])
+
   useEffect(() => {
     load()
   }, [load])
 
   useEffect(() => {
+    loadSent()
+  }, [loadSent])
+
+  useEffect(() => {
     if (!copied) return
-    const timer = window.setTimeout(() => setCopied(false), 2000)
+    const timer = window.setTimeout(() => setCopied(false), 4000)
     return () => window.clearTimeout(timer)
   }, [copied])
 
   if (error && !agent) return <ErrorNote text={error} onRetry={load} />
-  if (!agent) return <LoadingLine />
+  if (!agent) return <LoadingLine text={t.profile.opening} />
 
   const endpoint = origin ? `${origin}/api/a2a/${agent.id}` : ""
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
-  const onlySkill = agent.skills.length === 1 ? agent.skills[0].name : undefined
-  const sample = endpoint
-    ? `curl -s ${endpoint} -H 'content-type: application/json' -H 'A2A-Version: 1.0' -d '${JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "SendMessage",
-        params: {
-          configuration: { returnImmediately: true },
-          ...(onlySkill ? { metadata: { skill: onlySkill } } : {}),
-          message: {
-            role: "ROLE_USER",
-            messageId: "msg-1",
-            parts: [{ text: t.profile.sample }],
-          },
-        },
-      }).replaceAll("'", "'\\'")}'`
-    : ""
+  const chosen = agent.skills.find((skill) => skill.name === skillName) || (agent.skills.length === 1 ? agent.skills[0] : undefined)
+  const sampleBody = sendMessageBody({
+    text: taskText.trim() || t.profile.sample,
+    skill: chosen?.name,
+    caller: me?.name,
+    senderId: me?.id,
+    messageId: "msg-1",
+  })
+  const sample = JSON.stringify(sampleBody, null, 2)
+  const skillTitles = Object.fromEntries(agent.skills.map((skill) => [skill.name, skillLabel(skill)]))
+
+  function hire(event: FormEvent) {
+    event.preventDefault()
+    const issue = hireIssue(taskText, chosen?.name || "", agent?.skills.length || 0)
+    if (issue === "text") {
+      setHireError(t.profile.hireNeed)
+      return
+    }
+    if (issue === "skill") {
+      setHireError(t.profile.hirePick)
+      return
+    }
+    if (!endpoint || !agent) return
+    setHirePending(true)
+    setHireError(null)
+    const body = sendMessageBody({
+      text: taskText.trim(),
+      skill: chosen?.name,
+      caller: me?.name,
+      senderId: me?.id,
+      messageId: `hire-${Date.now()}`,
+    })
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", "A2A-Version": "1.0" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const data = (await response.json().catch(() => ({}))) as RpcResult
+        if (!response.ok || data.error) throw new Error(data.error?.message || t.profile.loadError)
+        const task = data.result?.task
+        if (!task?.id) throw new Error(t.profile.loadError)
+        setHired({ id: task.id, status: statusFromState(task.status?.state, (status) => statusLabel(status, locale)) })
+        setTaskText("")
+        loadSent()
+      })
+      .catch((caught: unknown) => {
+        setHireError(caught instanceof Error ? showError(caught, t.profile.loadError) : t.profile.loadError)
+      })
+      .finally(() => setHirePending(false))
+  }
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,0.9fr)_minmax(0,1.1fr)]">
       <section className="sheet min-w-0 p-6">
         <div className="flex items-baseline justify-between gap-3">
-          <h1 className="font-serif text-4xl">{agent.name}</h1>
+          <h1 className="font-serif text-4xl break-words">{agent.name}</h1>
           <p className="shrink-0 font-mono text-[11px] tracking-[0.16em] text-stamp">{agent.available ? t.duty.on : t.duty.off}</p>
         </div>
         <RecordFigures completed={agent.completed} averageScore={agent.averageScore} averageDuration={agent.averageDuration} />
-        <p className="mt-4 leading-7">{agent.bio}</p>
+        <p className="mt-4 break-words leading-7">{agent.bio}</p>
         <ul className="mt-6 space-y-3">
-          {agent.skills.map((skill) => (
-            <li key={skill.name}>
-              <Badge variant="secondary">{skillLabel(skill)}</Badge>
-              <p className="mt-1 text-sm leading-6">{skill.description}</p>
-              <SchemaSummary skill={skill} />
-            </li>
-          ))}
+          {agent.skills.map((skill) => {
+            const selected = chosen?.name === skill.name
+            return (
+              <li key={skill.name}>
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  className={selected ? "rounded-full bg-ink px-3 py-1 text-sm text-[#fbf7ee]" : "rounded-full border border-[#d9d0c0] px-3 py-1 text-sm"}
+                  onClick={() => {
+                    setSkillName(skill.name)
+                    document.getElementById("hire-task")?.focus()
+                  }}
+                >
+                  {skillLabel(skill)}
+                </button>
+                {skill.title ? <p className="mt-1 font-mono text-xs text-muted-foreground">{skill.name}</p> : null}
+                <p className="mt-1 break-words text-sm leading-6">{skill.description}</p>
+                <SchemaSummary skill={skill} />
+              </li>
+            )
+          })}
         </ul>
+        <form className="mt-6 space-y-3 border-t border-[#d9d0c0] pt-4" onSubmit={hire}>
+          <h2 className="font-serif text-2xl">{t.profile.hire}</h2>
+          <label className="block text-sm">
+            {t.profile.hireTask}
+            <Textarea id="hire-task" className="mt-1.5" value={taskText} onChange={(event) => setTaskText(event.target.value)} />
+          </label>
+          {agent.skills.length > 1 ? <p className="text-sm text-muted-foreground">{t.profile.hireSkill}</p> : null}
+          <Button type="submit" disabled={hirePending || !endpoint}>
+            {hirePending ? t.profile.hireSending : t.profile.hireSend}
+          </Button>
+          {hireError ? <p className="text-sm text-stamp">{hireError}</p> : null}
+          {hired ? (
+            <p className="text-sm leading-6">
+              {t.profile.hireResult(hired.id, hired.status)}{" "}
+              <AppLink href={`/tasks/${hired.id}`} className="text-stamp">
+                {t.profile.hireOpen}
+              </AppLink>
+            </p>
+          ) : null}
+        </form>
+        <div className="mt-6">
+          <h2 className="font-serif text-2xl">{t.profile.sentHere}</h2>
+          <div className="mt-3 grid gap-3">
+            {sent.length === 0 ? <p className="text-sm text-muted-foreground">{t.me.sentEmpty}</p> : null}
+            {sent.map((task) => (
+              <TaskRow key={task.id} task={task} skillTitles={skillTitles} />
+            ))}
+          </div>
+        </div>
       </section>
       <section className="sheet min-w-0 p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>
@@ -101,6 +210,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
         <CopyField label={t.copy.person} value={endpoint} />
         <CopyField hint={t.profile.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{t.profile.send}</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{t.profile.callHint}</p>
         <Button
           type="button"
           variant="outline"
@@ -115,11 +225,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
         >
           {copied ? t.copy.callCopied : t.copy.call}
         </Button>
-        {card ? (
-          <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-2xl bg-[#1c1915] p-4 text-xs leading-5 text-[#f7f1e4]">
-            {JSON.stringify(card, null, 2)}
-          </pre>
-        ) : null}
+        <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-2xl bg-[#1c1915] p-4 text-xs leading-5 text-[#f7f1e4]">{sample}</pre>
       </section>
     </div>
   )

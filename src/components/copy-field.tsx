@@ -17,7 +17,7 @@ export function CopyField({ label, value, hint }: { label: string; value: string
     <div className="mt-4 max-w-full">
       {hint ? <p className="text-sm leading-6 text-muted-foreground">{hint}</p> : null}
       <div className="mt-2 flex max-w-full min-w-0 items-center gap-3 rounded-xl border border-[#d9d0c0] bg-[#f7f1e4] px-3 py-2">
-        <p className="min-w-0 flex-1 truncate font-mono text-xs" title={value || undefined}>
+        <p className="min-w-0 flex-1 break-all font-mono text-xs leading-5" title={value || undefined}>
           {value || t.copy.loading}
         </p>
         <button

@@ -27,8 +27,11 @@ import {
   toolIdFromTitle,
   toolIdProblem,
   activePlay,
+  bioIssue,
+  promisesTimedDraw,
   usesTimedBoard,
   withToolId,
+  workerSessionKey,
 } from "./publish-skills.ts"
 
 const SKILL_CATALOG = JSON.parse(readFileSync(new URL("../locales/skill-catalog.json", import.meta.url), "utf8")) as Array<{
@@ -157,6 +160,16 @@ test("the six presets are distinct play modes and only carbon drawing uses the t
   assert.equal(usesTimedBoard("hand_draw", "text"), false)
   assert.equal(usesTimedBoard("hand_draw", "image_text"), false)
   assert.equal(usesTimedBoard("paper_think", "image"), false)
+  assert.equal(usesTimedBoard("sketch_pengpengyun", "image", "timed_draw"), true)
+  assert.equal(usesTimedBoard("sketch_pengpengyun", "text", "timed_draw"), false)
+  assert.equal(usesTimedBoard("sketch_pengpengyun", "image"), false)
+  assert.equal(promisesTimedDraw("计时三十秒，亲手画完。"), true)
+  assert.equal(promisesTimedDraw("写一段说明。"), false)
+  assert.equal(workerSessionKey(0, "hand_draw"), workerSessionKey(0, "hand_draw"))
+  assert.notEqual(workerSessionKey(0, "hand_draw"), workerSessionKey(0, "paper_think"))
+  assert.equal(bioIssue("", ["人发布的 Agent。"]), "empty")
+  assert.equal(bioIssue("人发布的 Agent。", ["人发布的 Agent。"]), "placeholder")
+  assert.equal(bioIssue("接手绘。", ["人发布的 Agent。"]), null)
   assert.equal(activePlay("hand_draw", "image"), "timed_draw")
   assert.equal(activePlay("hand_draw", "text"), null)
   assert.equal(activePlay("paper_think", "image_text"), "paper")

@@ -1,41 +1,64 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useAgent } from "@/components/agent-provider"
 import { AgentCard } from "@/components/agent-card"
 import { CopyField } from "@/components/copy-field"
 import { useText } from "@/components/locale-provider"
+import { TaskRow } from "@/components/task-row"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
-import type { Agent } from "@/lib/types"
+import { formatWhen } from "@/lib/format"
+import type { Agent, Task } from "@/lib/types"
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [updated, setUpdated] = useState<number | null>(null)
+  const [sent, setSent] = useState<Task[]>([])
+  const { agent: me } = useAgent()
   const origin = useApiOrigin()
-  const { t, error: showError } = useText()
+  const { locale, t, error: showError } = useText()
+
+  const load = useCallback(() => {
+    api<Agent[]>("/api/agents")
+      .then((next) => {
+        setAgents(next.filter((agent) => agent.available))
+        setUpdated(Date.now())
+        setError(null)
+      })
+      .catch((caught: unknown) => {
+        setError(showError(caught, t.agents.rosterError))
+      })
+  }, [showError, t.agents.rosterError])
 
   useEffect(() => {
-    let alive = true
-    const load = () => {
-      api<Agent[]>("/api/agents")
-        .then((next) => {
-          if (!alive) return
-          setAgents(next.filter((agent) => agent.available))
-          setError(null)
-        })
-        .catch((caught: unknown) => {
-          if (!alive) return
-          setError(showError(caught, t.agents.rosterError))
-        })
-    }
     load()
     const timer = window.setInterval(load, 4000)
+    return () => window.clearInterval(timer)
+  }, [load])
+
+  useEffect(() => {
+    if (!me) {
+      setSent([])
+      return
+    }
+    let alive = true
+    const pull = () => {
+      api<Task[]>("/api/tasks")
+        .then((tasks) => {
+          if (alive) setSent(tasks.filter((task) => task.senderId === me.id))
+        })
+        .catch(() => {})
+    }
+    pull()
+    const timer = window.setInterval(pull, 4000)
     return () => {
       alive = false
       window.clearInterval(timer)
     }
-  }, [showError, t.agents.rosterError])
+  }, [me])
 
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
 
@@ -44,6 +67,13 @@ export default function AgentsPage() {
       <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">ON DUTY</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{t.agents.title}</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{t.agents.lead}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        <button type="button" className="text-stamp" onClick={load}>
+          {t.agents.refresh}
+        </button>
+        {agents ? <span className="font-mono text-xs text-muted-foreground">{t.agents.onDutyCount(agents.length)}</span> : null}
+        {updated ? <span className="font-mono text-xs text-muted-foreground">{t.agents.updated(formatWhen(new Date(updated).toISOString(), locale))}</span> : null}
+      </div>
       <div className="mt-8 grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <div className="min-w-0">
           {error ? <ErrorNote text={error} /> : null}
@@ -61,6 +91,15 @@ export default function AgentsPage() {
           <CopyField hint={t.agents.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
         </aside>
       </div>
+      {me ? <section className="mt-8">
+        <h2 className="font-serif text-2xl">{t.me.sent}</h2>
+        <div className="mt-3 grid gap-3">
+          {sent.length === 0 ? <p className="text-sm text-muted-foreground">{t.me.sentEmpty}</p> : null}
+          {sent.map((task) => (
+            <TaskRow key={task.id} task={task} />
+          ))}
+        </div>
+      </section> : null}
     </div>
   )
 }

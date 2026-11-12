@@ -16,9 +16,10 @@ export type Messages = {
     clockedOff: string
     clockOut: string
     clockIn: string
+    opening: string
   }
   footer: string
-  record: { completed: string; score: string; time: string; empty: string }
+  record: { completed: string; score: string; time: string; empty: string; unscored: string }
   copy: {
     loading: string
     copied: string
@@ -58,6 +59,9 @@ export type Messages = {
     rosterError: string
     loading: string
     empty: string
+    refresh: string
+    updated: (time: string) => string
+    onDutyCount: (count: number) => string
   }
   profile: {
     forModels: string
@@ -68,6 +72,17 @@ export type Messages = {
     sample: string
     loadError: string
     opening: string
+    hire: string
+    hireTask: string
+    hireSkill: string
+    hireSend: string
+    hireSending: string
+    hireNeed: string
+    hirePick: string
+    hireResult: (id: string, status: string) => string
+    hireOpen: string
+    callHint: string
+    sentHere: string
   }
   me: {
     noneTitle: string
@@ -84,6 +99,12 @@ export type Messages = {
     tasksError: string
     loading: string
     empty: string
+    sent: string
+    sentEmpty: string
+    refresh: string
+    updated: (time: string) => string
+    published: string
+    toolId: (id: string) => string
   }
   publish: {
     edit: string
@@ -153,6 +174,12 @@ export type Messages = {
     save: string
     publish: string
     saveError: string
+    needBio: string
+    confirmPublish: string
+    previewPerson: (name: string) => string
+    previewNoPerson: string
+    previewSkill: (title: string) => string
+    nameVsSkill: string
   }
   schema: {
     identifierHint: string
@@ -230,6 +257,18 @@ export type Messages = {
     progressSave: string
     progressSaved: string
     progressError: string
+    progressDraw: string
+    progressPaper: string
+    progressRoll: string
+    progressWetware: string
+    progressBook: string
+    progressHuman: string
+    progressCustom: string
+    scoreNow: string
+    scoreSkip: string
+    scoreLeft: (seconds: number) => string
+    scoreSkipped: string
+    scoreDone: string
   }
   output: {
     image: string
@@ -259,6 +298,10 @@ export type Messages = {
     drawFrozen: string
     drawIdle: string
     drawLabel: string
+    drawClear: string
+    drawUndo: string
+    drawRestart: string
+    drawLocked: string
   }
   status: { loading: string; retry: string }
 }
@@ -278,6 +321,7 @@ function bind(locale: Locale): Messages {
       clockedOff: text("duty.clockedOff"),
       clockOut: text("duty.clockOut"),
       clockIn: text("duty.clockIn"),
+      opening: text("duty.opening"),
     },
     footer: text("footer"),
     record: {
@@ -285,6 +329,7 @@ function bind(locale: Locale): Messages {
       score: text("record.score"),
       time: text("record.time"),
       empty: text("record.empty"),
+      unscored: text("record.unscored"),
     },
     copy: {
       loading: text("copy.loading"),
@@ -325,6 +370,9 @@ function bind(locale: Locale): Messages {
       rosterError: text("agents.rosterError"),
       loading: text("agents.loading"),
       empty: text("agents.empty"),
+      refresh: text("agents.refresh"),
+      updated: (time) => text("agents.updated", { time }),
+      onDutyCount: (count) => text("agents.onDutyCount", { count }),
     },
     profile: {
       forModels: text("profile.forModels"),
@@ -335,6 +383,17 @@ function bind(locale: Locale): Messages {
       sample: text("profile.sample"),
       loadError: text("profile.loadError"),
       opening: text("profile.opening"),
+      hire: text("profile.hire"),
+      hireTask: text("profile.hireTask"),
+      hireSkill: text("profile.hireSkill"),
+      hireSend: text("profile.hireSend"),
+      hireSending: text("profile.hireSending"),
+      hireNeed: text("profile.hireNeed"),
+      hirePick: text("profile.hirePick"),
+      hireResult: (id, status) => text("profile.hireResult", { id, status }),
+      hireOpen: text("profile.hireOpen"),
+      callHint: text("profile.callHint"),
+      sentHere: text("profile.sentHere"),
     },
     me: {
       noneTitle: text("me.noneTitle"),
@@ -351,6 +410,12 @@ function bind(locale: Locale): Messages {
       tasksError: text("me.tasksError"),
       loading: text("me.loading"),
       empty: text("me.empty"),
+      sent: text("me.sent"),
+      sentEmpty: text("me.sentEmpty"),
+      refresh: text("me.refresh"),
+      updated: (time) => text("me.updated", { time }),
+      published: text("me.published"),
+      toolId: (id) => text("me.toolId", { id }),
     },
     publish: {
       edit: text("publish.edit"),
@@ -420,6 +485,12 @@ function bind(locale: Locale): Messages {
       save: text("publish.save"),
       publish: text("publish.publish"),
       saveError: text("publish.saveError"),
+      needBio: text("publish.needBio"),
+      confirmPublish: text("publish.confirmPublish"),
+      previewPerson: (name) => text("publish.previewPerson", { name }),
+      previewNoPerson: text("publish.previewNoPerson"),
+      previewSkill: (title) => text("publish.previewSkill", { title }),
+      nameVsSkill: text("publish.nameVsSkill"),
     },
     schema: {
       identifierHint: text("schema.identifierHint"),
@@ -497,6 +568,18 @@ function bind(locale: Locale): Messages {
       progressSave: text("task.progressSave"),
       progressSaved: text("task.progressSaved"),
       progressError: text("task.progressError"),
+      progressDraw: text("task.progressDraw"),
+      progressPaper: text("task.progressPaper"),
+      progressRoll: text("task.progressRoll"),
+      progressWetware: text("task.progressWetware"),
+      progressBook: text("task.progressBook"),
+      progressHuman: text("task.progressHuman"),
+      progressCustom: text("task.progressCustom"),
+      scoreNow: text("task.scoreNow"),
+      scoreSkip: text("task.scoreSkip"),
+      scoreLeft: (seconds) => text("task.scoreLeft", { seconds }),
+      scoreSkipped: text("task.scoreSkipped"),
+      scoreDone: text("task.scoreDone"),
     },
     output: {
       image: text("output.image"),
@@ -526,6 +609,10 @@ function bind(locale: Locale): Messages {
       drawFrozen: text("output.drawFrozen"),
       drawIdle: text("output.drawIdle"),
       drawLabel: text("output.drawLabel"),
+      drawClear: text("output.drawClear"),
+      drawUndo: text("output.drawUndo"),
+      drawRestart: text("output.drawRestart"),
+      drawLocked: text("output.drawLocked"),
     },
     status: { loading: text("status.loading"), retry: text("status.retry") },
   }

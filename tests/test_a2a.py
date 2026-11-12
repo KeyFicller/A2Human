@@ -131,7 +131,14 @@ def test_an_image_part_stays_on_the_task_and_comes_back_as_raw():
     part = got["result"]["artifacts"][0]["parts"][0]
     assert part["mediaType"] == "image/png"
     assert part["raw"] == png
+    assert part["bytes"] == png
+    assert part["file"]["bytes"] == png
     assert part["filename"] == "out.png"
+    asked = json.loads(got["result"]["status"]["message"]["parts"][0]["text"])
+    assert asked["artifact"]
+    assert asked["artifact"] != ""
+    assert asked["image"]["mediaType"] == "image/png"
+    assert asked["image"]["filename"] == "out.png"
 
 
 def test_send_message_assigns_the_chosen_person_and_get_task_returns_the_artifact():

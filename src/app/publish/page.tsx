@@ -10,12 +10,14 @@ import { ErrorNote, LoadingLine } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { ApiError, api } from "@/lib/client"
+import { ApiError, PUBLISHED_KEY, api } from "@/lib/client"
 import { localizeError, wire } from "@/lib/copy"
 import { go, pagesExport } from "@/lib/paths"
 import {
+  activePlay,
   addAnotherSlot,
   applyToSlot,
+  bioIssue,
   blankIdentity,
   canStartAnother,
   defaultTaskInput,
@@ -26,9 +28,9 @@ import {
   personNameIssue,
   playMode,
   presetIdentity,
-  previewSessionKey,
   publishAction,
   skillPayload,
+  workerSessionKey,
   toolIdAfterTitle,
   toolIdProblem,
   type DeliveryKind,
@@ -106,7 +108,10 @@ export default function PublishPage() {
   const [error, setError] = useState<string | null>(null)
   const [fresh, setFresh] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [bioError, setBioError] = useState<string | null>(null)
+  const [armed, setArmed] = useState(false)
   const nameRef = useRef<HTMLLabelElement>(null)
+  const bioRef = useRef<HTMLLabelElement>(null)
 
   useEffect(() => {
     let cancel = false
@@ -132,6 +137,7 @@ export default function PublishPage() {
   if (!ready) return <LoadingLine />
 
   function updateSkill(index: number, patch: Partial<SkillDraft>) {
+    setArmed(false)
     setSkills(
       skillValue.map((skill, item) => {
         if (item !== index) return skill
@@ -188,6 +194,8 @@ export default function PublishPage() {
     setAdvanced(false)
     setError(null)
     setNameError(null)
+    setBioError(null)
+    setArmed(false)
   }
 
   function backToBound() {
@@ -199,6 +207,8 @@ export default function PublishPage() {
     setAdvanced(false)
     setError(null)
     setNameError(null)
+    setBioError(null)
+    setArmed(false)
   }
 
   function setDelivery(kind: DeliveryKind) {
@@ -232,17 +242,25 @@ export default function PublishPage() {
       className="mx-auto max-w-6xl"
       onSubmit={(event) => {
         event.preventDefault()
-        setPending(true)
         setError(null)
         if (personNameIssue(nameValue)) {
           setNameError(localizeError(wire("name.length"), locale))
-          setPending(false)
+          setArmed(false)
           const field = nameRef.current?.querySelector("input")
           if (field instanceof HTMLInputElement) field.focus()
           nameRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
           return
         }
         setNameError(null)
+        if (bioIssue(bioValue, [t.publish.bioPlaceholder, wire("bio.default")])) {
+          setBioError(t.publish.needBio)
+          setArmed(false)
+          const field = bioRef.current?.querySelector("input")
+          if (field instanceof HTMLInputElement) field.focus()
+          bioRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+          return
+        }
+        setBioError(null)
         if (skillValue.length < 1) {
           setError(t.publish.needSkill)
           setPending(false)
@@ -300,22 +318,30 @@ export default function PublishPage() {
           setPending(false)
           return
         }
+        if (action === "publish" && !armed) {
+          setArmed(true)
+          return
+        }
+        setPending(true)
         const payload = {
           name: nameValue,
           bio: bioValue,
-          skills: skillValue.map((skill) =>
-            skillPayload({
+          skills: skillValue.map((skill) => {
+            const kind = deliveryKindOf(skill.output)
+            return skillPayload({
               name: skill.name,
               title: skill.title,
               description: skill.description.trim(),
               inputSchema: schemaPayload(skill.input),
               outputSchema: schemaPayload(skill.output),
-            }),
-          ),
+              play: activePlay(skill.template || skill.name, kind),
+            })
+          }),
         }
         const request = editing && agent ? api<Agent>(`/api/agents/${agent.id}`, payload) : api<Agent>("/api/agents", payload)
         request
           .then(async (next) => {
+            sessionStorage.setItem(PUBLISHED_KEY, "1")
             if (agent) await refresh()
             else await signIn(next.id)
             if (pagesExport) go("/me")
@@ -361,6 +387,7 @@ export default function PublishPage() {
             onChange={(event) => {
               const next = event.target.value
               setName(next)
+              setArmed(false)
               if (nameError) setNameError(personNameIssue(next) ? localizeError(wire("name.length"), locale) : null)
             }}
           />
@@ -370,15 +397,27 @@ export default function PublishPage() {
             </span>
           ) : null}
         </label>
-        <label className="text-sm">
+        <label className="text-sm" htmlFor="person-bio" ref={bioRef}>
           {t.publish.bio}
           <Input
+            id="person-bio"
             className="mt-1.5 h-10"
             value={bioValue}
             maxLength={80}
             placeholder={t.publish.bioPlaceholder}
-            onChange={(event) => setBio(event.target.value)}
+            aria-invalid={bioError ? true : undefined}
+            aria-describedby={bioError ? "person-bio-error" : undefined}
+            onChange={(event) => {
+              setBio(event.target.value)
+              if (bioError) setBioError(null)
+              setArmed(false)
+            }}
           />
+          {bioError ? (
+            <span id="person-bio-error" className="mt-1 block text-sm text-stamp" role="alert">
+              {bioError}
+            </span>
+          ) : null}
         </label>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">{t.publish.personHint}</p>
@@ -570,8 +609,13 @@ export default function PublishPage() {
           ) : null}
         </div>
         <SkillPreview
-          skill={active ?? null}
-          resetKey={active ? previewSessionKey(focusIndex, active.template, `${delivery}:${playMode(active.name) ?? ""}`) : "none"}
+          personName={nameValue}
+          skill={
+            active
+              ? { ...active, play: activePlay(active.template || active.name, delivery) }
+              : null
+          }
+          resetKey={active ? workerSessionKey(focusIndex, active.template || playMode(active.name)) : "none"}
         />
       </div>
 
@@ -581,7 +625,7 @@ export default function PublishPage() {
         </div>
       ) : null}
       <Button type="submit" className="mt-4 h-11 px-5" disabled={pending}>
-        {pending ? t.publish.writing : action === "save" ? t.publish.save : t.publish.publish}
+        {pending ? t.publish.writing : action === "save" ? t.publish.save : armed ? t.publish.confirmPublish : t.publish.publish}
       </Button>
     </form>
   )
