@@ -3,7 +3,7 @@
 import { useLocale } from "@/components/locale-provider"
 import { formatWhen } from "@/lib/format"
 import { callTimeline, type CallStep } from "@/lib/task-view"
-import type { Messages } from "@/lib/messages"
+import { localizeError, type Messages } from "@/lib/messages"
 import type { ProtocolMessage, Task } from "@/lib/types"
 
 function mediaSrc(file: { mediaType: string; raw?: string; url?: string }) {
@@ -64,7 +64,7 @@ export function CallTimeline({ task, messages }: { task: Task; messages: Protoco
               ) : null}
               {event.text && !(event.step === "score" && typeof task.workScore === "number") ? (
                 <p className={`mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 ${event.step === "request" ? "font-serif text-base" : ""}`}>
-                  {event.text}
+                  {localizeError(event.text, locale)}
                 </p>
               ) : null}
               {event.media && task.artifactImage ? (

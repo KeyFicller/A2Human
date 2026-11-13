@@ -1,6 +1,14 @@
 # A2Human
 
-Hire someone who is on duty over A2A or MCP.
+A2Human turns people into tools an AI Agent can call. You publish a skill card, go on duty, and an Agent hires you over A2A or MCP the same way it would call any other tool. The design follows one loop: the Agent sends a request, a person does the work on a timer, the work goes back as a normal task artifact, and the Agent that sent it scores it within 60 seconds. The UI is a Next.js static export served from GitHub Pages. The API is Python (FastAPI) with Postgres for records and Redis for live state, deployed separately.
+
+![A task page mid-call: "Being called by an Agent", from Painter Bot, "Draw a cat", with a cat drawn on the 30-second board and the countdown at 21 seconds](docs/demo/hero-draw-a-cat.png)
+
+<img src="docs/demo/draw-a-cat.gif" alt="Mia receives a Draw a cat request, draws on the 30-second board, submits the work, and the Agent scores it 4 out of 5" width="800">
+
+*Real run at 1.5× speed: an Agent asks for a cat, the person draws it against the clock, submits the work, and the Agent receives the image and scores it.*
+
+**[Play the Agent](https://keyficller.github.io/A2Human/)** · **[Let my Agent hire](#let-your-agent-hire)**
 
 ## Deployments
 
@@ -20,9 +28,17 @@ ORIGIN=https://39.107.44.85.sslip.io
 
 ## Go on duty
 
+Pick a preset or write your own skill. The card on the right is what an Agent reads before it calls you.
+
+<img src="docs/demo/publish-card.png" alt="Publish page: preset skill chips on the left, the skill card an Agent sees on the right" width="760">
+
 Publish a card, then **Go on duty**. You show up on `onDuty` only then. Clock out to leave the list. Off duty rejects the call. The person URL is `$ORIGIN/api/a2a/<id>`.
 
-## A2A
+## Let your Agent hire
+
+An Agent can call people over A2A or MCP. Both speak to the same market and the same 60-second score window.
+
+### A2A
 
 Header `A2A-Version: 1.0` or `0.3`. `returnImmediately` must be `true`. The same `messageId` replays. No streaming or push.
 
@@ -41,11 +57,11 @@ curl -s "$ORIGIN/api/a2a/<id>" \
 
 To send by skill without picking a person, `POST $ORIGIN/api/a2a/dispatch` with the same `SendMessage` body and `metadata.skill`. The skill is a catalog id (`GET $ORIGIN/api/skill-catalog`) or a name some on-duty person already lists. Optional `metadata.agentId` pins that person when they are eligible. Otherwise the market keeps the caller's last person for that skill, then the person with the fewest open tasks. `POST $ORIGIN/api/a2a` still does not assign.
 
-## MCP
+### MCP
 
 `POST $ORIGIN/api/mcp`. Tool names are `a2h_...` from `tools/list`. After delivery, call `a2h_score` with `{taskId, score}` within 60s. Do not pass `task` on that call.
 
-### Legacy initialize + 2025-11-25 Tasks
+#### Legacy initialize + 2025-11-25 Tasks
 
 No protocol header. `initialize` with `"protocolVersion":"2025-11-25"` returns `capabilities.tasks`. `2024-11-05`, `2025-03-26`, and `2025-06-18` are tools only.
 
@@ -58,7 +74,7 @@ Reply is `result.task`: `{taskId, status:"working", pollInterval:5000, ttl:60480
 
 Without `params.task`, the call waits 15s, then tells you to retry with `task_id` (and `score` after delivery).
 
-### 2026-07-28 stateless
+#### 2026-07-28 stateless
 
 No `initialize`. On every call set `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method` equal to the method, and `Mcp-Name` to the tool name (`tools/call`) or the `taskId` (`tasks/get`, `tasks/update`, `tasks/cancel`). Put the same version in `_meta`, plus the tasks extension:
 
@@ -71,6 +87,9 @@ No `initialize`. On every call set `MCP-Protocol-Version: 2026-07-28`, `Mcp-Meth
 Omit `io.modelcontextprotocol/tasks` and the call waits 15s (`resultType:"complete"`).
 
 ## Run your own market
+
+The API is one FastAPI process with Postgres and Redis. The UI is a separate static build.
+
 
 ```bash
 docker compose up --build -d
