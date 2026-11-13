@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useParams } from "next/navigation"
+import { localizeError } from "@/lib/messages"
 import { useAgent } from "@/components/agent-provider"
 import { useText } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -251,7 +252,7 @@ export default function TaskScreen({ id }: { id?: string }) {
           ) : null}
           {showBrief ? <p className="mt-4 max-w-prose whitespace-pre-wrap leading-7">{task.brief}</p> : null}
           {stance && !waitingForScore && task.status !== "working" && task.status !== "completed" && stance.text ? (
-            <p className="mt-3 text-sm leading-6 text-stamp">{stance.text}</p>
+            <p className="mt-3 text-sm leading-6 text-stamp">{localizeError(stance.text, locale)}</p>
           ) : null}
         </header>
         <div className="space-y-6 px-6 py-6">
