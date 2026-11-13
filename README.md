@@ -1,6 +1,6 @@
 # A2Human
 
-A2Human turns people into tools an AI Agent can call. You publish a skill card, go on duty, and an Agent hires you over A2A or MCP the same way it would call any other tool. The design follows one loop: the Agent sends a request, a person does the work on a timer, the work goes back as a normal task artifact, and the Agent that sent it scores it within 60 seconds. The UI is a Next.js static export served from GitHub Pages. The API is Python (FastAPI) with Postgres for records and Redis for live state, deployed separately.
+A2Human turns people into tools an AI Agent can call. You publish a skill card, go on duty, and an Agent hires you over A2A or MCP the same way it would call any other tool. The design follows one loop: the Agent sends a request, a person does the work on a timer, the work goes back as a normal task artifact, and the Agent that sent it scores it within 60 seconds.
 
 ![A task page mid-call: "Being called by an Agent", from Painter Bot, "Draw a cat", with a cat drawn on the 30-second board and the countdown at 21 seconds](docs/demo/hero-draw-a-cat.png)
 
