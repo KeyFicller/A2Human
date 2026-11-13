@@ -8,7 +8,7 @@ import { CopyField } from "@/components/copy-field"
 import { useText } from "@/components/locale-provider"
 import { LoadingLine } from "@/components/status"
 import { SchemaSummary } from "@/components/schema-summary"
-import { TaskRow } from "@/components/task-row"
+import { SentTasks } from "@/components/sent-tasks"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote } from "@/components/status"
@@ -19,7 +19,7 @@ import { statusLabel } from "@/lib/format"
 import { hireIssue, statusFromState } from "@/lib/task-view"
 import { sendMessageBody } from "@/lib/hire"
 import { skillLabel } from "@/lib/skill-catalog"
-import type { Agent, Task } from "@/lib/types"
+import type { Agent } from "@/lib/types"
 
 type RpcTask = { id?: string; status?: { state?: string } }
 type RpcResult = { result?: { task?: RpcTask }; error?: { message?: string } }
@@ -32,7 +32,7 @@ export function ProfileFallback() {
 export default function AgentProfilePage({ id }: { id?: string }) {
   const params = useParams<{ id?: string }>()
   const agentId = id || params.id || ""
-  const { agent: me } = useAgent()
+  const { agent: me, senderIds, ensureSender } = useAgent()
   const [agent, setAgent] = useState<Agent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -41,7 +41,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
   const [hireError, setHireError] = useState<string | null>(null)
   const [hirePending, setHirePending] = useState(false)
   const [hired, setHired] = useState<{ id: string; status: string } | null>(null)
-  const [sent, setSent] = useState<Task[]>([])
+  const [sentVersion, setSentVersion] = useState(0)
   const origin = useApiOrigin()
   const { locale, t, error: showError } = useText()
 
@@ -58,25 +58,9 @@ export default function AgentProfilePage({ id }: { id?: string }) {
       })
   }, [agentId, showError, t.profile.loadError])
 
-  const loadSent = useCallback(() => {
-    if (!me) {
-      setSent([])
-      return
-    }
-    api<Task[]>("/api/tasks")
-      .then((tasks) => {
-        setSent(tasks.filter((task) => task.senderId === me.id && task.targetId === agentId))
-      })
-      .catch(() => {})
-  }, [agentId, me])
-
   useEffect(() => {
     load()
   }, [load])
-
-  useEffect(() => {
-    loadSent()
-  }, [loadSent])
 
   useEffect(() => {
     if (!copied) return
@@ -98,7 +82,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
     messageId: "msg-1",
   })
   const sample = JSON.stringify(sampleBody, null, 2)
-  const skillTitles = Object.fromEntries(agent.skills.map((skill) => [skill.name, skillLabel(skill)]))
+  const skillTitles = Object.fromEntries(agent.skills.map((skill) => [skill.name, skillLabel(skill, locale)]))
 
   function hire(event: FormEvent) {
     event.preventDefault()
@@ -118,7 +102,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
       text: taskText.trim(),
       skill: chosen?.name,
       caller: me?.name,
-      senderId: me?.id,
+      senderId: ensureSender(),
       messageId: `hire-${Date.now()}`,
     })
     fetch(endpoint, {
@@ -134,7 +118,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
         if (!task?.id) throw new Error(t.profile.loadError)
         setHired({ id: task.id, status: statusFromState(task.status?.state, (status) => statusLabel(status, locale)) })
         setTaskText("")
-        loadSent()
+        setSentVersion((current) => current + 1)
       })
       .catch((caught: unknown) => {
         setHireError(caught instanceof Error ? showError(caught, t.profile.loadError) : t.profile.loadError)
@@ -165,9 +149,9 @@ export default function AgentProfilePage({ id }: { id?: string }) {
                     document.getElementById("hire-task")?.focus()
                   }}
                 >
-                  {skillLabel(skill)}
+                  {skillLabel(skill, locale)}
                 </button>
-                {skill.title ? <p className="mt-1 font-mono text-xs text-muted-foreground">{skill.name}</p> : null}
+                {skillLabel(skill, locale) !== skill.name ? <p className="mt-1 font-mono text-xs text-muted-foreground">{skill.name}</p> : null}
                 <p className="mt-1 break-words text-sm leading-6">{skill.description}</p>
                 <SchemaSummary skill={skill} />
               </li>
@@ -194,15 +178,11 @@ export default function AgentProfilePage({ id }: { id?: string }) {
             </p>
           ) : null}
         </form>
-        <div className="mt-6">
-          <h2 className="font-serif text-2xl">{t.profile.sentHere}</h2>
-          <div className="mt-3 grid gap-3">
-            {sent.length === 0 ? <p className="text-sm text-muted-foreground">{t.me.sentEmpty}</p> : null}
-            {sent.map((task) => (
-              <TaskRow key={task.id} task={task} skillTitles={skillTitles} />
-            ))}
+        {senderIds.length ? (
+          <div className="mt-6">
+            <SentTasks ids={senderIds} targetId={agent.id} title={t.profile.sentHere} reload={sentVersion} skillTitles={skillTitles} />
           </div>
-        </div>
+        ) : null}
       </section>
       <section className="sheet min-w-0 p-6">
         <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>

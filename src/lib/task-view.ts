@@ -113,3 +113,15 @@ export function briefRepeatsTitle(title: string, brief: string) {
   const flat = (value: string) => value.split(/\s+/).join(" ").trim()
   return flat(brief) === flat(title) || !flat(brief)
 }
+
+/** Tasks this browser sent, newest first. */
+export function sentBy<T extends { senderId?: string; updatedAt: string }>(tasks: T[], ids: string[]): T[] {
+  if (!ids.length) return []
+  return tasks.filter((task) => Boolean(task.senderId) && ids.includes(task.senderId as string)).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+/** The id this browser scores with, when it sent this task and the score window is open. */
+export function scorerFor(task: { senderId?: string; claimantId: string | null }, ids: string[]): string | null {
+  if (!task.senderId || task.senderId === task.claimantId) return null
+  return ids.includes(task.senderId) ? task.senderId : null
+}

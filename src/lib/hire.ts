@@ -36,3 +36,26 @@ export function sendMessageBody(options: {
     },
   }
 }
+
+export const VISITOR_KEY = "a2human-visitor-id"
+const VISITOR_ID = /^visitor-[a-z0-9-]{8,64}$/
+
+type KeyStore = { getItem(key: string): string | null; setItem(key: string, value: string): void }
+
+/** The id this browser already sent work under before publishing, if any. */
+export function keptVisitorId(storage: KeyStore | null): string | null {
+  const kept = storage?.getItem(VISITOR_KEY) ?? null
+  return kept && VISITOR_ID.test(kept) ? kept : null
+}
+
+/** Who a web hire is from: the published card, or one id this browser keeps so it can score later. */
+export function webSenderId(agentId: string | null | undefined, storage: KeyStore | null, make: () => string): string | undefined {
+  if (agentId) return agentId
+  if (!storage) return undefined
+  const kept = keptVisitorId(storage)
+  if (kept) return kept
+  const next = `visitor-${make().toLowerCase().replace(/[^a-z0-9-]/g, "")}`.slice(0, 72)
+  if (!VISITOR_ID.test(next)) return undefined
+  storage.setItem(VISITOR_KEY, next)
+  return next
+}

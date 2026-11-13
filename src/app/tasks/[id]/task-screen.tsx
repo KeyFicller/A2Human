@@ -11,7 +11,7 @@ import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { decisionText } from "@/lib/decision"
 import { statusLabel } from "@/lib/format"
-import { briefRepeatsTitle, needsWorker, readableArtifact, scoreWasSkipped } from "@/lib/task-view"
+import { briefRepeatsTitle, needsWorker, readableArtifact, scoreWasSkipped, scorerFor } from "@/lib/task-view"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { CallTimeline } from "@/components/call-timeline"
@@ -62,7 +62,7 @@ export function TaskFallback() {
 export default function TaskScreen({ id }: { id?: string }) {
   const params = useParams<{ id?: string }>()
   const taskId = id || params.id || ""
-  const { agent, ready } = useAgent()
+  const { agent, ready, senderIds } = useAgent()
   const { locale, t, error: showError } = useText()
   const [detail, setDetail] = useState<Detail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -133,6 +133,7 @@ export default function TaskScreen({ id }: { id?: string }) {
 
   const { task, messages, claimant } = detail
   const mine = agent?.id === task.claimantId
+  const scorer = scorerFor(task, senderIds)
   const named = task.skills.length === 1 ? task.skills[0] : undefined
   const skill = named
     ? claimant?.skills.find((item) => item.name === named)
@@ -245,7 +246,7 @@ export default function TaskScreen({ id }: { id?: string }) {
           {skill ? (
             <p className="mt-3 inline-flex items-baseline gap-2 rounded-lg border border-[#e8c9c3] bg-[#fffdf8] px-3 py-1">
               <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground">{t.task.skillChip}</span>
-              <span className="font-serif text-lg text-stamp">{skillLabel(skill)}</span>
+              <span className="font-serif text-lg text-stamp">{skillLabel(skill, locale)}</span>
             </p>
           ) : null}
           {showBrief ? <p className="mt-4 max-w-prose whitespace-pre-wrap leading-7">{task.brief}</p> : null}
@@ -366,15 +367,16 @@ export default function TaskScreen({ id }: { id?: string }) {
               <p className="text-xs text-muted-foreground">{t.task.scoreLeft(secondsLeft)}</p>
             </div>
           ) : null}
-          {agent && !mine && waitingForScore ? (
+          {waitingForScore && !scorer && !mine ? <p className="text-sm text-muted-foreground">{t.task.scoreBySender}</p> : null}
+          {scorer && !mine && waitingForScore ? (
             <form
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault()
-                if (!agent || score == null) return
+                if (score == null) return
                 setPending(true)
                 setNotice(null)
-                api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id, score })
+                api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: scorer, score })
                   .then(() => {
                     setNotice(t.task.scoreDone)
                     load()
@@ -383,7 +385,7 @@ export default function TaskScreen({ id }: { id?: string }) {
                   .finally(() => setPending(false))
               }}
             >
-              <p className="text-sm">{t.task.scoreNow}</p>
+              <p className="text-sm">{t.task.scoreYours}</p>
               <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4, 5].map((value) => (
                   <Button key={value} type="button" variant={score === value ? "default" : "outline"} onClick={() => setScore(value)}>
@@ -400,9 +402,9 @@ export default function TaskScreen({ id }: { id?: string }) {
                   variant="outline"
                   disabled={pending}
                   onClick={() => {
-                    if (!agent) return
                     setPending(true)
-                    api<Task>(`/api/tasks/${task.id}`, { action: "skip", agentId: agent.id })
+                    setNotice(null)
+                    api<Task>(`/api/tasks/${task.id}`, { action: "skip", agentId: scorer })
                       .then(() => load())
                       .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
                       .finally(() => setPending(false))
@@ -472,7 +474,7 @@ export default function TaskScreen({ id }: { id?: string }) {
               {skill ? (
                 <div>
                   <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">{t.task.detailsSkill}</p>
-                  <p className="mt-1 font-serif text-lg">{skillLabel(skill)}</p>
+                  <p className="mt-1 font-serif text-lg">{skillLabel(skill, locale)}</p>
                   <p className="text-muted-foreground">{skill.description}</p>
                   <SchemaSummary skill={skill} />
                   {skill.outputSchema ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{t.task.handBack(describeSchema(skill.outputSchema, locale))}</p> : null}

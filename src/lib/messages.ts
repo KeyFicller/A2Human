@@ -16,6 +16,9 @@ export type Messages = {
     clockedOff: string
     clockOut: string
     clockIn: string
+    clockOutAsk: string
+    clockOutYes: string
+    clockOutNo: string
     opening: string
   }
   footer: string
@@ -159,6 +162,7 @@ export type Messages = {
     pair: string
     removeSkill: string
     previewNoName: string
+    previewBlank: string
     previewNoCall: string
     previewNoTask: string
     toolIdEmpty: string
@@ -290,6 +294,8 @@ export type Messages = {
     moreHint: string
     delivered: string
     scoreWait: string
+    scoreYours: string
+    scoreBySender: string
     secondsUnit: string
     yourMove: string
     timelineTitle: string
@@ -376,6 +382,9 @@ function bind(locale: Locale): Messages {
       clockedOff: text("duty.clockedOff"),
       clockOut: text("duty.clockOut"),
       clockIn: text("duty.clockIn"),
+      clockOutAsk: text("duty.clockOutAsk"),
+      clockOutYes: text("duty.clockOutYes"),
+      clockOutNo: text("duty.clockOutNo"),
       opening: text("duty.opening"),
     },
     footer: text("footer"),
@@ -525,6 +534,7 @@ function bind(locale: Locale): Messages {
       pair: text("publish.pair"),
       removeSkill: text("publish.removeSkill"),
       previewNoName: text("publish.previewNoName"),
+      previewBlank: text("publish.previewBlank"),
       previewNoCall: text("publish.previewNoCall"),
       previewNoTask: text("publish.previewNoTask"),
       toolIdEmpty: text("publish.toolIdEmpty"),
@@ -656,6 +666,8 @@ function bind(locale: Locale): Messages {
       moreHint: text("task.moreHint"),
       delivered: text("task.delivered"),
       scoreWait: text("task.scoreWait"),
+      scoreYours: text("task.scoreYours"),
+      scoreBySender: text("task.scoreBySender"),
       secondsUnit: text("task.secondsUnit"),
       yourMove: text("task.yourMove"),
       timelineTitle: text("task.timelineTitle"),

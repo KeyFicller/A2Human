@@ -23,6 +23,7 @@ import {
   defaultTaskInput,
   deliveryOf,
   deliverySchema,
+  editableTitle,
   installedLabel,
   isBlankDraft,
   mergePresetCatalog,
@@ -78,7 +79,7 @@ function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[], lo
   const copy = alignPresetCopy({ title: skill.title?.trim() || "", description: skill.description }, preset ?? null, locale)
   return {
     name: skill.name,
-    title: copy.title || skill.name,
+    title: preset ? copy.title : editableTitle(copy.title, skill.name),
     description: copy.description,
     sample: copy.sample,
     input: draftFromSchema(skill.inputSchema),
@@ -229,6 +230,8 @@ export default function PublishPage() {
   }
 
   const delivery = active ? deliveryKindOf(active.output) : "custom"
+  // The id follows the name, so an untouched blank slot is not an error yet.
+  const toolIssue = active && (active.name || active.title.trim()) ? toolIdProblem(active.name) : null
   const inputFields = active?.input.mode === "fields" ? active.input.fields : []
   const deliveryChoices: Array<[DeliveryKind, string]> = [
     ["text", t.publish.deliverText],
@@ -267,7 +270,9 @@ export default function PublishPage() {
           setPending(false)
           return
         }
-        if (skillValue.some((skill) => ![...skill.title.trim()].length || [...skill.title.trim()].length > 32)) {
+        // An existing skill that never had a display name can keep saving without one.
+        const untitledKept = (skill: SkillDraft) => Boolean(skill.originalName) && skill.name === skill.originalName && !skill.title.trim()
+        if (skillValue.some((skill) => (!untitledKept(skill) && ![...skill.title.trim()].length) || [...skill.title.trim()].length > 32)) {
           setError(t.publish.needTitle)
           setPending(false)
           return
@@ -351,6 +356,7 @@ export default function PublishPage() {
           .catch((caught: unknown) => {
             setError(caught instanceof ApiError ? showError(caught, t.publish.saveError) : t.publish.saveError)
             setPending(false)
+            setArmed(false)
           })
       }}
     >
@@ -479,13 +485,13 @@ export default function PublishPage() {
                     className="mt-1.5 h-10 font-mono"
                     value={active.name}
                     spellCheck={false}
-                    aria-invalid={toolIdProblem(active.name) ? true : undefined}
+                    aria-invalid={toolIssue ? true : undefined}
                     onChange={(event) => updateSkill(focusIndex, { name: event.target.value })}
                   />
                   <span className="mt-1 block text-xs text-muted-foreground">{t.publish.toolIdHint}</span>
-                  {toolIdProblem(active.name) ? (
+                  {toolIssue ? (
                     <span className="mt-1 block text-sm text-stamp" role="alert">
-                      {toolIdProblem(active.name) === "empty" ? t.publish.toolIdEmpty : t.publish.toolIdInvalid}
+                      {toolIssue === "empty" ? t.publish.toolIdEmpty : t.publish.toolIdInvalid}
                     </span>
                   ) : null}
                 </label>

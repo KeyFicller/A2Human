@@ -3,7 +3,7 @@ import uuid
 import pytest
 
 from a2human.copy import wire
-from a2human.rules import DomainError, _command_title, decide_task, publish_agent, receive_command, set_availability, set_progress, skip_score, submit_artifact, work_record
+from a2human.rules import DomainError, _command_title, decide_task, publish_agent, receive_command, score_task, set_availability, set_progress, skip_score, submit_artifact, work_record
 from a2human.rules import create_seed
 
 counting = {"name": "计数", "description": "数清画面或文字里的东西，只交回数字。"}
@@ -212,3 +212,49 @@ def test_a_written_reason_is_kept_and_a_blank_supplement_is_still_refused():
     with pytest.raises(DomainError, match="1 到 200"):
         decide_task(store, too_long["id"], human["id"], "cancel", "长" * 201)
     assert too_long["status"] == "working"
+
+
+def test_a_json_brief_and_a_long_sentence_get_a_readable_title():
+    assert _command_title('{"requirements":"给这张图起个名字","deadline":"今天"}') == "给这张图起个名字"
+    assert _command_title('{"n": 3, "note": "数一下画面里的猫"}') == "数一下画面里的猫"
+    long = "我在测 A2Human 的雇佣表单，已经看了名片和复制调用，现在想看看打分会不会真的记下来"
+    title = _command_title(long)
+    assert title.endswith("…")
+    assert title == "我在测 A2Human 的雇佣表单，已经看了名片和复制调用…"
+
+
+def test_only_the_sender_scores_and_a_self_sent_task_needs_no_score():
+    store = create_seed()
+    human = publish_agent(store, {"name": "米粒", "bio": "会数。", "skills": [counting]})
+    other = publish_agent(store, {"name": "路人", "bio": "路过。", "skills": [counting]})
+    set_availability(store, human["id"], True)
+    task = receive_command(store, {
+        "humanId": human["id"],
+        "text": "数一下。",
+        "messageId": "visit-1",
+        "callerName": "网页访客",
+        "senderId": "visitor-0123abcd",
+        "skill": "计数",
+    })
+    submit_artifact(store, task["id"], human["id"], "7")
+    with pytest.raises(DomainError, match="派这单"):
+        score_task(store, task["id"], other["id"], 4)
+    scored = score_task(store, task["id"], "visitor-0123abcd", 4)
+    assert scored["status"] == "completed"
+    assert scored["workScore"] == 4
+    assert work_record(store["tasks"], human["id"])["averageScore"] == 4
+    line = next(item for item in store["messages"] if item["taskId"] == task["id"] and item["kind"] == "task.score")
+    assert line["fromName"] == "网页访客"
+
+    own = receive_command(store, {
+        "humanId": human["id"],
+        "text": "自己派给自己。",
+        "messageId": "self-1",
+        "callerName": human["name"],
+        "senderId": human["id"],
+        "skill": "计数",
+    })
+    done = submit_artifact(store, own["id"], human["id"], "1")
+    assert done["status"] == "completed"
+    assert done["scoreSkipped"] is True
+    assert not any(item["taskId"] == own["id"] and item["kind"] == "task.scoreRequest" for item in store["messages"])

@@ -6,6 +6,7 @@ Streaming and push notifications are refused with the A2A error codes.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from a2human.copy import wire
@@ -347,12 +348,19 @@ def _read_agent_id(params: dict[str, Any], message: dict[str, Any]) -> str | Non
     return value.strip()
 
 
+VISITOR_ID = re.compile(r"^visitor-[a-z0-9-]{8,64}$")
+
+
 def _resolve_sender(store: dict[str, Any], params: dict[str, Any], message: dict[str, Any]) -> tuple[str | None, str]:
     raw_id = _metadata_value(params, message, "senderId")
     if isinstance(raw_id, str) and raw_id.strip():
         agent = next((item for item in store["agents"] if item["id"] == raw_id.strip() and item.get("human")), None)
         if agent:
             return agent["id"], agent["name"]
+        # A browser that has not published a card still keeps one id, so it can score what it sent.
+        if VISITOR_ID.match(raw_id.strip()):
+            name = _caller_name(params, message)
+            return raw_id.strip(), wire("caller.visitor") if name == wire("caller.name") else name
     name = _caller_name(params, message)
     if name != wire("caller.name"):
         matches = [item for item in store["agents"] if item.get("human") and item.get("name") == name]

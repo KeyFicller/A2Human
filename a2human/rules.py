@@ -365,6 +365,19 @@ def submit_artifact(store: dict[str, Any], task_id: str, agent_id: str, text: ob
         "kind": "task.artifact",
         "text": stored or _media_note(picture, recording),
     })
+    if task.get("senderId") == agent["id"]:
+        # Nobody scores their own work, so a task you sent yourself is done when you hand it in.
+        _add_message(store, {
+            "taskId": task["id"],
+            "fromId": task["posterId"],
+            "fromName": task["posterName"],
+            "kind": "task.complete",
+            "text": wire("score.self"),
+        })
+        task["scoreSkipped"] = True
+        task["status"] = "completed"
+        remember(store)
+        return task
     _add_message(store, {
         "taskId": task["id"],
         "fromId": agent["id"],
@@ -417,14 +430,39 @@ def _graphemes(value: str) -> list[str]:
     return chars
 
 
+TITLE_KEYS = ("task", "requirements", "request", "prompt", "question", "text", "brief")
+TITLE_STOPS = ("\u3002\uff01\uff1f!?;\uff1b", "\uff0c,\u3001\uff1a:", " ")
+
+
+def _title_source(text: str) -> str:
+    """A structured MCP or A2A brief is JSON. Title it from its words, not from the braces."""
+    stripped = text.strip()
+    if not stripped.startswith("{"):
+        return text
+    try:
+        data = loads(stripped)
+    except Exception:
+        return text
+    if not isinstance(data, dict):
+        return text
+    words = [data.get(key) for key in TITLE_KEYS] + list(data.values())
+    return next((value for value in words if isinstance(value, str) and value.strip()), text)
+
+
 def _command_title(text: str) -> str:
-    flat = " ".join(text.split()).strip()
+    flat = " ".join(_title_source(text).split()).strip()
     chars = _graphemes(flat)
     if len(chars) < 4:
         return wire("task.defaultTitle")
     if len(chars) <= TITLE_LIMIT:
         return "".join(chars)
-    return "".join(chars[: TITLE_LIMIT - 1]) + "…"
+    head = chars[: TITLE_LIMIT - 1]
+    # Stop at the last sentence end, then clause mark, then space, if it keeps at least half the room.
+    for stops in TITLE_STOPS:
+        cut = max((index for index, char in enumerate(head) if char in stops), default=-1)
+        if cut >= TITLE_LIMIT // 2:
+            return "".join(head[:cut]).rstrip() + "…"
+    return "".join(head) + "…"
 
 
 def _media_note(picture: dict[str, Any] | None, recording: dict[str, Any] | None) -> str:
@@ -724,29 +762,35 @@ def set_progress(store: dict[str, Any], task_id: str, agent_id: str, text: objec
     return task
 
 
-def _require_score_window(store: dict[str, Any], task_id: str, agent_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def _require_score_window(store: dict[str, Any], task_id: str, sender_id: str) -> tuple[dict[str, Any], str]:
+    """Only the sender scores from the web. A published agent or a browser visitor id both count.
+
+    A model that sent the task without a sender id scores over A2A or MCP instead.
+    """
     task = _require_task(store, task_id)
-    agent = _require_agent(store, agent_id)
-    if task.get("claimantId") == agent["id"]:
+    if task.get("claimantId") == sender_id:
         fail(wire("score.own"))
+    if not task.get("senderId") or task["senderId"] != sender_id:
+        fail(wire("score.sender"))
     if not _awaiting_score(store, task):
         fail(wire("mcp.scoreNotReady"))
-    return task, agent
+    agent = next((item for item in store["agents"] if item["id"] == sender_id), None)
+    return task, (agent or {}).get("name") or task["posterName"]
 
 
 def score_task(store: dict[str, Any], task_id: str, agent_id: str, score: object) -> dict[str, Any]:
-    task, agent = _require_score_window(store, task_id, agent_id)
+    task, caller_name = _require_score_window(store, task_id, agent_id)
     if isinstance(score, bool) or not isinstance(score, int) or score < 1 or score > 5:
         fail(wire("score.range"))
     task["workScore"] = score
     task.pop("scoreSkipped", None)
     _add_message(store, {
         "taskId": task["id"],
-        "fromId": agent["id"],
-        "fromName": agent["name"],
+        "fromId": agent_id,
+        "fromName": caller_name,
         "kind": "task.score",
         "text": wire("score.line", {
-            "caller": agent["name"],
+            "caller": caller_name,
             "person": task.get("claimantName") or wire("person.fallback"),
             "score": score,
         }),
@@ -765,7 +809,7 @@ def score_task(store: dict[str, Any], task_id: str, agent_id: str, score: object
 
 
 def skip_score(store: dict[str, Any], task_id: str, agent_id: str) -> dict[str, Any]:
-    task, _agent = _require_score_window(store, task_id, agent_id)
+    task, _caller = _require_score_window(store, task_id, agent_id)
     task["scoreSkipped"] = True
     task.pop("workScore", None)
     _add_message(store, {

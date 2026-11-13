@@ -151,3 +151,86 @@ def test_an_empty_reject_fail_or_cancel_is_accepted():
         supplement = client.post(f"/api/tasks/{supplement_id}", json={"action": "input", "agentId": agent_id, "text": "  "})
         assert supplement.status_code == 400
         assert "1 到 200" in supplement.json()["error"]
+
+
+def _hire(client, agent_id, message_id, metadata):
+    sent = client.post(
+        f"/api/a2a/{agent_id}",
+        headers={"A2A-Version": "1.0"},
+        json={
+            "jsonrpc": "2.0",
+            "id": message_id,
+            "method": "SendMessage",
+            "params": {
+                "configuration": {"returnImmediately": True},
+                "metadata": {"skill": "计数", **metadata},
+                "message": {"role": "ROLE_USER", "messageId": message_id, "parts": [{"text": "数一下。"}]},
+            },
+        },
+    )
+    assert sent.status_code == 200
+    return sent.json()["result"]["task"]["id"]
+
+
+def test_a_web_sender_scores_or_skips_and_the_average_moves():
+    with TestClient(app) as client:
+        worker = client.post("/api/agents", json={"name": "米粒", "bio": "会数。", "skills": [{"name": "计数", "description": "数清楚。"}]}).json()
+        boss = client.post("/api/agents", json={"name": "老板", "bio": "派活。", "skills": [{"name": "计数", "description": "数清楚。"}]}).json()
+        assert client.post(f"/api/agents/{worker['id']}", json={"available": True}).status_code == 200
+        visitor = "visitor-5f0c2a9e-7d1b-4c4e-9a11-0b6f3c2d8e77"
+
+        # An unpublished browser hires with its visitor id and no name.
+        first = _hire(client, worker["id"], "web-1", {"senderId": visitor})
+        task = client.get(f"/api/tasks/{first}").json()["task"]
+        assert task["senderId"] == visitor
+        assert task["posterName"] == "网页访客"
+        assert client.post(f"/api/tasks/{first}", json={"action": "artifact", "agentId": worker["id"], "text": "7"}).status_code == 200
+        stranger = client.post(f"/api/tasks/{first}", json={"action": "score", "agentId": boss["id"], "score": 1})
+        assert stranger.status_code == 400
+        assert "派这单" in stranger.json()["error"]
+        scored = client.post(f"/api/tasks/{first}", json={"action": "score", "agentId": visitor, "score": 5})
+        assert scored.status_code == 200
+        assert scored.json()["status"] == "completed"
+        assert scored.json()["workScore"] == 5
+        assert client.get(f"/api/agents/{worker['id']}").json()["averageScore"] == 5
+
+        # A published sender is recorded by id and name, and scores from the page.
+        second = _hire(client, worker["id"], "web-2", {"senderId": boss["id"], "caller": boss["name"]})
+        assert client.get(f"/api/tasks/{second}").json()["task"]["senderId"] == boss["id"]
+        client.post(f"/api/tasks/{second}", json={"action": "artifact", "agentId": worker["id"], "text": "8"})
+        assert client.post(f"/api/tasks/{second}", json={"action": "score", "agentId": boss["id"], "score": 2}).status_code == 200
+        assert client.get(f"/api/agents/{worker['id']}").json()["averageScore"] == 3.5
+        sent = [item for item in client.get("/api/tasks").json() if item.get("senderId") == boss["id"]]
+        assert [item["id"] for item in sent] == [second]
+
+        # Skip closes the window without a score and leaves the average alone.
+        third = _hire(client, worker["id"], "web-3", {"senderId": visitor})
+        client.post(f"/api/tasks/{third}", json={"action": "artifact", "agentId": worker["id"], "text": "9"})
+        skipped = client.post(f"/api/tasks/{third}", json={"action": "skip", "agentId": visitor})
+        assert skipped.status_code == 200
+        assert skipped.json()["scoreSkipped"] is True
+        record = client.get(f"/api/agents/{worker['id']}").json()
+        assert record["averageScore"] == 3.5
+        assert record["completed"] == 3
+
+        # A model without a sender id still scores over A2A on the same task.
+        fourth = _hire(client, worker["id"], "model-4", {"caller": "某个大模型"})
+        assert "senderId" not in client.get(f"/api/tasks/{fourth}").json()["task"]
+        client.post(f"/api/tasks/{fourth}", json={"action": "artifact", "agentId": worker["id"], "text": "10"})
+        assert client.post(f"/api/tasks/{fourth}", json={"action": "score", "agentId": visitor, "score": 1}).status_code == 400
+        rated = client.post(
+            f"/api/a2a/{worker['id']}",
+            headers={"A2A-Version": "1.0"},
+            json={
+                "jsonrpc": "2.0",
+                "id": "model-4-score",
+                "method": "SendMessage",
+                "params": {
+                    "configuration": {"returnImmediately": True},
+                    "message": {"role": "ROLE_USER", "messageId": "model-4-score", "taskId": fourth, "parts": [{"text": '{"score":2}'}]},
+                },
+            },
+        )
+        assert rated.status_code == 200
+        assert client.get(f"/api/tasks/{fourth}").json()["task"]["workScore"] == 2
+        assert client.get(f"/api/agents/{worker['id']}").json()["averageScore"] == 3

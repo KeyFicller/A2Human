@@ -8,12 +8,13 @@ import { useText } from "@/components/locale-provider"
 import { SchemaSummary } from "@/components/schema-summary"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ErrorNote, LoadingLine } from "@/components/status"
+import { SentTasks } from "@/components/sent-tasks"
 import { TaskRow } from "@/components/task-row"
 import { useApiOrigin } from "@/lib/api-origin"
 import { PUBLISHED_KEY, api } from "@/lib/client"
 import { RecordFigures } from "@/components/record-figures"
 import { formatWhen } from "@/lib/format"
-import { handedOff, needsWorker } from "@/lib/task-view"
+import { handedOff, needsWorker, sentBy } from "@/lib/task-view"
 import { cachedTasks, rememberTasks } from "@/lib/inbox-cache"
 import { localizeError } from "@/lib/messages"
 import { skillLabel } from "@/lib/skill-catalog"
@@ -21,12 +22,13 @@ import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
 export default function MePage() {
-  const { agent, ready, identity, error, refresh } = useAgent()
+  const { agent, ready, identity, error, refresh, adopt, senderIds } = useAgent()
   const { locale, t, error: showError } = useText()
   const [tasks, setTasks] = useState<Task[] | null>(() => cachedTasks(agent?.id))
   const [taskError, setTaskError] = useState<string | null>(null)
   const [dutyError, setDutyError] = useState<string | null>(null)
   const [dutyPending, setDutyPending] = useState(false)
+  const [askingOff, setAskingOff] = useState(false)
   const [updated, setUpdated] = useState<number | null>(null)
   const [published, setPublished] = useState(false)
   const origin = useApiOrigin()
@@ -72,6 +74,11 @@ export default function MePage() {
         <AppLink href="/publish" className={cn(buttonVariants(), "mt-5 inline-flex h-11 px-5")}>
           {t.home.publish}
         </AppLink>
+        {senderIds.length ? (
+          <div className="mt-8">
+            <SentTasks ids={senderIds} title={t.me.sent} />
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -83,11 +90,27 @@ export default function MePage() {
   const delivered = assigned.filter((task) => task.status === "completed" || handedOff(task))
   const scores = delivered.flatMap((task) => (typeof task.workScore === "number" ? [task.workScore] : []))
   const averageScore = scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : tasks ? null : agent.averageScore
-  const skillTitles = Object.fromEntries(agent.skills.map((skill) => [skill.name, skillLabel(skill)]))
-  const sent = (tasks ?? [])
-    .filter((task) => task.senderId === agent.id)
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+  const skillTitles = Object.fromEntries(agent.skills.map((skill) => [skill.name, skillLabel(skill, locale)]))
+  const sent = sentBy(tasks ?? [], senderIds)
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
+
+  function switchDuty(available: boolean) {
+    if (!agent) return
+    setDutyPending(true)
+    api<NonNullable<typeof agent>>(`/api/agents/${agent.id}`, { available })
+      .then((next) => {
+        // Show the new state at once; the card read and the task list catch up behind it.
+        adopt({ ...agent, ...next })
+        setDutyError(null)
+        setAskingOff(false)
+        load()
+        void refresh()
+      })
+      .catch((caught: unknown) => {
+        setDutyError(showError(caught, t.me.dutyError))
+      })
+      .finally(() => setDutyPending(false))
+  }
   const endpoint = origin ? `${origin}/api/a2a/${agent.id}` : ""
 
   return (
@@ -104,33 +127,35 @@ export default function MePage() {
         />
         {published ? <p className="mt-4 leading-7 text-moss">{t.me.published}</p> : null}
         <p className="mt-4 leading-7">{agent.available ? t.me.onBody : t.me.offBody}</p>
-        <Button
-          type="button"
-          className="mt-4"
-          disabled={dutyPending}
-          onClick={() => {
-            setDutyPending(true)
-            api<typeof agent>(`/api/agents/${agent.id}`, { available: !agent.available })
-              .then(() => refresh())
-              .then(() => {
-                setDutyError(null)
-                load()
-              })
-              .catch((caught: unknown) => {
-                setDutyError(showError(caught, t.me.dutyError))
-              })
-              .finally(() => setDutyPending(false))
-          }}
-        >
-          {agent.available ? t.duty.clockOut : t.duty.clockIn}
-        </Button>
+        {askingOff ? (
+          <div className="mt-4 rounded-xl border border-dashed border-stamp px-4 py-3" role="alertdialog" aria-label={t.duty.clockOutAsk}>
+            <p className="text-sm leading-6">{t.duty.clockOutAsk}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" disabled={dutyPending} onClick={() => switchDuty(false)}>
+                {t.duty.clockOutYes}
+              </Button>
+              <Button type="button" variant="outline" disabled={dutyPending} onClick={() => setAskingOff(false)}>
+                {t.duty.clockOutNo}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            className="mt-4"
+            disabled={dutyPending}
+            onClick={() => (agent.available ? setAskingOff(true) : switchDuty(true))}
+          >
+            {agent.available ? t.duty.clockOut : t.duty.clockIn}
+          </Button>
+        )}
         {dutyError ? <p className="mt-3 text-sm text-stamp">{dutyError}</p> : null}
         <p className="mt-4 break-words leading-7">{agent.bio}</p>
         <ul className="mt-6 space-y-3">
           {agent.skills.map((skill) => (
             <li key={skill.name}>
-              <p className="font-serif text-xl break-words">{skillLabel(skill)}</p>
-              {skill.title ? <p className="font-mono text-xs text-muted-foreground">{t.me.toolId(skill.name)}</p> : null}
+              <p className="font-serif text-xl break-words">{skillLabel(skill, locale)}</p>
+              {skillLabel(skill, locale) !== skill.name ? <p className="font-mono text-xs text-muted-foreground">{t.me.toolId(skill.name)}</p> : null}
               <p className="text-sm leading-6 break-words text-muted-foreground">{skill.description}</p>
               <SchemaSummary skill={skill} />
             </li>

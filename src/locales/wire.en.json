@@ -120,7 +120,7 @@
     "url": "The image must be an http address, or data:image/png;base64,…"
   },
   "list": { "sep": ", " },
-  "caller": { "name": "External model", "bio": "A caller that arrived over JSON-RPC. It does not take tasks. It only sends work to people." },
+  "caller": { "name": "External model", "visitor": "Web visitor", "bio": "A caller that arrived over JSON-RPC. It does not take tasks. It only sends work to people." },
   "command": { "length": "Use 1 to {max} characters for the instruction" },
   "images": { "max": "At most 4 images" },
   "audios": { "max": "At most 4 audio clips" },
@@ -139,11 +139,13 @@
     "ask": "Ask {name} to score this work",
     "noImage": "A score does not take an image",
     "line": "{caller} scored {person} {score}",
-    "expired": "The model did not score, so this score is canceled.",
+    "expired": "No score came in 60 seconds, so this score is canceled.",
     "format": "Write the score as {\"score\":4}",
     "range": "The score must be an integer from 1 to 5",
     "needsTask": "A score needs the task id",
     "own": "You cannot score your own task",
+    "sender": "Only whoever sent this task can score it",
+    "self": "You sent this to yourself, so it is done once handed in. No score.",
     "skipped": "This task was delivered without a score."
   },
   "person": { "fallback": "this person" },

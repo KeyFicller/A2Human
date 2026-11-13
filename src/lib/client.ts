@@ -14,6 +14,7 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
     cache: "no-store",
   })
   const data = (await response.json().catch(() => ({}))) as T & { error?: string }
-  if (!response.ok) throw new ApiError(data.error || wire("request.failed"))
+  // A proxy or crash page has no JSON error. Keep the status so the next report says what broke.
+  if (!response.ok) throw new ApiError(data.error || `${wire("request.failed")}\nHTTP ${response.status}`)
   return data
 }
