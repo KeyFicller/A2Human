@@ -1,7 +1,7 @@
 import catalog from "@/locales/skill-catalog.json"
 import type { JsonSchema } from "./types"
 
-import { displayTitle, type CatalogCopy } from "./publish-skills"
+import { displayTitle, shownSkillDescription, type CatalogCopy } from "./publish-skills"
 
 export type { CatalogCopy } from "./publish-skills"
 
@@ -19,6 +19,11 @@ export function skillLabel(skill: { name: string; title?: string }, locale: "zh"
   return displayTitle(skill, SKILL_CATALOG, locale)
 }
 
+/** The skill description in the current locale: catalog copy for a preset, the person's own words otherwise. */
+export function skillDescription(skill: { name: string; description: string }, locale: "zh" | "en" = "zh") {
+  return shownSkillDescription(skill, SKILL_CATALOG, locale)
+}
+
 /** Same file the API validates against (`GET /api/skill-catalog`). */
 // JSON inference makes each item a union of field shapes; the catalog tests check the real shape.
 export const SKILL_CATALOG = catalog as unknown as CatalogSkill[]
@@ -33,4 +38,4 @@ export function isCatalogName(name: string, skills: CatalogSkill[] = SKILL_CATAL
   return catalogNames(skills).has(name)
 }
 
-export { alignPresetCopy, catalogText, localizedPresetSchema, relabelPresetFields, relocalizeFields } from "./publish-skills"
+export { alignPresetCopy, catalogText, localizedPresetSchema, relabelPresetFields, relocalizeFields, shownSkillSchema } from "./publish-skills"

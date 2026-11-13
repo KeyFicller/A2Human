@@ -242,6 +242,8 @@ export default function PublishPage() {
   }
 
   const delivery = active ? deliveryKindOf(active.output) : "custom"
+  // A saved custom skill that came back without a display name: say why the name box is empty.
+  const untitledSaved = Boolean(active && active.kind === "custom" && active.originalName && !active.title.trim())
   // The id follows the name, so an untouched blank slot is not an error yet.
   const toolIssue = active && (active.name || active.title.trim()) ? toolIdProblem(active.name) : null
   const inputFields = active?.input.mode === "fields" ? active.input.fields : []
@@ -282,8 +284,10 @@ export default function PublishPage() {
           setPending(false)
           return
         }
-        // An existing skill that never had a display name can keep saving without one.
-        const untitledKept = (skill: SkillDraft) => Boolean(skill.originalName) && skill.name === skill.originalName && !skill.title.trim()
+        // A legacy skill whose id is already a written name can keep saving without a title.
+        // A custom skill with an ASCII tool id needs a real name, or every card falls back to the id.
+        const untitledKept = (skill: SkillDraft) =>
+          skill.kind === "legacy" && Boolean(skill.originalName) && skill.name === skill.originalName && !skill.title.trim()
         if (skillValue.some((skill) => (!untitledKept(skill) && ![...skill.title.trim()].length) || [...skill.title.trim()].length > 32)) {
           setError(t.publish.needTitle)
           setPending(false)
@@ -428,7 +432,6 @@ export default function PublishPage() {
           ) : null}
         </label>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">{t.publish.personHint}</p>
 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
         <div className="sheet relative space-y-8 p-5">
@@ -515,8 +518,14 @@ export default function PublishPage() {
                       value={active.title}
                       maxLength={32}
                       placeholder={t.publish.displayPlaceholder}
+                      aria-invalid={untitledSaved ? true : undefined}
                       onChange={(event) => updateSkill(focusIndex, { title: event.target.value })}
                     />
+                    {untitledSaved ? (
+                      <span className="mt-1 block text-sm leading-6 text-stamp" role="note">
+                        {t.publish.titleMissing}
+                      </span>
+                    ) : null}
                   </label>
                   <label className="block text-sm">
                     {t.publish.callWhen}
@@ -678,6 +687,7 @@ export default function PublishPage() {
         </div>
         <SkillPreview
           personName={nameValue}
+          canSwitchDelivery={!locked}
           skill={
             active
               ? { ...active, play: activePlay(active.template || active.name, delivery) }

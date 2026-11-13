@@ -89,7 +89,17 @@ function WorkerCheck({ skill, schema, play }: { skill: PreviewSkill; schema: Jso
           }
         }}
       />
-      {notice ? <p className="whitespace-pre-wrap text-sm leading-6">{notice}</p> : null}
+      {notice ? (
+        notice === t.publish.simulateOk ? (
+          <p className="whitespace-pre-wrap rounded-xl border border-moss/40 bg-[#eef5ef] px-3 py-2 text-sm leading-6 text-moss" role="status">
+            {notice}
+          </p>
+        ) : (
+          <p className="whitespace-pre-wrap rounded-xl border border-stamp bg-[#f6ded9] px-3 py-2 text-sm font-medium leading-6 text-stamp" role="alert">
+            {notice}
+          </p>
+        )
+      ) : null}
     </div>
   )
 }
@@ -151,10 +161,13 @@ export const SkillPreview = memo(function SkillPreview({
   skill,
   resetKey,
   personName = "",
+  canSwitchDelivery = true,
 }: {
   skill: PreviewSkill | null
   resetKey?: string
   personName?: string
+  /** Locked presets have one fixed delivery, so the "switch what you hand back" hint would point at nothing. */
+  canSwitchDelivery?: boolean
 }) {
   const { locale, t } = useLocale()
   const [tab, setTab] = useState<"agent" | "worker">("agent")
@@ -182,7 +195,7 @@ export const SkillPreview = memo(function SkillPreview({
       {skill && !blank && tab === "agent" ? <AgentCard skill={skill} schema={schema} personName={personName} /> : null}
       {skill && !blank && schema && tab === "worker" ? <WorkerCheck key={resetKey ?? schemaPayload(skill.output)} skill={skill} schema={schema} play={play} /> : null}
       {skill && !blank && !schema && tab === "worker" ? <p className="mt-6 text-sm text-muted-foreground">{t.publish.outputUnread}</p> : null}
-      <p className="mt-6 text-xs leading-5 text-muted-foreground">{t.publish.deliveryHint}</p>
+      {skill && canSwitchDelivery ? <p className="mt-6 text-xs leading-5 text-muted-foreground">{t.publish.deliveryHint}</p> : null}
     </aside>
   )
 })

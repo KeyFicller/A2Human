@@ -53,6 +53,10 @@ export function readableArtifact(text: string) {
   return trimmed
 }
 
+export function isTaskStatus(value: string): value is TaskStatus {
+  return Object.values(A2A_STATE).includes(value as TaskStatus)
+}
+
 export function statusFromState(state: string | undefined, label: (status: TaskStatus) => string) {
   const status = state ? A2A_STATE[state] : undefined
   return status ? label(status) : state || ""
@@ -69,8 +73,8 @@ export type CallStep = "request" | "progress" | "artifact" | "score" | "complete
 export type CallEvent = {
   id: string
   step: CallStep
-  /** Who said it: the calling Agent, or the person on duty. */
-  side: "agent" | "human"
+  /** Who said it: the calling Agent, a person sending from the website, or the person on duty. */
+  side: "agent" | "web" | "human"
   name: string
   text: string
   at: string
@@ -93,14 +97,15 @@ const STEP: Partial<Record<string, CallStep>> = {
 
 /** The call as it happened, oldest first, built only from recorded protocol messages. */
 export function callTimeline(
-  task: { posterId: string; claimantId: string | null },
+  task: { posterId: string; claimantId: string | null; senderId?: string },
   messages: { id: string; fromId: string; fromName: string; kind: string; text: string; createdAt: string }[],
 ): CallEvent[] {
   const events: CallEvent[] = []
   for (const message of messages) {
     const step = STEP[message.kind]
     if (!step) continue
-    const side = message.fromId === task.claimantId && message.fromId !== task.posterId ? "human" : "agent"
+    // A task with a sender id was sent by a person (a card or a browser visitor), not an anonymous model.
+    const side = message.fromId === task.claimantId && message.fromId !== task.posterId ? "human" : task.senderId ? "web" : "agent"
     events.push({ id: message.id, step, side, name: message.fromName, text: readableArtifact(message.text), at: message.createdAt, media: false })
   }
   const last = events.map((event) => event.step).lastIndexOf("artifact")
@@ -124,4 +129,33 @@ export function sentBy<T extends { senderId?: string; updatedAt: string }>(tasks
 export function scorerFor(task: { senderId?: string; claimantId: string | null }, ids: string[]): string | null {
   if (!task.senderId || task.senderId === task.claimantId) return null
   return ids.includes(task.senderId) ? task.senderId : null
+}
+
+/** How long the sender has to score after the hand-in. The server holds the same window. */
+export const SCORE_WINDOW_MS = 60_000
+
+/** When the score window closes, for a task that was handed in and is waiting for a score. */
+export function scoreDeadline(task: { status: TaskStatus; updatedAt: string; artifact?: string | null; artifactImage?: unknown; artifactAudio?: unknown }) {
+  if (!handedOff(task)) return null
+  const at = Date.parse(task.updatedAt)
+  return Number.isFinite(at) ? at + SCORE_WINDOW_MS : null
+}
+
+/** Sent tasks this browser still has to score, soonest deadline first. */
+export function awaitingMyScore<
+  T extends { senderId?: string; claimantId: string | null; status: TaskStatus; updatedAt: string; artifact?: string | null; artifactImage?: unknown; artifactAudio?: unknown },
+>(tasks: T[], ids: string[], now: number): T[] {
+  return tasks
+    .filter((task) => scorerFor(task, ids) && (scoreDeadline(task) ?? 0) > now)
+    .sort((left, right) => (scoreDeadline(left) ?? 0) - (scoreDeadline(right) ?? 0))
+}
+
+const HEADLINE_MAX = 80
+
+/** The server shortens long briefs into a title. When the whole brief is short, show the whole brief. */
+export function taskHeadline(title: string, brief: string) {
+  const flat = brief.split(/\s+/).join(" ").trim()
+  if (!title.endsWith("\u2026") || !flat || [...flat].length > HEADLINE_MAX) return title
+  const head = title.slice(0, -1).trimEnd()
+  return flat.startsWith(head) ? flat : title
 }

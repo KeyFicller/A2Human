@@ -453,7 +453,7 @@ test("a preset picked in English carries English field labels into the schema", 
   const draw = (SKILL_CATALOG as unknown as Array<Parameters<typeof localizedPresetSchema>[0] & { name: string }>).find((item) => item.name === "hand_draw")!
   const input = localizedPresetSchema(draw, "input", "en") as { properties: Record<string, { type: string; description: string }>; required: string[] }
   const output = localizedPresetSchema(draw, "output", "en") as { properties: Record<string, { contentMediaType: string; description: string }> }
-  assert.deepEqual(input.properties.task, { type: "string", description: "Task" })
+  assert.deepEqual(input.properties.task, { type: "string", description: "Task description" })
   assert.deepEqual(input.required, ["task"])
   assert.equal(output.properties.picture.contentMediaType, "image/*")
   assert.ok(!CJK.test(JSON.stringify([input, output])))
@@ -521,7 +521,7 @@ test("republishing a preset uses the catalog definition, not stale local edits",
   assert.equal(en.title, copyEn.title)
   assert.equal(en.description, copyEn.description)
   assert.deepEqual(JSON.parse(en.inputSchema ?? "{}"), localizedPresetSchema(hand, "input", "en"))
-  assert.equal(JSON.parse(en.inputSchema ?? "{}").properties.task.description, "Task")
+  assert.equal(JSON.parse(en.inputSchema ?? "{}").properties.task.description, "Task description")
 
   const custom = publishedSkill(
     { name: "my_draw", title: "我的画板", description: "自己写的", inputSchema: stale.inputSchema, outputSchema: stale.outputSchema, play: null, template: null },

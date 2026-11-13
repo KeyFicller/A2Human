@@ -6,7 +6,7 @@ export { localizeError } from "./copy"
 export type Messages = {
   locale: { zh: string; en: string }
   brand: string
-  nav: { publish: string; duty: string; mine: string }
+  nav: { publish: string; edit: string; duty: string; mine: string }
   duty: {
     on: string
     off: string
@@ -65,9 +65,13 @@ export type Messages = {
     refresh: string
     updated: (time: string) => string
     onDutyCount: (count: number) => string
+    order: string
+    hireQuick: string
   }
   profile: {
     forModels: string
+    forModelsMore: string
+    forModelsHint: string
     discoveryOn: string
     discoveryOff: string
     mcpHint: string
@@ -84,6 +88,8 @@ export type Messages = {
     hirePick: string
     hireResult: (id: string, status: string) => string
     hireOpen: string
+    hireOff: string
+    hireSelf: string
     callHint: string
     sentHere: string
   }
@@ -102,10 +108,13 @@ export type Messages = {
     tasksError: string
     loading: string
     empty: string
+    emptyOn: string
     sent: string
     sentEmpty: string
     refresh: string
     updated: (time: string) => string
+    scoreDue: string
+    scoreDueHint: string
     published: string
     toolId: (id: string) => string
   }
@@ -118,7 +127,6 @@ export type Messages = {
     name: string
     bio: string
     bioPlaceholder: string
-    personHint: string
     who: string
     before: string
     displayName: string
@@ -158,6 +166,7 @@ export type Messages = {
     pillOptional: string
     taskLabel: string
     needTitle: string
+    titleMissing: string
     needDescription: string
     pair: string
     removeSkill: string
@@ -229,10 +238,15 @@ export type Messages = {
     from: (name: string) => string
     dismiss: string
     open: string
+    scoreTitle: string
+    handedBy: (name: string) => string
+    scoreOpen: string
   }
   task: {
     awaitingScore: string
     from: (name: string) => string
+    sentTo: (name: string) => string
+    scoreDueLeft: (seconds: number) => string
     gotScore: (score: number) => string
     scoredBy: (name: string, score: number) => string
     artifact: string
@@ -304,10 +318,13 @@ export type Messages = {
     timelineEmpty: string
     sideAgent: string
     sideHuman: string
+    sideWeb: string
     stepRequest: string
+    stepRequestWeb: string
     stepProgress: string
     stepArtifact: string
     stepScore: string
+    stepScoreWeb: string
     stepComplete: string
     stepInput: string
     stepReject: string
@@ -349,6 +366,9 @@ export type Messages = {
     micIdle: string
     micLabel: string
     micUpload: string
+    micRedo: string
+    filePick: string
+    fileNone: string
     drawLeft: (seconds: number) => string
     drawFrozen: string
     drawIdle: string
@@ -373,7 +393,7 @@ function bind(locale: Locale): Messages {
   return {
     locale: { zh: text("locale.zh"), en: text("locale.en") },
     brand: text("brand"),
-    nav: { publish: text("nav.publish"), duty: text("nav.duty"), mine: text("nav.mine") },
+    nav: { publish: text("nav.publish"), edit: text("nav.edit"), duty: text("nav.duty"), mine: text("nav.mine") },
     duty: {
       on: text("duty.on"),
       off: text("duty.off"),
@@ -438,9 +458,13 @@ function bind(locale: Locale): Messages {
       refresh: text("agents.refresh"),
       updated: (time) => text("agents.updated", { time }),
       onDutyCount: (count) => text("agents.onDutyCount", { count }),
+      order: text("agents.order"),
+      hireQuick: text("agents.hireQuick"),
     },
     profile: {
       forModels: text("profile.forModels"),
+      forModelsMore: text("profile.forModelsMore"),
+      forModelsHint: text("profile.forModelsHint"),
       discoveryOn: text("profile.discoveryOn"),
       discoveryOff: text("profile.discoveryOff"),
       mcpHint: text("profile.mcpHint"),
@@ -457,6 +481,8 @@ function bind(locale: Locale): Messages {
       hirePick: text("profile.hirePick"),
       hireResult: (id, status) => text("profile.hireResult", { id, status }),
       hireOpen: text("profile.hireOpen"),
+      hireOff: text("profile.hireOff"),
+      hireSelf: text("profile.hireSelf"),
       callHint: text("profile.callHint"),
       sentHere: text("profile.sentHere"),
     },
@@ -475,10 +501,13 @@ function bind(locale: Locale): Messages {
       tasksError: text("me.tasksError"),
       loading: text("me.loading"),
       empty: text("me.empty"),
+      emptyOn: text("me.emptyOn"),
       sent: text("me.sent"),
       sentEmpty: text("me.sentEmpty"),
       refresh: text("me.refresh"),
       updated: (time) => text("me.updated", { time }),
+      scoreDue: text("me.scoreDue"),
+      scoreDueHint: text("me.scoreDueHint"),
       published: text("me.published"),
       toolId: (id) => text("me.toolId", { id }),
     },
@@ -491,7 +520,6 @@ function bind(locale: Locale): Messages {
       name: text("publish.name"),
       bio: text("publish.bio"),
       bioPlaceholder: text("publish.bioPlaceholder"),
-      personHint: text("publish.personHint"),
       who: text("publish.who"),
       before: text("publish.before"),
       displayName: text("publish.displayName"),
@@ -531,6 +559,7 @@ function bind(locale: Locale): Messages {
       pillOptional: text("publish.pillOptional"),
       taskLabel: text("publish.taskLabel"),
       needTitle: text("publish.needTitle"),
+      titleMissing: text("publish.titleMissing"),
       needDescription: text("publish.needDescription"),
       pair: text("publish.pair"),
       removeSkill: text("publish.removeSkill"),
@@ -602,10 +631,15 @@ function bind(locale: Locale): Messages {
       from: (name) => text("notice.from", { name }),
       dismiss: text("notice.dismiss"),
       open: text("notice.open"),
+      scoreTitle: text("notice.scoreTitle"),
+      handedBy: (name) => text("notice.handedBy", { name }),
+      scoreOpen: text("notice.scoreOpen"),
     },
     task: {
       awaitingScore: text("task.awaitingScore"),
       from: (name) => text("task.from", { name }),
+      sentTo: (name) => text("task.sentTo", { name }),
+      scoreDueLeft: (seconds) => text("task.scoreDueLeft", { seconds }),
       gotScore: (score) => text("task.gotScore", { score }),
       scoredBy: (name, score) => text("task.scoredBy", { name, score }),
       artifact: text("task.artifact"),
@@ -677,10 +711,13 @@ function bind(locale: Locale): Messages {
       timelineEmpty: text("task.timelineEmpty"),
       sideAgent: text("task.sideAgent"),
       sideHuman: text("task.sideHuman"),
+      sideWeb: text("task.sideWeb"),
       stepRequest: text("task.stepRequest"),
+      stepRequestWeb: text("task.stepRequestWeb"),
       stepProgress: text("task.stepProgress"),
       stepArtifact: text("task.stepArtifact"),
       stepScore: text("task.stepScore"),
+      stepScoreWeb: text("task.stepScoreWeb"),
       stepComplete: text("task.stepComplete"),
       stepInput: text("task.stepInput"),
       stepReject: text("task.stepReject"),
@@ -721,6 +758,9 @@ function bind(locale: Locale): Messages {
       micIdle: text("output.micIdle"),
       micLabel: text("output.micLabel"),
       micUpload: text("output.micUpload"),
+      micRedo: text("output.micRedo"),
+      filePick: text("output.filePick"),
+      fileNone: text("output.fileNone"),
       drawStart: text("output.drawStart"),
       drawLeft: (seconds) => text("output.drawLeft", { seconds }),
       drawFrozen: text("output.drawFrozen"),

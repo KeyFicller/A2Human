@@ -107,7 +107,6 @@ def bind(locale: str) -> dict:
             "name": text("publish.name"),
             "bio": text("publish.bio"),
             "bioPlaceholder": text("publish.bioPlaceholder"),
-            "personHint": text("publish.personHint"),
             "who": text("publish.who"),
             "before": text("publish.before"),
             "displayName": text("publish.displayName"),

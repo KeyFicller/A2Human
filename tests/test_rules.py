@@ -111,7 +111,14 @@ def test_an_empty_or_placeholder_bio_is_refused():
 def test_a_long_title_stops_on_a_character_and_marks_the_cut():
     assert _command_title("短标题呀") == "短标题呀"
     assert _command_title("甲" * 40) == ("甲" * 31) + "…"
-    assert _command_title("a\u0301" * 40) == ("a\u0301" * 31) + "…"
+    assert _command_title("a\u0301" * 70) == ("a\u0301" * 63) + "…"
+
+
+def test_a_short_english_request_keeps_its_whole_title():
+    # The limit is in columns: a Chinese character is two, a Latin letter one.
+    assert _command_title("QA test: summarize \"buy milk\" in one line.") == "QA test: summarize \"buy milk\" in one line."
+    assert _command_title("Roll one die and tell me the number.") == "Roll one die and tell me the number."
+    assert _command_title("甲" * 32) == "甲" * 32
 
 
 def test_progress_is_saved_into_the_conversation():
@@ -258,3 +265,28 @@ def test_only_the_sender_scores_and_a_self_sent_task_needs_no_score():
     assert done["status"] == "completed"
     assert done["scoreSkipped"] is True
     assert not any(item["taskId"] == own["id"] and item["kind"] == "task.scoreRequest" for item in store["messages"])
+
+
+def test_time_on_the_card_runs_from_the_request_to_the_hand_in_not_to_the_score():
+    store = create_seed()
+    human = publish_agent(store, {"name": "米粒", "bio": "会数。", "skills": [counting]})
+    set_availability(store, human["id"], True)
+    task = receive_command(store, {
+        "humanId": human["id"],
+        "text": "数一下。",
+        "messageId": "clock-1",
+        "callerName": "网页访客",
+        "senderId": "visitor-0123abcd",
+        "skill": "计数",
+    })
+    submit_artifact(store, task["id"], human["id"], "7")
+    score_task(store, task["id"], "visitor-0123abcd", 5)
+    # Pin the clock: asked at :00, handed in at :13, scored at :45.
+    task["createdAt"] = "2026-11-13T07:11:00.000Z"
+    task["updatedAt"] = "2026-11-13T07:11:45.000Z"
+    for message in store["messages"]:
+        if message["taskId"] == task["id"] and message["kind"] == "task.artifact":
+            message["createdAt"] = "2026-11-13T07:11:13.000Z"
+    assert work_record(store["tasks"], human["id"], store["messages"])["averageDuration"] == 13
+    # Without the conversation the record can only use the last update.
+    assert work_record(store["tasks"], human["id"])["averageDuration"] == 45

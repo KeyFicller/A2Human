@@ -13,11 +13,13 @@ import { TaskRow } from "@/components/task-row"
 import { useApiOrigin } from "@/lib/api-origin"
 import { PUBLISHED_KEY, api } from "@/lib/client"
 import { RecordFigures } from "@/components/record-figures"
-import { formatWhen } from "@/lib/format"
-import { handedOff, needsWorker, sentBy } from "@/lib/task-view"
+import { formatClock } from "@/lib/format"
+import { awaitingMyScore, handedOff, needsWorker, sentBy } from "@/lib/task-view"
+import { useNow } from "@/lib/use-now"
+import { useSkillTitles } from "@/lib/use-skill-titles"
 import { cachedTasks, rememberTasks } from "@/lib/inbox-cache"
 import { localizeError } from "@/lib/messages"
-import { skillLabel } from "@/lib/skill-catalog"
+import { skillDescription, skillLabel } from "@/lib/skill-catalog"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
 
@@ -32,6 +34,8 @@ export default function MePage() {
   const [updated, setUpdated] = useState<number | null>(null)
   const [published, setPublished] = useState(false)
   const origin = useApiOrigin()
+  const now = useNow(true)
+  const titlesFor = useSkillTitles(locale)
 
   const load = useCallback(() => {
     if (!agent) return
@@ -91,7 +95,11 @@ export default function MePage() {
   const scores = delivered.flatMap((task) => (typeof task.workScore === "number" ? [task.workScore] : []))
   const averageScore = scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : tasks ? null : agent.averageScore
   const skillTitles = Object.fromEntries(agent.skills.map((skill) => [skill.name, skillLabel(skill, locale)]))
-  const sent = sentBy(tasks ?? [], senderIds)
+  const sentAll = sentBy(tasks ?? [], senderIds)
+  // Hand-ins waiting for this browser's score sit above everything else, so a new incoming task cannot push them away.
+  const scoreDue = awaitingMyScore(sentAll, senderIds, now)
+  const dueIds = new Set(scoreDue.map((task) => task.id))
+  const sent = sentAll.filter((task) => !dueIds.has(task.id))
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
 
   function switchDuty(available: boolean) {
@@ -156,7 +164,7 @@ export default function MePage() {
             <li key={skill.name}>
               <p className="font-serif text-xl break-words">{skillLabel(skill, locale)}</p>
               {skillLabel(skill, locale) !== skill.name ? <p className="font-mono text-xs text-muted-foreground">{t.me.toolId(skill.name)}</p> : null}
-              <p className="text-sm leading-6 break-words text-muted-foreground">{skill.description}</p>
+              <p className="text-sm leading-6 break-words text-muted-foreground">{skillDescription(skill, locale)}</p>
               <SchemaSummary skill={skill} />
             </li>
           ))}
@@ -177,6 +185,17 @@ export default function MePage() {
         </div>
       </section>
       <section className="order-1 min-w-0 lg:order-2">
+        {scoreDue.length ? (
+          <div className="mb-8 rounded-2xl border-2 border-dashed border-stamp p-4" role="status" aria-live="polite">
+            <h2 className="font-serif text-2xl text-stamp">{t.me.scoreDue}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{t.me.scoreDueHint}</p>
+            <div className="mt-3 grid gap-3">
+              {scoreDue.map((task) => (
+                <TaskRow key={task.id} task={task} skillTitles={titlesFor(task)} sent scoreMine />
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="font-serif text-2xl">{t.me.tasks}</h2>
           <div className="flex items-center gap-3">
@@ -186,11 +205,11 @@ export default function MePage() {
             </button>
           </div>
         </div>
-        {updated ? <p className="mt-1 font-mono text-xs text-muted-foreground">{t.me.updated(formatWhen(new Date(updated).toISOString(), locale))}</p> : null}
+        {updated ? <p className="mt-1 font-mono text-xs text-muted-foreground">{t.me.updated(formatClock(updated, locale))}</p> : null}
         {taskError ? <ErrorNote text={taskError} /> : null}
         {!tasks && !taskError ? <LoadingLine text={t.me.loading} /> : null}
         <div className="mt-3 grid gap-3">
-          {assigned.length === 0 && tasks ? <p className="text-sm text-muted-foreground">{t.me.empty}</p> : null}
+          {assigned.length === 0 && tasks ? <p className="text-sm text-muted-foreground">{agent.available ? t.me.emptyOn : t.me.empty}</p> : null}
           {assigned.map((task) => (
             <TaskRow key={task.id} task={task} skillTitles={skillTitles} />
           ))}
@@ -200,7 +219,7 @@ export default function MePage() {
           <div className="mt-3 grid gap-3">
             {sent.length === 0 && tasks ? <p className="text-sm text-muted-foreground">{t.me.sentEmpty}</p> : null}
             {sent.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow key={task.id} task={task} skillTitles={titlesFor(task)} sent scoreMine />
             ))}
           </div>
         </div>

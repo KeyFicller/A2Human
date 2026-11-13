@@ -369,8 +369,10 @@ export function displayTitle(
   locale: "zh" | "en",
 ) {
   const title = skill.title?.trim() ?? ""
-  if (title && title !== skill.name) return title
   const preset = catalog.find((item) => item.name === skill.name)
+  // A preset's catalog title follows the locale; a title the person wrote stays as written.
+  const catalogTitle = preset && (title === catalogText(preset, "zh").title || title === catalogText(preset, "en").title)
+  if (title && title !== skill.name && !catalogTitle) return title
   return (preset && catalogText(preset, locale).title) || title || skill.name
 }
 
@@ -519,4 +521,46 @@ export function publishedSkill(
     outputSchema: output ? JSON.stringify(output) : "",
     play: playMode(preset.name),
   })
+}
+
+/** Labels the publish form has used for the default task input, in either locale. */
+const DEFAULT_TASK_LABELS = new Set(["\u4efb\u52a1\u63cf\u8ff0", "Task", "Task description"])
+
+type ShownSchema = { type?: unknown; properties?: Record<string, unknown>; required?: unknown; [key: string]: unknown }
+
+/**
+ * The schema a person reads on a card, in the current locale.
+ * A preset shows the catalog labels for this locale, whatever locale it was published in.
+ * A custom skill keeps its own labels, except the default task label, which follows the locale.
+ */
+export function shownSkillSchema<S extends ShownSchema>(
+  skill: { name: string; template?: string | null; inputSchema?: S; outputSchema?: S },
+  side: SchemaSide,
+  locale: "zh" | "en",
+  catalog: Array<LabeledPreset & { name: string }>,
+  taskLabel: string,
+): S | undefined {
+  const preset = catalogPresetOf(skill, catalog)
+  if (preset) {
+    const localized = localizedPresetSchema(preset, side, locale)
+    if (localized) return localized as unknown as S
+  }
+  const schema = side === "input" ? skill.inputSchema : skill.outputSchema
+  if (!schema || side !== "input" || !schema.properties || typeof schema.properties !== "object") return schema
+  const task = (schema.properties as Record<string, unknown>).task as { description?: unknown } | undefined
+  if (!task || typeof task.description !== "string" || !DEFAULT_TASK_LABELS.has(task.description) || task.description === taskLabel) return schema
+  return { ...schema, properties: { ...schema.properties, task: { ...task, description: taskLabel } } }
+}
+
+/** A preset's description in the current locale. A custom skill keeps what the person wrote. */
+export function shownSkillDescription(
+  skill: { name: string; template?: string | null; description: string },
+  catalog: Array<{ name: string; title: string; description: string; sample: string; en?: CatalogCopy }>,
+  locale: "zh" | "en",
+) {
+  const preset = catalogPresetOf(skill, catalog)
+  if (!preset) return skill.description
+  const zh = catalogText(preset, "zh").description
+  const en = catalogText(preset, "en").description
+  return skill.description === zh || skill.description === en ? catalogText(preset, locale).description : skill.description
 }

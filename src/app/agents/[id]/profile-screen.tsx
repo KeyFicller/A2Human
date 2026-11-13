@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useParams } from "next/navigation"
 import { useAgent } from "@/components/agent-provider"
 import { AppLink } from "@/components/app-link"
@@ -18,7 +18,9 @@ import { api } from "@/lib/client"
 import { statusLabel } from "@/lib/format"
 import { hireIssue, statusFromState } from "@/lib/task-view"
 import { sendMessageBody } from "@/lib/hire"
-import { skillLabel } from "@/lib/skill-catalog"
+import { skillDescription, skillLabel } from "@/lib/skill-catalog"
+import { HIRE_FOCUS_KEY } from "@/components/agent-card"
+import { isTaskStatus } from "@/lib/task-view"
 import type { Agent } from "@/lib/types"
 
 type RpcTask = { id?: string; status?: { state?: string } }
@@ -44,6 +46,8 @@ export default function AgentProfilePage({ id }: { id?: string }) {
   const [sentVersion, setSentVersion] = useState(0)
   const origin = useApiOrigin()
   const { locale, t, error: showError } = useText()
+  const hireRef = useRef<HTMLFormElement>(null)
+  const loaded = Boolean(agent)
 
   const load = useCallback(() => {
     if (!agentId) return
@@ -61,6 +65,19 @@ export default function AgentProfilePage({ id }: { id?: string }) {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    // Coming from a roster "Hire" button: bring the form into view and put the cursor in it.
+    if (!loaded) return
+    let wanted = false
+    try {
+      wanted = sessionStorage.getItem(HIRE_FOCUS_KEY) === agentId
+      if (wanted) sessionStorage.removeItem(HIRE_FOCUS_KEY)
+    } catch {}
+    if (!wanted) return
+    hireRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    document.getElementById("hire-task")?.focus({ preventScroll: true })
+  }, [loaded, agentId])
 
   useEffect(() => {
     if (!copied) return
@@ -95,7 +112,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
       setHireError(t.profile.hirePick)
       return
     }
-    if (!endpoint || !agent) return
+    if (!endpoint || !agent || !agent.available || me?.id === agent.id) return
     setHirePending(true)
     setHireError(null)
     const body = sendMessageBody({
@@ -116,7 +133,8 @@ export default function AgentProfilePage({ id }: { id?: string }) {
         if (!response.ok || data.error) throw new Error(data.error?.message || t.profile.loadError)
         const task = data.result?.task
         if (!task?.id) throw new Error(t.profile.loadError)
-        setHired({ id: task.id, status: statusFromState(task.status?.state, (status) => statusLabel(status, locale)) })
+        // Keep the status code, so the line follows a later locale switch.
+        setHired({ id: task.id, status: statusFromState(task.status?.state, (status) => status) })
         setTaskText("")
         setSentVersion((current) => current + 1)
       })
@@ -126,66 +144,87 @@ export default function AgentProfilePage({ id }: { id?: string }) {
       .finally(() => setHirePending(false))
   }
 
+  const self = Boolean(me && me.id === agent.id)
+  const blocked = self ? t.profile.hireSelf : !agent.available ? t.profile.hireOff : null
+
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,0.9fr)_minmax(0,1.1fr)]">
-      <section className="sheet min-w-0 p-6">
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 className="font-serif text-4xl break-words">{agent.name}</h1>
-          <p className="shrink-0 font-mono text-[11px] tracking-[0.16em] text-stamp">{agent.available ? t.duty.on : t.duty.off}</p>
-        </div>
-        <RecordFigures completed={agent.completed} averageScore={agent.averageScore} averageDuration={agent.averageDuration} />
-        <p className="mt-4 break-words leading-7">{agent.bio}</p>
-        <ul className="mt-6 space-y-3">
-          {agent.skills.map((skill) => {
-            const selected = chosen?.name === skill.name
-            return (
-              <li key={skill.name}>
-                <button
-                  type="button"
-                  aria-pressed={selected}
-                  className={selected ? "rounded-full bg-ink px-3 py-1 text-sm text-[#fbf7ee]" : "rounded-full border border-[#d9d0c0] px-3 py-1 text-sm"}
-                  onClick={() => {
-                    setSkillName(skill.name)
-                    document.getElementById("hire-task")?.focus()
-                  }}
-                >
-                  {skillLabel(skill, locale)}
-                </button>
-                {skillLabel(skill, locale) !== skill.name ? <p className="mt-1 font-mono text-xs text-muted-foreground">{skill.name}</p> : null}
-                <p className="mt-1 break-words text-sm leading-6">{skill.description}</p>
-                <SchemaSummary skill={skill} />
-              </li>
-            )
-          })}
-        </ul>
-        <form className="mt-6 space-y-3 border-t border-[#d9d0c0] pt-4" onSubmit={hire}>
-          <h2 className="font-serif text-2xl">{t.profile.hire}</h2>
-          <label className="block text-sm">
-            {t.profile.hireTask}
-            <Textarea id="hire-task" className="mt-1.5" value={taskText} onChange={(event) => setTaskText(event.target.value)} />
-          </label>
-          {agent.skills.length > 1 ? <p className="text-sm text-muted-foreground">{t.profile.hireSkill}</p> : null}
-          <Button type="submit" disabled={hirePending || !endpoint}>
-            {hirePending ? t.profile.hireSending : t.profile.hireSend}
-          </Button>
-          {hireError ? <p className="text-sm text-stamp">{hireError}</p> : null}
-          {hired ? (
-            <p className="text-sm leading-6">
-              {t.profile.hireResult(hired.id, hired.status)}{" "}
-              <AppLink href={`/tasks/${hired.id}`} className="text-action">
-                {t.profile.hireOpen}
-              </AppLink>
-            </p>
-          ) : null}
-        </form>
-        {senderIds.length ? (
-          <div className="mt-6">
-            <SentTasks ids={senderIds} targetId={agent.id} title={t.profile.sentHere} reload={sentVersion} skillTitles={skillTitles} />
+    <div className="space-y-6">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,0.9fr)_minmax(0,1.1fr)]">
+        <section className="sheet min-w-0 p-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <h1 className="font-serif text-4xl break-words">{agent.name}</h1>
+            <p className="shrink-0 font-mono text-[11px] tracking-[0.16em] text-stamp">{agent.available ? t.duty.on : t.duty.off}</p>
           </div>
-        ) : null}
-      </section>
-      <section className="sheet min-w-0 p-6">
-        <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</p>
+          <RecordFigures completed={agent.completed} averageScore={agent.averageScore} averageDuration={agent.averageDuration} />
+          <p className="mt-4 break-words leading-7">{agent.bio}</p>
+          <ul className="mt-6 space-y-3">
+            {agent.skills.map((skill) => {
+              const selected = chosen?.name === skill.name
+              return (
+                <li key={skill.name}>
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    className={selected ? "rounded-full bg-ink px-3 py-1 text-sm text-[#fbf7ee]" : "rounded-full border border-[#d9d0c0] px-3 py-1 text-sm"}
+                    onClick={() => {
+                      setSkillName(skill.name)
+                      document.getElementById("hire-task")?.focus()
+                    }}
+                  >
+                    {skillLabel(skill, locale)}
+                  </button>
+                  {skillLabel(skill, locale) !== skill.name ? <p className="mt-1 font-mono text-xs text-muted-foreground">{skill.name}</p> : null}
+                  <p className="mt-1 break-words text-sm leading-6">{skillDescription(skill, locale)}</p>
+                  <SchemaSummary skill={skill} />
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+        <section className="sheet min-w-0 p-6 lg:sticky lg:top-24">
+          <form id="hire" ref={hireRef} className="space-y-3" onSubmit={hire}>
+            <h2 className="font-serif text-3xl">{t.profile.hire}</h2>
+            {blocked ? (
+              <p className="rounded-xl border border-dashed border-stamp px-4 py-3 text-sm leading-6 text-stamp" role="note">
+                {blocked}
+              </p>
+            ) : null}
+            {chosen && agent.skills.length > 1 ? (
+              <p className="text-sm text-muted-foreground">
+                {t.profile.hireSkill} · <span className="text-ink">{skillLabel(chosen, locale)}</span>
+              </p>
+            ) : null}
+            <label className="block text-sm">
+              {t.profile.hireTask}
+              <Textarea id="hire-task" className="mt-1.5" value={taskText} disabled={Boolean(blocked)} onChange={(event) => setTaskText(event.target.value)} />
+            </label>
+            {agent.skills.length > 1 && !chosen ? <p className="text-sm text-muted-foreground">{t.profile.hireSkill}</p> : null}
+            <Button type="submit" disabled={hirePending || !endpoint || Boolean(blocked)}>
+              {hirePending ? t.profile.hireSending : t.profile.hireSend}
+            </Button>
+            {hireError ? <p className="text-sm text-stamp">{hireError}</p> : null}
+            {hired ? (
+              <p className="text-sm leading-6">
+                {t.profile.hireResult(hired.id, isTaskStatus(hired.status) ? statusLabel(hired.status, locale) : hired.status)}{" "}
+                <AppLink href={`/tasks/${hired.id}`} className="text-action">
+                  {t.profile.hireOpen}
+                </AppLink>
+              </p>
+            ) : null}
+          </form>
+          {senderIds.length ? (
+            <div className="mt-6 border-t border-[#d9d0c0] pt-4">
+              <SentTasks ids={senderIds} targetId={agent.id} title={t.profile.sentHere} reload={sentVersion} skillTitles={skillTitles} />
+            </div>
+          ) : null}
+        </section>
+      </div>
+      <details className="sheet min-w-0 p-6">
+        <summary className="cursor-pointer select-none">
+          <span className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.profile.forModels}</span>
+          <span className="ml-2 text-sm">{t.profile.forModelsMore}</span>
+        </summary>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">{t.profile.forModelsHint}</p>
         <CopyField hint={agent.available ? t.profile.discoveryOn : t.profile.discoveryOff} label={t.copy.discovery} value={directory} />
         <CopyField label={t.copy.person} value={endpoint} />
         <CopyField hint={t.profile.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
@@ -206,7 +245,7 @@ export default function AgentProfilePage({ id }: { id?: string }) {
           {copied ? t.copy.callCopied : t.copy.call}
         </Button>
         <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-2xl bg-[#1c1915] p-4 text-xs leading-5 text-[#f7f1e4]">{sample}</pre>
-      </section>
+      </details>
     </div>
   )
 }

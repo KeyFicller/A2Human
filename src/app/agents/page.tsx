@@ -9,7 +9,8 @@ import { SentTasks } from "@/components/sent-tasks"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
-import { formatWhen } from "@/lib/format"
+import { formatClock } from "@/lib/format"
+import { rosterOrder } from "@/lib/roster"
 import type { Agent } from "@/lib/types"
 
 export default function AgentsPage() {
@@ -23,7 +24,7 @@ export default function AgentsPage() {
   const load = useCallback(() => {
     api<Agent[]>("/api/agents")
       .then((next) => {
-        setAgents(next.filter((agent) => agent.available))
+        setAgents(rosterOrder(next.filter((agent) => agent.available)))
         setUpdated(Date.now())
         setError(null)
       })
@@ -52,7 +53,7 @@ export default function AgentsPage() {
 
   return (
     <div>
-      <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">ON DUTY</p>
+      <p className="font-mono text-[11px] tracking-[0.18em] text-stamp">A2HUMAN</p>
       <h1 className="mt-2 font-serif text-4xl md:text-5xl">{t.agents.title}</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{t.agents.lead}</p>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
@@ -60,13 +61,14 @@ export default function AgentsPage() {
           {t.agents.refresh}
         </button>
         {agents ? <span className="font-mono text-xs text-muted-foreground">{t.agents.onDutyCount(agents.length)}</span> : null}
-        {updated ? <span className="font-mono text-xs text-muted-foreground">{t.agents.updated(formatWhen(new Date(updated).toISOString(), locale))}</span> : null}
+        {updated ? <span className="font-mono text-xs text-muted-foreground">{t.agents.updated(formatClock(updated, locale))}</span> : null}
       </div>
       <div className="mt-8 grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <div className="min-w-0">
           {error ? <ErrorNote text={error} /> : null}
           {!agents && !error ? <LoadingLine text={t.agents.loading} /> : null}
           {agents && agents.length === 0 ? <p className="text-sm text-muted-foreground">{t.agents.empty}</p> : null}
+          {agents && agents.length > 1 ? <p className="mb-3 text-xs text-muted-foreground">{t.agents.order}</p> : null}
           <div className="grid gap-4">
             {agents?.map((agent) => (
               <AgentCard key={agent.id} agent={agent} />

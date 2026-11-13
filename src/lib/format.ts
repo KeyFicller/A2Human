@@ -11,6 +11,11 @@ export function formatWhen(iso: string, locale: Locale = "zh") {
   })
 }
 
+/** Wall-clock time with seconds, so an auto-refresh visibly moves. */
+export function formatClock(ms: number, locale: Locale = "zh") {
+  return new Date(ms).toLocaleTimeString(locale === "en" ? "en-US" : "zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+}
+
 const KIND_PATH: Record<MessageKind, string> = {
   "task.submit": "format.kind.submit",
   "task.artifact": "format.kind.artifact",
