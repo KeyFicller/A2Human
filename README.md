@@ -96,3 +96,7 @@ docker compose up --build -d
 ```
 
 Port 3847. `/api/health` is liveness. `/api/ready` checks Postgres and Redis. Copy an old file once: `python -m a2human.import_store data/store.json`.
+
+## License
+
+[MIT](LICENSE)
