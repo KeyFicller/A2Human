@@ -43,18 +43,35 @@ export function blankIdentity(): SlotIdentity {
 
 export function presetIdentity(
   item: { name: string; title: string; description: string; sample: string },
-  taken: string[] = [],
-  skills: NamedSkill[] = [],
+  _taken: string[] = [],
+  _skills: NamedSkill[] = [],
 ): SlotIdentity {
-  const name = taken.includes(item.name) ? toolIdFromTitle(item.title, taken, skills) : item.name
+  // A preset keeps the catalog tool id. A second copy of the same preset is not a new tool.
   return {
-    name,
+    name: item.name,
     title: item.title,
     description: item.description,
     sample: item.sample,
     template: item.name,
     nameTouched: true,
   }
+}
+
+/** A catalog preset is locked: everyone who offers this tool shares the same definition. */
+export function isLockedPreset(skill: { template?: string | null; name?: string }, catalog: Array<{ name: string }> = []) {
+  if (skill.template) return true
+  return Boolean(skill.name && catalog.some((item) => item.name === skill.name))
+}
+
+export function catalogPresetOf<T extends { name: string }>(
+  skill: { template?: string | null; name: string },
+  catalog: T[],
+): T | null {
+  if (skill.template) {
+    const matched = catalog.find((item) => item.name === skill.template)
+    if (matched) return matched
+  }
+  return catalog.find((item) => item.name === skill.name) ?? null
 }
 
 /** Replace the skill being edited. An empty list gains its first skill and does not grow past that. */
@@ -471,4 +488,35 @@ export function skillPayload(skill: { name: string; title: string; description: 
     ...(inputSchema ? { inputSchema } : {}),
     ...(outputSchema ? { outputSchema } : {}),
   }
+}
+
+type PublishPreset = {
+  name: string
+  title: string
+  description: string
+  sample: string
+  en?: CatalogCopy
+  inputSchema?: Record<string, unknown>
+  outputSchema?: Record<string, unknown>
+}
+
+/** Write a preset back as the catalog definition. Localized labels are kept; local edits are not. */
+export function publishedSkill(
+  skill: { name: string; title: string; description: string; inputSchema: string; outputSchema: string; play?: string | null; template?: string | null },
+  catalog: PublishPreset[],
+  locale: "zh" | "en" = "zh",
+) {
+  const preset = catalogPresetOf(skill, catalog)
+  if (!preset) return skillPayload(skill)
+  const copy = catalogText(preset, locale)
+  const input = localizedPresetSchema(preset, "input", locale)
+  const output = localizedPresetSchema(preset, "output", locale)
+  return skillPayload({
+    name: preset.name,
+    title: copy.title,
+    description: copy.description,
+    inputSchema: input ? JSON.stringify(input) : "",
+    outputSchema: output ? JSON.stringify(output) : "",
+    play: playMode(preset.name),
+  })
 }

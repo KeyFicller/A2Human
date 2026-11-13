@@ -21,6 +21,9 @@ import {
   fieldPill,
   installedLabel,
   isBlankDraft,
+  isLockedPreset,
+  catalogPresetOf,
+  publishedSkill,
   mergePresetCatalog,
   MIC_LIMIT_MS,
   micClock,
@@ -467,4 +470,67 @@ test("switching language relabels preset field labels but keeps written ones", (
   const english = relabelPresetFields(fields, think, "output", "en")
   assert.deepEqual(english.map((field) => field.description), ["The worked-out answer", "My own label", "纸上草稿的照片"])
   assert.deepEqual(relabelPresetFields(english, think, "output", "zh").map((field) => field.description), ["算出来的答案", "My own label", "纸上草稿的照片"])
+})
+
+
+test("a preset draft is locked and keeps the catalog tool id", () => {
+  const hand = SKILL_CATALOG.find((skill) => skill.name === "hand_draw")
+  assert.ok(hand)
+  const slot = presetIdentity(hand, ["hand_draw"], SKILL_CATALOG)
+  assert.equal(slot.name, "hand_draw")
+  assert.equal(slot.template, "hand_draw")
+  assert.equal(isLockedPreset(slot, SKILL_CATALOG), true)
+  assert.equal(isLockedPreset({ template: "hand_draw", name: "hand_draw" }), true)
+  assert.equal(isLockedPreset({ template: null, name: "my_draw" }, SKILL_CATALOG), false)
+  assert.equal(isLockedPreset({ template: null, name: "hand_draw" }, SKILL_CATALOG), true)
+  assert.equal(catalogPresetOf({ template: null, name: "my_draw" }, SKILL_CATALOG), null)
+  assert.equal(catalogPresetOf({ template: "hand_draw", name: "my_draw" }, SKILL_CATALOG)?.name, "hand_draw")
+  assert.equal(isLockedPreset(blankIdentity()), false)
+})
+
+test("republishing a preset uses the catalog definition, not stale local edits", () => {
+  const hand = SKILL_CATALOG.find((skill) => skill.name === "hand_draw")
+  assert.ok(hand)
+  const stale = {
+    name: "hand_draw",
+    title: "我的画板",
+    description: "我改过说明",
+    inputSchema: JSON.stringify({ type: "object", properties: { prompt: { type: "string" } }, required: ["prompt"] }),
+    outputSchema: JSON.stringify(deliverySchema("text")),
+    play: "paper",
+    template: "hand_draw" as string | null,
+  }
+  const zh = publishedSkill(stale, SKILL_CATALOG, "zh")
+  const copyZh = catalogText(hand, "zh")
+  assert.equal(zh.name, "hand_draw")
+  assert.equal(zh.title, copyZh.title)
+  assert.equal(zh.description, copyZh.description)
+  assert.notEqual(zh.title, stale.title)
+  assert.notEqual(zh.description, stale.description)
+  assert.equal(zh.play, "timed_draw")
+  const input = JSON.parse(zh.inputSchema ?? "{}")
+  const output = JSON.parse(zh.outputSchema ?? "{}")
+  assert.deepEqual(input, localizedPresetSchema(hand, "input", "zh"))
+  assert.deepEqual(output, localizedPresetSchema(hand, "output", "zh"))
+  assert.equal(input.properties.task.type, "string")
+  assert.equal("prompt" in (input.properties ?? {}), false)
+  assert.equal(deliveryOf(output), "image")
+
+  const en = publishedSkill({ ...stale, template: null }, SKILL_CATALOG, "en")
+  const copyEn = catalogText(hand, "en")
+  assert.equal(en.title, copyEn.title)
+  assert.equal(en.description, copyEn.description)
+  assert.deepEqual(JSON.parse(en.inputSchema ?? "{}"), localizedPresetSchema(hand, "input", "en"))
+  assert.equal(JSON.parse(en.inputSchema ?? "{}").properties.task.description, "Task")
+
+  const custom = publishedSkill(
+    { name: "my_draw", title: "我的画板", description: "自己写的", inputSchema: stale.inputSchema, outputSchema: stale.outputSchema, play: null, template: null },
+    SKILL_CATALOG,
+    "zh",
+  )
+  assert.equal(custom.name, "my_draw")
+  assert.equal(custom.title, "我的画板")
+  assert.equal(custom.description, "自己写的")
+  assert.equal("play" in custom, false)
+  assert.deepEqual(JSON.parse(custom.inputSchema ?? "{}").required, ["prompt"])
 })

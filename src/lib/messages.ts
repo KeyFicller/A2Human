@@ -161,6 +161,7 @@ export type Messages = {
     needDescription: string
     pair: string
     removeSkill: string
+    presetLocked: string
     previewNoName: string
     previewBlank: string
     previewNoCall: string
@@ -533,6 +534,7 @@ function bind(locale: Locale): Messages {
       needDescription: text("publish.needDescription"),
       pair: text("publish.pair"),
       removeSkill: text("publish.removeSkill"),
+      presetLocked: text("publish.presetLocked"),
       previewNoName: text("publish.previewNoName"),
       previewBlank: text("publish.previewBlank"),
       previewNoCall: text("publish.previewNoCall"),
