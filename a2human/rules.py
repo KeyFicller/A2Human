@@ -268,15 +268,29 @@ def _delivered_task(task: dict[str, Any]) -> bool:
     return isinstance(task.get("artifactImage"), dict) or isinstance(task.get("artifactAudio"), dict)
 
 
-def work_record(tasks: list[dict[str, Any]], agent_id: str) -> dict[str, Any]:
+def _handed_in_at(messages: list[dict[str, Any]] | None) -> dict[str, str]:
+    """When each task's latest hand-in landed. Scoring later does not add to the person's time."""
+    handed: dict[str, str] = {}
+    for message in messages or []:
+        if message.get("kind") == "task.artifact" and isinstance(message.get("createdAt"), str):
+            handed[message["taskId"]] = message["createdAt"]
+    return handed
+
+
+def work_record(tasks: list[dict[str, Any]], agent_id: str, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Finished work, average score, and average time from the request to the hand-in.
+
+    Without ``messages`` the end of the clock falls back to the task's last update.
+    """
     done = [task for task in tasks if task.get("claimantId") == agent_id and _delivered_task(task)]
+    handed = _handed_in_at(messages) if messages is not None else {}
     scores = [task["workScore"] for task in done if isinstance(task.get("workScore"), (int, float)) and not isinstance(task.get("workScore"), bool)]
     average_score = _round_tenths(sum(scores) / len(scores)) if scores else None
     durations: list[float] = []
     for task in done:
         try:
             start = parse_ms(task["createdAt"])
-            end = parse_ms(task["updatedAt"])
+            end = parse_ms(handed.get(task["id"]) or task["updatedAt"])
         except (ValueError, TypeError):
             durations.append(0)
             continue
@@ -289,7 +303,7 @@ def work_record(tasks: list[dict[str, Any]], agent_id: str) -> dict[str, Any]:
 
 
 def present_agent(store: dict[str, Any], agent: dict[str, Any]) -> dict[str, Any]:
-    return {**agent, **work_record(store["tasks"], agent["id"])}
+    return {**agent, **work_record(store["tasks"], agent["id"], store.get("messages"))}
 
 
 def on_duty(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -449,20 +463,33 @@ def _title_source(text: str) -> str:
     return next((value for value in words if isinstance(value, str) and value.strip()), text)
 
 
+def _width(grapheme: str) -> int:
+    """Wide (CJK, fullwidth) graphemes take two columns; Latin letters take one."""
+    return 2 if unicodedata.east_asian_width(grapheme[0]) in ("W", "F") else 1
+
+
 def _command_title(text: str) -> str:
+    """Title a request from its words. The limit is in columns, so short English is not cut at 32 letters."""
     flat = " ".join(_title_source(text).split()).strip()
     chars = _graphemes(flat)
     if len(chars) < 4:
         return wire("task.defaultTitle")
-    if len(chars) <= TITLE_LIMIT:
+    room = TITLE_LIMIT * 2
+    if sum(_width(char) for char in chars) <= room:
         return "".join(chars)
-    head = chars[: TITLE_LIMIT - 1]
+    head: list[str] = []
+    used = 0
+    for char in chars:
+        if used + _width(char) > room - 1:
+            break
+        head.append(char)
+        used += _width(char)
     # Stop at the last sentence end, then clause mark, then space, if it keeps at least half the room.
     for stops in TITLE_STOPS:
         cut = max((index for index, char in enumerate(head) if char in stops), default=-1)
-        if cut >= TITLE_LIMIT // 2:
-            return "".join(head[:cut]).rstrip() + "…"
-    return "".join(head) + "…"
+        if cut >= 0 and sum(_width(char) for char in head[:cut]) >= room // 2:
+            return "".join(head[:cut]).rstrip() + "\u2026"
+    return "".join(head) + "\u2026"
 
 
 def _media_note(picture: dict[str, Any] | None, recording: dict[str, Any] | None) -> str:

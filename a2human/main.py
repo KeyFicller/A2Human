@@ -257,7 +257,7 @@ async def directory_card(request: Request) -> Response:
     if cached:
         return json_response(cached)
     store = await commit_store(expire_scores)
-    body = dumps(dispatcher_card(origin, store["agents"], store["tasks"]))
+    body = dumps(dispatcher_card(origin, store["agents"], store["tasks"], store.get("messages")))
     await store_card(origin, None, body)
     return json_response(body)
 
@@ -281,7 +281,7 @@ async def person_card(agent_id: str, request: Request) -> Response:
     agent = next((item for item in store["agents"] if item["id"] == agent_id), None)
     if not agent:
         return json_response({"error": wire("agent.missing")}, 404)
-    body = dumps(to_agent_card(agent, origin, store["tasks"]))
+    body = dumps(to_agent_card(agent, origin, store["tasks"], store.get("messages")))
     await store_card(origin, agent_id, body)
     return json_response(body)
 

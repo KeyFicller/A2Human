@@ -183,7 +183,7 @@ def _catalog(store: dict[str, Any]) -> list[dict[str, Any]]:
     used: set[str] = set()
     tools: list[dict[str, Any]] = []
     for agent in on_duty(store["agents"]):
-        record = work_record(store["tasks"], agent["id"])
+        record = work_record(store["tasks"], agent["id"], store.get("messages"))
         for index, skill in enumerate(agent["skills"]):
             name = _tool_name(agent["id"], skill["name"])
             while name in used:

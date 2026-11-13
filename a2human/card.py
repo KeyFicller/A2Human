@@ -53,10 +53,15 @@ def _extension(origin: str, roster: list[dict[str, Any]] | None = None, skills: 
     }
 
 
-def to_agent_card(agent: dict[str, Any], origin: str, tasks: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def to_agent_card(
+    agent: dict[str, Any],
+    origin: str,
+    tasks: list[dict[str, Any]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     tasks = tasks or []
     endpoint = f"{origin}/api/a2a/{agent['id']}"
-    record = work_record(tasks, agent["id"])
+    record = work_record(tasks, agent["id"], messages)
     if agent.get("human"):
         description = f"{agent['bio']}{wire('card.dutyOn') if agent.get('available') else wire('card.dutyOff')}"
     else:
@@ -86,14 +91,19 @@ def to_agent_card(agent: dict[str, Any], origin: str, tasks: list[dict[str, Any]
     }
 
 
-def dispatcher_card(origin: str, agents: list[dict[str, Any]], tasks: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def dispatcher_card(
+    origin: str,
+    agents: list[dict[str, Any]],
+    tasks: list[dict[str, Any]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     tasks = tasks or []
     roster = [
         {
             "name": agent["name"],
             "skills": agent["skills"],
             "url": f"{origin}/api/a2a/{agent['id']}",
-            **work_record(tasks, agent["id"]),
+            **work_record(tasks, agent["id"], messages),
         }
         for agent in on_duty(agents)
     ]

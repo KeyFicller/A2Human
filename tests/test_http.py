@@ -234,3 +234,24 @@ def test_a_web_sender_scores_or_skips_and_the_average_moves():
         assert rated.status_code == 200
         assert client.get(f"/api/tasks/{fourth}").json()["task"]["workScore"] == 2
         assert client.get(f"/api/agents/{worker['id']}").json()["averageScore"] == 3
+
+
+def test_a_custom_skill_keeps_its_written_name_through_publish_and_save():
+    skill = {
+        "name": "test_blank_skill",
+        "title": "测试-空白自定义",
+        "description": "用短句说清楚要做什么。",
+        "inputSchema": {"type": "object", "properties": {"task": {"type": "string", "description": "任务描述"}}, "required": ["task"]},
+        "outputSchema": {"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]},
+    }
+    with TestClient(app) as client:
+        created = client.post("/api/agents", json={"name": "空白党", "bio": "什么都接一点。", "skills": [skill]})
+        assert created.status_code == 201
+        agent_id = created.json()["id"]
+        assert client.get(f"/api/agents/{agent_id}").json()["skills"][0]["title"] == "测试-空白自定义"
+        renamed = {**skill, "title": "一句话总结"}
+        saved = client.post(f"/api/agents/{agent_id}", json={"name": "空白党", "bio": "什么都接一点。", "skills": [renamed]})
+        assert saved.status_code == 200
+        shown = client.get(f"/api/agents/{agent_id}").json()["skills"][0]
+        assert shown["name"] == "test_blank_skill"
+        assert shown["title"] == "一句话总结"

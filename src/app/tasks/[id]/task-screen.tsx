@@ -12,14 +12,14 @@ import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { decisionText } from "@/lib/decision"
 import { statusLabel } from "@/lib/format"
-import { briefRepeatsTitle, needsWorker, readableArtifact, scoreWasSkipped, scorerFor } from "@/lib/task-view"
+import { briefRepeatsTitle, needsWorker, readableArtifact, scoreWasSkipped, scorerFor, taskHeadline } from "@/lib/task-view"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
 import { CallTimeline } from "@/components/call-timeline"
 import { StageClock } from "@/components/stage-clock"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
 import { activePlay, deliveryOf, playHintKey, promisesOpenMic, promisesTimedDraw, usesTimedBoard, usesTimedMic, type PlayMode } from "@/lib/publish-skills"
-import { skillLabel } from "@/lib/skill-catalog"
+import { SKILL_CATALOG, shownSkillSchema, skillDescription, skillLabel } from "@/lib/skill-catalog"
 import type { Agent, ProtocolMessage, Task, TaskAudio, TaskImage } from "@/lib/types"
 
 type Detail = {
@@ -78,6 +78,7 @@ export default function TaskScreen({ id }: { id?: string }) {
   const [score, setScore] = useState<number | null>(null)
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
   const progressTask = useRef("")
+  const [progressEdited, setProgressEdited] = useState(false)
 
   const load = useCallback(() => {
     if (!taskId) return
@@ -89,6 +90,7 @@ export default function TaskScreen({ id }: { id?: string }) {
         if (progressTask.current !== next.task.id) {
           progressTask.current = next.task.id
           setProgress(next.task.progress || "")
+          setProgressEdited(false)
         }
       })
       .catch((caught: unknown) => {
@@ -183,12 +185,15 @@ export default function TaskScreen({ id }: { id?: string }) {
       .finally(() => setPending(false))
   }
 
+  // A first progress line starts from the skill's usual one, so posting an update is one click.
+  const progressValue = progressEdited || progress ? progress : progressHint(play, t.task)
+
   function saveProgress(event: FormEvent) {
     event.preventDefault()
     if (!agent) return
     setPending(true)
     setNotice(null)
-    api<Task>(`/api/tasks/${task.id}`, { action: "progress", agentId: agent.id, text: progress })
+    api<Task>(`/api/tasks/${task.id}`, { action: "progress", agentId: agent.id, text: progressValue })
       .then((next) => {
         setProgress(next.progress || "")
         setNotice(t.task.progressSaved)
@@ -228,12 +233,15 @@ export default function TaskScreen({ id }: { id?: string }) {
   }
 
   const delivered = Boolean(task.artifact || task.artifactImage || task.artifactAudio)
+  const shownOutput = skill ? shownSkillSchema(skill, "output", locale, SKILL_CATALOG, t.publish.taskLabel) : undefined
   const live = mine && task.status === "working"
-  const showBrief = !briefRepeatsTitle(task.title, task.brief)
+  const headline = taskHeadline(task.title, task.brief)
+  const showBrief = !briefRepeatsTitle(headline, task.brief)
   const statusText = waitingForScore ? t.task.awaitingScore : statusLabel(task.status, locale)
+  const scoring = Boolean(scorer && !mine && waitingForScore && (secondsLeft == null || secondsLeft > 0))
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+    <div className={`grid items-start gap-6 lg:grid-cols-[1.25fr_0.75fr] ${scoring ? "pb-40 sm:pb-28" : ""}`}>
       <section className="sheet overflow-hidden">
         <header className="border-b border-[#e4d8c4] px-6 pt-6 pb-5">
           <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] tracking-[0.14em]">
@@ -243,7 +251,7 @@ export default function TaskScreen({ id }: { id?: string }) {
             </span>
             <span className="text-muted-foreground">{t.task.from(task.posterName)}</span>
           </div>
-          <h1 className="mt-3 font-serif text-4xl leading-tight break-words sm:text-5xl">{task.title}</h1>
+          <h1 className="mt-3 font-serif text-4xl leading-tight break-words sm:text-5xl">{headline}</h1>
           {skill ? (
             <p className="mt-3 inline-flex items-baseline gap-2 rounded-lg border border-[#e8c9c3] bg-[#fffdf8] px-3 py-1">
               <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground">{t.task.skillChip}</span>
@@ -362,19 +370,22 @@ export default function TaskScreen({ id }: { id?: string }) {
               {scoreWasSkipped(task) ? <p className="mt-3 text-sm text-muted-foreground">{t.task.scoreSkipped}</p> : null}
             </div>
           ) : null}
-          {waitingForScore && secondsLeft != null ? (
+          {waitingForScore && secondsLeft != null && !scoring ? (
             <div className="space-y-1">
               <StageClock label={t.task.scoreWait} seconds={secondsLeft} unit={t.task.secondsUnit} state={secondsLeft > 0 ? "live" : "done"} />
               <p className="text-xs text-muted-foreground">{t.task.scoreLeft(secondsLeft)}</p>
             </div>
           ) : null}
           {waitingForScore && !scorer && !mine ? <p className="text-sm text-muted-foreground">{t.task.scoreBySender}</p> : null}
-          {scorer && !mine && waitingForScore ? (
+          {scoring ? (
+            // The score bar is pinned to the bottom of the window, so the clock and the buttons are visible
+            // while the person scrolls through the delivered work above.
             <form
-              className="space-y-3"
+              aria-label={t.task.scoreYours}
+              className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-stamp bg-[#fbf7ee]/95 px-4 py-3 shadow-[0_-6px_18px_rgba(36,28,20,0.12)] backdrop-blur-md"
               onSubmit={(event) => {
                 event.preventDefault()
-                if (score == null) return
+                if (score == null || !scorer) return
                 setPending(true)
                 setNotice(null)
                 api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: scorer, score })
@@ -386,34 +397,40 @@ export default function TaskScreen({ id }: { id?: string }) {
                   .finally(() => setPending(false))
               }}
             >
-              <p className="text-sm">{t.task.scoreYours}</p>
-              <div className="flex flex-wrap gap-2">
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <Button key={value} type="button" variant={score === value ? "default" : "outline"} onClick={() => setScore(value)}>
-                    {value}
+              <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex min-w-0 items-baseline gap-2">
+                  <span className="font-serif text-4xl leading-none tabular-nums text-stamp">{secondsLeft ?? ""}</span>
+                  <span className="text-sm text-stamp">{t.task.secondsUnit}</span>
+                  <span className="text-sm leading-5">{t.task.scoreYours}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <Button key={value} type="button" className="min-w-10" variant={score === value ? "default" : "outline"} aria-pressed={score === value} onClick={() => setScore(value)}>
+                      {value}
+                    </Button>
+                  ))}
+                  <Button type="submit" disabled={pending || score == null}>
+                    {pending ? t.task.submitting : t.task.scoreNow}
                   </Button>
-                ))}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!scorer) return
+                      setPending(true)
+                      setNotice(null)
+                      api<Task>(`/api/tasks/${task.id}`, { action: "skip", agentId: scorer })
+                        .then(() => load())
+                        .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
+                        .finally(() => setPending(false))
+                    }}
+                  >
+                    {t.task.scoreSkip}
+                  </Button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="submit" disabled={pending || score == null}>
-                  {pending ? t.task.submitting : t.task.scoreNow}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => {
-                    setPending(true)
-                    setNotice(null)
-                    api<Task>(`/api/tasks/${task.id}`, { action: "skip", agentId: scorer })
-                      .then(() => load())
-                      .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
-                      .finally(() => setPending(false))
-                  }}
-                >
-                  {t.task.scoreSkip}
-                </Button>
-              </div>
+              <p className="mx-auto mt-1 max-w-6xl text-xs text-muted-foreground">{t.task.scoreLeft(secondsLeft ?? 0)}</p>
             </form>
           ) : null}
           {task.progress && !live ? <p className="break-words text-sm leading-6 text-muted-foreground">{t.task.progress} · {task.progress}</p> : null}
@@ -423,9 +440,14 @@ export default function TaskScreen({ id }: { id?: string }) {
                 {t.task.progress}
                 <Input
                   className="mt-1.5 w-full min-w-0"
-                  value={progress}
+                  value={progressValue}
                   maxLength={80}
-                  onChange={(event) => setProgress(event.target.value)}
+                  autoComplete="off"
+                  name={`progress-${task.id}`}
+                  onChange={(event) => {
+                    setProgressEdited(true)
+                    setProgress(event.target.value)
+                  }}
                   placeholder={progressHint(play, t.task)}
                 />
               </label>
@@ -476,9 +498,9 @@ export default function TaskScreen({ id }: { id?: string }) {
                 <div>
                   <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">{t.task.detailsSkill}</p>
                   <p className="mt-1 font-serif text-lg">{skillLabel(skill, locale)}</p>
-                  <p className="text-muted-foreground">{skill.description}</p>
+                  <p className="text-muted-foreground">{skillDescription(skill, locale)}</p>
                   <SchemaSummary skill={skill} />
-                  {skill.outputSchema ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{t.task.handBack(describeSchema(skill.outputSchema, locale))}</p> : null}
+                  {shownOutput ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{t.task.handBack(describeSchema(shownOutput, locale))}</p> : null}
                 </div>
               ) : null}
               <div>

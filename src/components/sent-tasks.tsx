@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react"
 import { useText } from "@/components/locale-provider"
 import { TaskRow } from "@/components/task-row"
 import { api } from "@/lib/client"
-import { sentBy } from "@/lib/task-view"
+import { scorerFor, sentBy } from "@/lib/task-view"
 import type { Task } from "@/lib/types"
+import { useSkillTitles } from "@/lib/use-skill-titles"
 
 /** Tasks this browser sent, as its card or as the visitor it was before publishing. */
 export function SentTasks({
@@ -21,7 +22,8 @@ export function SentTasks({
   reload?: number
   skillTitles?: Record<string, string>
 }) {
-  const { t } = useText()
+  const { locale, t } = useText()
+  const titlesFor = useSkillTitles(locale)
   const [tasks, setTasks] = useState<Task[] | null>(null)
   const key = ids.join(",")
 
@@ -44,7 +46,7 @@ export function SentTasks({
       <div className="mt-3 grid gap-3">
         {tasks && tasks.length === 0 ? <p className="text-sm text-muted-foreground">{t.me.sentEmpty}</p> : null}
         {tasks?.map((task) => (
-          <TaskRow key={task.id} task={task} skillTitles={skillTitles} />
+          <TaskRow key={task.id} task={task} skillTitles={skillTitles ?? titlesFor(task)} sent scoreMine={Boolean(scorerFor(task, ids))} />
         ))}
       </div>
     </section>

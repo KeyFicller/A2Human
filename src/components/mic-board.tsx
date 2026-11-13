@@ -26,6 +26,7 @@ export function MicBoard({
   const [left, setLeft] = useState((limitMs ?? MIC_LIMIT_MS) / 1000)
   const [clip, setClip] = useState<string | null>(null)
   const [error, setError] = useState("")
+  const [fileName, setFileName] = useState("")
 
   useEffect(() => {
     onAudioRef.current = onAudio
@@ -113,6 +114,8 @@ export function MicBoard({
     recorder.current = null
     startedAt.current = null
     setClip(null)
+    setFileName("")
+    if (fileRef.current) fileRef.current.value = ""
     setPhase("idle")
     setLeft(Math.ceil((limitMs ?? MIC_LIMIT_MS) / 1000))
     onAudioRef.current(null)
@@ -145,21 +148,28 @@ export function MicBoard({
       {phase === "done" ? (
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" className="text-sm text-action" onClick={restart}>
-            {t.output.drawRestart}
+            {t.output.micRedo}
           </button>
           <p className="text-sm text-stamp">{timed ? t.output.micDone : null}</p>
         </div>
       ) : null}
-      <label className="block text-sm text-muted-foreground">
-        {t.output.micUpload}
+      <div className="text-sm text-muted-foreground">
+        <p>{t.output.micUpload}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+            {t.output.filePick}
+          </Button>
+          <span className="min-w-0 break-words text-xs">{fileName || t.output.fileNone}</span>
+        </div>
         <input
           ref={fileRef}
-          className="mt-1 block w-full text-sm"
+          className="hidden"
           type="file"
           accept={AUDIO_ACCEPT}
           onChange={(event) => {
             const file = event.target.files?.[0]
             if (!file) return
+            setFileName(file.name)
             if (file.size > AUDIO_MAX_BYTES) {
               setError(t.task.audioTooBig)
               onAudioRef.current(null)
@@ -174,7 +184,7 @@ export function MicBoard({
             reader.readAsDataURL(file)
           }}
         />
-      </label>
+      </div>
       {error ? <p className="text-sm text-stamp">{error}</p> : null}
     </div>
   )

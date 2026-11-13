@@ -10,6 +10,7 @@ import { useText } from "@/components/locale-provider"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
+import { rosterOrder } from "@/lib/roster"
 import type { Agent } from "@/lib/types"
 import { cn } from "cn"
 
@@ -42,7 +43,7 @@ export default function HomePage() {
     }
   }, [showError, t.home.rosterError])
 
-  const onDuty = agents?.filter((agent) => agent.available) ?? []
+  const onDuty = rosterOrder(agents?.filter((agent) => agent.available) ?? [])
   const published = Boolean(ready && me)
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
   const steps = [
@@ -57,9 +58,17 @@ export default function HomePage() {
       <h1 className="mt-4 max-w-xl font-serif text-5xl leading-[1.05] tracking-tight md:text-7xl">{t.home.title}</h1>
       <p className="mt-6 max-w-xl text-lg leading-8">{t.home.lead}</p>
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        <AppLink href={published ? "/me" : "/publish"} className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
-          {me?.available ? t.home.onDutyNow : published ? t.home.goOnDuty : t.home.publish}
-        </AppLink>
+        {me?.available ? (
+          // Already on duty: this is a way to your card, not a switch. Clocking off lives on the card page.
+          <AppLink href="/me" className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-11 gap-2 bg-paper px-5")}>
+            <span aria-hidden className="size-2 animate-pulse rounded-full bg-moss" />
+            {t.home.onDutyNow}
+          </AppLink>
+        ) : (
+          <AppLink href={published ? "/me" : "/publish"} className={cn(buttonVariants({ size: "lg" }), "h-11 px-5")}>
+            {published ? t.home.goOnDuty : t.home.publish}
+          </AppLink>
+        )}
         <AppLink href="/agents" className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-11 bg-paper px-5")}>
           {t.home.seeDuty}
         </AppLink>

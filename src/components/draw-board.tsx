@@ -142,6 +142,21 @@ export function DrawBoard({ onImage }: { onImage: (image: TaskImage | null) => v
         unit={t.output.secondsUnit}
         state={phase === "live" ? "live" : phase === "frozen" ? "done" : "idle"}
       />
+      {/* Tools sit above the board and off to the side, never where "Start drawing" was under the cursor. */}
+      {phase === "live" ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={undo}>
+            {t.output.drawUndo}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={clearBoard}>
+            {t.output.drawClear}
+          </Button>
+          <span aria-hidden className="mx-1 h-5 w-px bg-[#d9d0c0]" />
+          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={restart}>
+            {t.output.drawRestart}
+          </Button>
+        </div>
+      ) : null}
       <canvas
         ref={canvasRef}
         width={WIDTH}
@@ -190,19 +205,6 @@ export function DrawBoard({ onImage }: { onImage: (image: TaskImage | null) => v
             {t.output.drawStart}
           </Button>
           <p className="text-sm text-muted-foreground">{t.output.drawIdle}</p>
-        </div>
-      ) : null}
-      {phase === "live" ? (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={undo}>
-            {t.output.drawUndo}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={clearBoard}>
-            {t.output.drawClear}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={restart}>
-            {t.output.drawRestart}
-          </Button>
         </div>
       ) : null}
       {phase === "frozen" ? <p className="text-sm text-stamp">{t.output.drawLocked}</p> : null}

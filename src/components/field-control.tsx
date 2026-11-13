@@ -195,6 +195,9 @@ export function FieldControl({
             className="hidden"
             type="file"
             accept={spec.accept}
+            // The input sits inside the clickable drop zone. Keep its own click from bubbling back
+            // into the zone, which would ask for a second file dialog while the first is open.
+            onClick={(event) => event.stopPropagation()}
             onChange={(event) => takeFile(event.target.files?.[0])}
           />
           {picture ? (

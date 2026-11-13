@@ -14,7 +14,10 @@ function LocaleSwitch() {
   const item = (value: Locale, label: string) => (
     <button
       type="button"
-      className={cn("shrink-0 rounded-full px-2.5 py-1.5", locale === value ? "bg-ink text-[#f7f1e4]" : "text-muted-foreground")}
+      className={cn(
+        "inline-flex min-h-9 min-w-12 shrink-0 items-center justify-center rounded-full px-3 py-1.5",
+        locale === value ? "bg-ink text-[#f7f1e4]" : "text-muted-foreground hover:bg-secondary hover:text-ink",
+      )}
       aria-pressed={locale === value}
       onClick={() => setLocale(value)}
     >
@@ -22,7 +25,7 @@ function LocaleSwitch() {
     </button>
   )
   return (
-    <div className="flex shrink-0 gap-1 font-mono text-[11px]">
+    <div className="flex shrink-0 gap-1 font-mono text-xs">
       {item("zh", t.locale.zh)}
       {item("en", t.locale.en)}
     </div>
@@ -34,7 +37,8 @@ function Header() {
   const { agent, ready, identity } = useAgent()
   const { t } = useLocale()
   const links = [
-    { href: "/publish", label: t.nav.publish },
+    // One browser holds one card. Once it exists, this page edits it, so the link says so.
+    { href: "/publish", label: ready && agent ? t.nav.edit : t.nav.publish },
     { href: "/agents", label: t.nav.duty },
     { href: "/me", label: t.nav.mine },
   ]
@@ -48,12 +52,14 @@ function Header() {
             <span className="hidden font-mono text-[11px] tracking-[0.18em] text-muted-foreground sm:inline">{t.brand}</span>
           </AppLink>
           <div className="flex items-center gap-3">
-            <LocaleSwitch />
             <div className="hidden text-right md:block">
               {ready && agent ? (
                 <AppLink href="/me" className="text-sm">
                   <span className="font-serif text-lg">{agent.name}</span>
-                  <span className="ml-2 font-mono text-xs text-muted-foreground">
+                  <span aria-hidden="true" className="mx-1.5 text-muted-foreground">
+                    ·
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">
                     {agent.human ? (agent.available ? t.duty.on : t.duty.off) : t.duty.model}
                   </span>
                 </AppLink>
@@ -65,6 +71,7 @@ function Header() {
                 <span className="text-sm text-muted-foreground">{t.duty.opening}</span>
               )}
             </div>
+            <LocaleSwitch />
           </div>
         </div>
         <div className="flex min-w-0 items-center justify-between gap-3">

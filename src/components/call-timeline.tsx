@@ -12,11 +12,11 @@ function mediaSrc(file: { mediaType: string; raw?: string; url?: string }) {
   return ""
 }
 
-function headline(step: CallStep, t: Messages["task"]) {
-  if (step === "request") return t.stepRequest
+function headline(step: CallStep, side: "agent" | "web" | "human", t: Messages["task"]) {
+  if (step === "request") return side === "web" ? t.stepRequestWeb : t.stepRequest
   if (step === "progress") return t.stepProgress
   if (step === "artifact") return t.stepArtifact
-  if (step === "score") return t.stepScore
+  if (step === "score") return side === "web" ? t.stepScoreWeb : t.stepScore
   if (step === "complete") return t.stepComplete
   if (step === "input") return t.stepInput
   if (step === "reject") return t.stepReject
@@ -44,13 +44,13 @@ export function CallTimeline({ task, messages }: { task: Task; messages: Protoco
               <span
                 aria-hidden
                 className={`absolute top-1.5 -left-[27px] size-3 rounded-full border-2 border-[#fbf7ee] ${
-                  ending ? "bg-muted-foreground" : human ? "bg-stamp" : "bg-ink"
+                  ending ? "bg-muted-foreground" : human ? "bg-stamp" : event.side === "web" ? "bg-moss" : "bg-ink"
                 }`}
               />
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                <span className="font-medium">{headline(event.step, t.task)}</span>
+                <span className="font-medium">{headline(event.step, event.side, t.task)}</span>
                 <span className={`font-mono text-[10px] tracking-[0.14em] ${human ? "text-stamp" : "text-muted-foreground"}`}>
-                  {human ? t.task.sideHuman : t.task.sideAgent}
+                  {human ? t.task.sideHuman : event.side === "web" ? t.task.sideWeb : t.task.sideAgent}
                 </span>
               </p>
               <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
