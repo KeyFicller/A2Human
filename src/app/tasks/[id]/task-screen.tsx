@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
+import { decisionText } from "@/lib/decision"
 import { formatWhen, kindLabel, statusLabel } from "@/lib/format"
 import { needsWorker, readableArtifact, scoreWasSkipped } from "@/lib/task-view"
 import { SchemaSummary } from "@/components/schema-summary"
@@ -200,7 +201,16 @@ export default function TaskScreen({ id }: { id?: string }) {
     setPending(true)
     setNotice(null)
     setHanded(false)
-    api<Task>(`/api/tasks/${task.id}`, { action: decision, agentId: agent.id, text: reason })
+    api<Task>(`/api/tasks/${task.id}`, {
+      action: decision,
+      agentId: agent.id,
+      text: decisionText(decision, reason, {
+        reject: t.task.rejectDefault,
+        fail: t.task.failDefault,
+        cancel: t.task.cancelDefault,
+      }),
+      locale,
+    })
       .then(() => {
         setReason("")
         setDecision(null)

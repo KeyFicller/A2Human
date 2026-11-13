@@ -243,6 +243,9 @@ export type Messages = {
     rejectPlaceholder: string
     failPlaceholder: string
     cancelPlaceholder: string
+    rejectDefault: string
+    failDefault: string
+    cancelDefault: string
     confirm: string
     statusUpdated: string
     statusError: string
@@ -566,6 +569,9 @@ function bind(locale: Locale): Messages {
       rejectPlaceholder: text("task.rejectPlaceholder"),
       failPlaceholder: text("task.failPlaceholder"),
       cancelPlaceholder: text("task.cancelPlaceholder"),
+      rejectDefault: text("task.rejectDefault"),
+      failDefault: text("task.failDefault"),
+      cancelDefault: text("task.cancelDefault"),
       confirm: text("task.confirm"),
       statusUpdated: text("task.statusUpdated"),
       statusError: text("task.statusError"),

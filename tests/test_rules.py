@@ -1,7 +1,9 @@
+import uuid
+
 import pytest
 
 from a2human.copy import wire
-from a2human.rules import DomainError, _command_title, publish_agent, receive_command, set_availability, set_progress, skip_score, submit_artifact, work_record
+from a2human.rules import DomainError, _command_title, decide_task, publish_agent, receive_command, set_availability, set_progress, skip_score, submit_artifact, work_record
 from a2human.rules import create_seed
 
 counting = {"name": "计数", "description": "数清画面或文字里的东西，只交回数字。"}
@@ -152,3 +154,61 @@ def test_handed_in_work_counts_and_a_skipped_score_is_explicit():
     assert skipped.get("workScore") is None
     with pytest.raises(DomainError, match="自己"):
         skip_score(store, task["id"], human["id"])
+
+
+def _market():
+    store = create_seed()
+    human = publish_agent(store, {"name": "米粒", "bio": "会数。", "skills": [counting]})
+    set_availability(store, human["id"], True)
+    return store, human
+
+
+def _assign(store, human):
+    return receive_command(store, {
+        "humanId": human["id"],
+        "text": "数一下。",
+        "messageId": f"blank-{uuid.uuid4()}",
+        "callerName": "某个大模型",
+        "skill": "计数",
+    })
+
+
+def _note(store, task_id, kind):
+    return next(item["text"] for item in store["messages"] if item["taskId"] == task_id and item["kind"] == kind)
+
+
+def test_a_blank_reject_fail_or_cancel_stores_the_locale_default():
+    store, human = _market()
+    expected = {
+        "zh": {"reject": "已拒绝。", "fail": "已失败。", "cancel": "已取消。"},
+        "en": {"reject": "Rejected.", "fail": "Failed.", "cancel": "Canceled."},
+    }
+    blanks = {"reject": "", "fail": " \n\t ", "cancel": None}
+    statuses = {"reject": "rejected", "fail": "failed", "cancel": "canceled"}
+    for locale, phrases in expected.items():
+        for action, blank in blanks.items():
+            task = _assign(store, human)
+            done = decide_task(store, task["id"], human["id"], action, blank, locale)
+            assert done["status"] == statuses[action]
+            assert _note(store, task["id"], f"task.{action}") == phrases[action]
+
+
+def test_a_written_reason_is_kept_and_a_blank_supplement_is_still_refused():
+    store, human = _market()
+    rejected = _assign(store, human)
+    decide_task(store, rejected["id"], human["id"], "reject", "  这单不接。  ")
+    assert _note(store, rejected["id"], "task.reject") == "这单不接。"
+    failed = _assign(store, human)
+    decide_task(store, failed["id"], human["id"], "fail", "卡在第三步")
+    assert _note(store, failed["id"], "task.fail") == "卡在第三步"
+    canceled = _assign(store, human)
+    decide_task(store, canceled["id"], human["id"], "cancel", "改派")
+    assert _note(store, canceled["id"], "task.cancel") == "改派"
+    supplement = _assign(store, human)
+    with pytest.raises(DomainError, match="1 到 200"):
+        decide_task(store, supplement["id"], human["id"], "input", "   ")
+    assert supplement["status"] == "working"
+    too_long = _assign(store, human)
+    with pytest.raises(DomainError, match="1 到 200"):
+        decide_task(store, too_long["id"], human["id"], "cancel", "长" * 201)
+    assert too_long["status"] == "working"
