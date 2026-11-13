@@ -24,14 +24,16 @@ import {
   deliveryOf,
   deliverySchema,
   editableTitle,
+  fieldPill,
   installedLabel,
   isBlankDraft,
+  isLockedPreset,
   mergePresetCatalog,
   personNameIssue,
   playMode,
   presetIdentity,
   publishAction,
-  skillPayload,
+  publishedSkill,
   workerSessionKey,
   toolIdAfterTitle,
   toolIdProblem,
@@ -42,12 +44,9 @@ import { FIELD_TYPES, draftFromSchema, duplicateFieldName, fieldTypeLabel, schem
 import {
   CUSTOM_SKILL_NAME,
   SKILL_CATALOG,
-  alignPresetCopy,
   catalogNames,
   catalogText,
   localizedPresetSchema,
-  relabelPresetFields,
-  relocalizeFields,
   type CatalogSkill,
 } from "@/lib/skill-catalog"
 import type { Agent, Skill } from "@/lib/types"
@@ -83,27 +82,24 @@ function emptyCustom(taskLabel: string, names: Set<string>): SkillDraft {
   return draftOf(blankIdentity(), null, taskLabel, names)
 }
 
-/** Field labels a preset filled in follow the locale. Labels the person wrote, and raw JSON, stay. */
-function relabel(draft: SchemaDraft, preset: CatalogSkill, side: "input" | "output", locale: "zh" | "en"): SchemaDraft {
-  if (draft.mode !== "fields") return draft
-  return { ...draft, fields: relabelPresetFields(draft.fields, preset, side, locale) }
-}
-
 function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[], locale: "zh" | "en"): SkillDraft {
-  const kind = kindFor(skill.name, names, names.has(skill.name) ? "catalog" : CUSTOM_SKILL_NAME.test(skill.name) ? "custom" : "legacy")
   const preset = catalog.find((item) => item.name === skill.name)
-  const copy = alignPresetCopy({ title: skill.title?.trim() || "", description: skill.description }, preset ?? null, locale)
+  if (preset) {
+    const copy = catalogText(preset, locale)
+    return { ...draftOf(presetIdentity({ ...preset, ...copy }), preset, "", names, locale), originalName: skill.name }
+  }
+  const kind = kindFor(skill.name, names, CUSTOM_SKILL_NAME.test(skill.name) ? "custom" : "legacy")
   return {
     name: skill.name,
-    title: preset ? copy.title : editableTitle(copy.title, skill.name),
-    description: copy.description,
-    sample: copy.sample,
-    input: preset ? relabel(draftFromSchema(skill.inputSchema), preset, "input", locale) : draftFromSchema(skill.inputSchema),
-    output: preset ? relabel(draftFromSchema(skill.outputSchema), preset, "output", locale) : draftFromSchema(skill.outputSchema),
+    title: editableTitle(skill.title, skill.name),
+    description: skill.description,
+    sample: "",
+    input: draftFromSchema(skill.inputSchema),
+    output: draftFromSchema(skill.outputSchema),
     kind,
     nameTouched: true,
     originalName: skill.name,
-    template: preset?.name ?? null,
+    template: null,
   }
 }
 
@@ -154,16 +150,8 @@ export default function PublishPage() {
         if (!skill.template) return skill
         const item = catalog.find((entry) => entry.name === skill.template)
         if (!item) return skill
-        return {
-          ...skill,
-          input: relabel(skill.input, item, "input", locale),
-          output: relabel(skill.output, item, "output", locale),
-          ...relocalizeFields(
-            { title: skill.title, description: skill.description, sample: skill.sample },
-            catalogText(item, previous),
-            catalogText(item, locale),
-          ),
-        }
+        const copy = catalogText(item, locale)
+        return { ...draftOf(presetIdentity({ ...item, ...copy }), item, "", catalogNames(catalog), locale), originalName: skill.originalName }
       })
     })
   }, [catalog, locale])
@@ -175,6 +163,7 @@ export default function PublishPage() {
   const skillValue = skills ?? (editing && agent?.skills.length ? agent.skills.map((skill) => draftFrom(skill, names, catalog, locale)) : [])
   const focusIndex = skillValue.length ? Math.min(focus, skillValue.length - 1) : 0
   const active = skillValue[focusIndex]
+  const locked = Boolean(active && isLockedPreset(active, catalog))
   const action = publishAction(Boolean(agent), false)
 
   if (!ready) return <LoadingLine />
@@ -205,10 +194,15 @@ export default function PublishPage() {
   }
 
   function applyPreset(item: CatalogSkill) {
+    const already = skillValue.findIndex((skill) => skill.template === item.name || skill.name === item.name)
+    if (already >= 0) {
+      setFocus(already)
+      setAdvanced(false)
+      return
+    }
     const index = skillValue.length ? focusIndex : 0
-    const taken = skillValue.filter((_, itemIndex) => itemIndex !== index).map((skill) => skill.name)
     const copy = catalogText(item, locale)
-    const next = draftOf(presetIdentity({ ...item, ...copy }, taken, catalog), item, t.publish.taskLabel, names, locale)
+    const next = draftOf(presetIdentity({ ...item, ...copy }), item, t.publish.taskLabel, names, locale)
     setSkills(applyToSlot(skillValue, index, next))
     setFocus(index)
     setAdvanced(false)
@@ -352,14 +346,19 @@ export default function PublishPage() {
           bio: bioValue,
           skills: skillValue.map((skill) => {
             const kind = deliveryKindOf(skill.output)
-            return skillPayload({
-              name: skill.name,
-              title: skill.title,
-              description: skill.description.trim(),
-              inputSchema: schemaPayload(skill.input),
-              outputSchema: schemaPayload(skill.output),
-              play: activePlay(skill.template || skill.name, kind),
-            })
+            return publishedSkill(
+              {
+                name: skill.name,
+                title: skill.title,
+                description: skill.description.trim(),
+                inputSchema: schemaPayload(skill.input),
+                outputSchema: schemaPayload(skill.output),
+                play: activePlay(skill.template || skill.name, kind),
+                template: skill.template,
+              },
+              catalog,
+              locale,
+            )
           }),
         }
         const request = editing && agent ? api<Agent>(`/api/agents/${agent.id}`, payload) : api<Agent>("/api/agents", payload)
@@ -432,9 +431,19 @@ export default function PublishPage() {
       <p className="mt-2 text-xs text-muted-foreground">{t.publish.personHint}</p>
 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-        <div className="sheet space-y-8 p-5">
+        <div className="sheet relative space-y-8 p-5">
+          {active ? (
+            <button
+              type="button"
+              aria-label={t.publish.removeSkill}
+              className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-full text-lg leading-none text-stamp hover:bg-[#f3e6c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stamp"
+              onClick={() => removeSkill(focusIndex)}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          ) : null}
           <section className="space-y-4">
-            <h2 className="font-mono text-[11px] tracking-[0.16em] text-stamp">01 / {t.publish.who}</h2>
+            <h2 className="pr-10 font-mono text-[11px] tracking-[0.16em] text-stamp">01 / {t.publish.who}</h2>
             <div className="flex flex-wrap gap-2">
               {catalog.map((item) => {
                 const selected = active?.template === item.name
@@ -447,16 +456,11 @@ export default function PublishPage() {
               <button type="button" aria-pressed={Boolean(active && isBlankDraft(active))} className={capsule(Boolean(active && isBlankDraft(active)))} onClick={writeOwn}>
                 {t.publish.customAdd}
               </button>
-              {canStartAnother(skillValue.length) ? (
-                <button type="button" className={capsule(false)} onClick={addAnother}>
-                  {t.publish.addSkill}
-                </button>
-              ) : null}
             </div>
-            {skillValue.length > 1 ? (
+            {skillValue.length ? (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">{t.publish.installed}</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {skillValue.map((skill, index) => (
                     <button
                       key={`${skill.originalName}-${index}`}
@@ -472,139 +476,203 @@ export default function PublishPage() {
                       {installedLabel(skill) || t.publish.untitled(index + 1)}
                     </button>
                   ))}
+                  {canStartAnother(skillValue.length) ? (
+                    <button
+                      type="button"
+                      aria-label={t.publish.addSkill}
+                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-[#d9d0c0] text-lg leading-none text-stamp hover:bg-[#f3e6c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stamp"
+                      onClick={addAnother}
+                    >
+                      <span aria-hidden="true">+</span>
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
             {active ? (
-              <>
-                <label className="block text-sm">
-                  {t.publish.displayName}
-                  <Input
-                    className="mt-1.5 h-10"
-                    value={active.title}
-                    maxLength={32}
-                    placeholder={t.publish.displayPlaceholder}
-                    onChange={(event) => updateSkill(focusIndex, { title: event.target.value })}
-                  />
-                </label>
-                <label className="block text-sm">
-                  {t.publish.callWhen}
-                  <Textarea
-                    className="mt-1.5 min-h-24"
-                    value={active.description}
-                    maxLength={320}
-                    onChange={(event) => updateSkill(focusIndex, { description: event.target.value })}
-                  />
-                  <span className="mt-1 block text-xs text-muted-foreground">{t.publish.callHint}</span>
-                </label>
-                <label className="block text-sm">
-                  {t.publish.toolId}
-                  <Input
-                    className="mt-1.5 h-10 font-mono"
-                    value={active.name}
-                    spellCheck={false}
-                    aria-invalid={toolIssue ? true : undefined}
-                    onChange={(event) => updateSkill(focusIndex, { name: event.target.value })}
-                  />
-                  <span className="mt-1 block text-xs text-muted-foreground">{t.publish.toolIdHint}</span>
-                  {toolIssue ? (
-                    <span className="mt-1 block text-sm text-stamp" role="alert">
-                      {toolIssue === "empty" ? t.publish.toolIdEmpty : t.publish.toolIdInvalid}
-                    </span>
-                  ) : null}
-                </label>
-                <button type="button" className="text-sm text-action" onClick={() => removeSkill(focusIndex)}>
-                  {t.publish.removeSkill}
-                </button>
-              </>
+              locked ? (
+                <div className="space-y-4">
+                  <p className="text-xs leading-5 text-muted-foreground">{t.publish.presetLocked}</p>
+                  <div className="space-y-1">
+                    <p className="text-sm">{t.publish.displayName}</p>
+                    <p className="text-base">{active.title}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm">{t.publish.callWhen}</p>
+                    <p className="whitespace-pre-wrap text-base leading-6">{active.description}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm">{t.publish.toolId}</p>
+                    <p className="font-mono text-base">{active.name}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <label className="block text-sm">
+                    {t.publish.displayName}
+                    <Input
+                      className="mt-1.5 h-10"
+                      value={active.title}
+                      maxLength={32}
+                      placeholder={t.publish.displayPlaceholder}
+                      onChange={(event) => updateSkill(focusIndex, { title: event.target.value })}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    {t.publish.callWhen}
+                    <Textarea
+                      className="mt-1.5 min-h-24"
+                      value={active.description}
+                      maxLength={320}
+                      placeholder={t.publish.callHint}
+                      onChange={(event) => updateSkill(focusIndex, { description: event.target.value })}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    {t.publish.toolId}
+                    <Textarea
+                      className="mt-1.5 min-h-[3.5rem] resize-none font-mono"
+                      rows={2}
+                      value={active.name}
+                      spellCheck={false}
+                      placeholder={t.publish.toolIdHint}
+                      aria-invalid={toolIssue ? true : undefined}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.preventDefault()
+                      }}
+                      onChange={(event) => updateSkill(focusIndex, { name: event.target.value.replace(/[\r\n]+/g, "") })}
+                    />
+                    {toolIssue ? (
+                      <span className="mt-1 block text-sm text-stamp" role="alert">
+                        {toolIssue === "empty" ? t.publish.toolIdEmpty : t.publish.toolIdInvalid}
+                      </span>
+                    ) : null}
+                  </label>
+                </>
+              )
             ) : null}
           </section>
 
           {active ? (
             <section className="space-y-4">
               <h2 className="font-mono text-[11px] tracking-[0.16em] text-stamp">02 / {t.publish.before}</h2>
-              {inputFields.length === 0 ? (
-                <button
-                  type="button"
-                  className="text-sm text-action"
-                  onClick={() => updateSkill(focusIndex, { input: { mode: "fields", fields: defaultTaskInput(t.publish.taskLabel), json: "" } })}
-                >
-                  {t.publish.useTask}
-                </button>
-              ) : null}
-              {!advanced && active.input.mode === "fields"
-                ? inputFields.map((field, index) => (
-                    <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto_auto] sm:items-end">
-                      <label className="block text-xs text-muted-foreground">
-                        {t.schema.name}
-                        <Input className="mt-1" value={field.name} maxLength={40} onChange={(event) => patchInput(index, { name: event.target.value })} />
-                      </label>
-                      <label className="block text-xs text-muted-foreground">
-                        {t.schema.type}
-                        <select
-                          className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-                          value={field.type}
-                          onChange={(event) => patchInput(index, { type: event.target.value as SchemaField["type"] })}
-                        >
-                          {FIELD_TYPES.map((type) => (
-                            <option key={type} value={type}>
-                              {fieldTypeLabel(type, locale)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="flex h-8 items-center gap-1.5 text-sm">
-                        <input type="checkbox" checked={field.required} onChange={(event) => patchInput(index, { required: event.target.checked })} />
-                        {t.schema.required}
-                      </label>
-                      <button type="button" className="h-8 text-left text-sm text-action" onClick={() => updateSkill(focusIndex, { input: { ...active.input, fields: inputFields.filter((_, item) => item !== index) } })}>
-                        {t.schema.remove}
-                      </button>
-                    </div>
-                  ))
-                : null}
-              <label className="block text-sm">
-                {t.publish.sample}
-                <Textarea
-                  className="mt-1.5 min-h-20"
-                  value={active.sample}
-                  maxLength={200}
-                  placeholder={t.publish.samplePlaceholder}
-                  onChange={(event) => updateSkill(focusIndex, { sample: event.target.value })}
-                />
-              </label>
-              {!advanced && active.input.mode === "fields" && inputFields.length > 0 ? (
-                <button
-                  type="button"
-                  className="text-sm text-action"
-                  onClick={() =>
-                    updateSkill(focusIndex, {
-                      input: { ...active.input, fields: [...inputFields, { name: "", type: "string", required: false }] },
-                    })
-                  }
-                >
-                  {t.publish.askOptional}
-                </button>
-              ) : null}
-              <div className="space-y-2">
-                <p className="text-sm">{t.publish.deliver}</p>
-                <div className="flex flex-wrap gap-2">
-                  {deliveryChoices.map(([kind, label]) => (
-                    <button key={kind} type="button" aria-pressed={delivery === kind} className={capsule(delivery === kind)} onClick={() => setDelivery(kind)}>
-                      {label}
-                    </button>
-                  ))}
-                  {delivery === "custom" ? (
-                    <span className="rounded-full bg-ink px-3 py-1 text-sm text-[#fbf7ee]">{t.publish.deliverCustom}</span>
+              {locked ? (
+                <>
+                  {inputFields.length ? (
+                    <ul className="space-y-1">
+                      {inputFields.map((field, index) => (
+                        <li key={index} className="text-sm">
+                          {fieldPill(field, fieldTypeLabel(field.type, locale), field.required ? t.publish.pillRequired : t.publish.pillOptional)}
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
-                </div>
-              </div>
-              <button type="button" className="text-sm text-action" onClick={() => setAdvanced((current) => !current)}>
-                {advanced ? t.publish.advancedHide : t.publish.advanced}
-              </button>
-              {advanced ? (
-                <SchemaEditor input={active.input} output={active.output} onChange={(next) => updateSkill(focusIndex, next)} />
-              ) : null}
+                  {active.sample ? (
+                    <div className="space-y-1">
+                      <p className="text-sm">{t.publish.sample}</p>
+                      <p className="whitespace-pre-wrap text-base leading-6">{active.sample}</p>
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <p className="text-sm">{t.publish.deliver}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {deliveryChoices.filter(([kind]) => kind === delivery).map(([, label]) => (
+                        <span key={label} className="rounded-full bg-ink px-3 py-1 text-sm text-[#fbf7ee]">
+                          {label}
+                        </span>
+                      ))}
+                      {delivery === "custom" ? (
+                        <span className="rounded-full bg-ink px-3 py-1 text-sm text-[#fbf7ee]">{t.publish.deliverCustom}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {inputFields.length === 0 ? (
+                    <button
+                      type="button"
+                      className="text-sm text-action"
+                      onClick={() => updateSkill(focusIndex, { input: { mode: "fields", fields: defaultTaskInput(t.publish.taskLabel), json: "" } })}
+                    >
+                      {t.publish.useTask}
+                    </button>
+                  ) : null}
+                  {!advanced && active.input.mode === "fields"
+                    ? inputFields.map((field, index) => (
+                        <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto_auto] sm:items-end">
+                          <label className="block text-xs text-muted-foreground">
+                            {t.schema.name}
+                            <Input className="mt-1" value={field.name} maxLength={40} onChange={(event) => patchInput(index, { name: event.target.value })} />
+                          </label>
+                          <label className="block text-xs text-muted-foreground">
+                            {t.schema.type}
+                            <select
+                              className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+                              value={field.type}
+                              onChange={(event) => patchInput(index, { type: event.target.value as SchemaField["type"] })}
+                            >
+                              {FIELD_TYPES.map((type) => (
+                                <option key={type} value={type}>
+                                  {fieldTypeLabel(type, locale)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex h-8 items-center gap-1.5 text-sm">
+                            <input type="checkbox" checked={field.required} onChange={(event) => patchInput(index, { required: event.target.checked })} />
+                            {t.schema.required}
+                          </label>
+                          <button type="button" className="h-8 text-left text-sm text-action" onClick={() => updateSkill(focusIndex, { input: { ...active.input, fields: inputFields.filter((_, item) => item !== index) } })}>
+                            {t.schema.remove}
+                          </button>
+                        </div>
+                      ))
+                    : null}
+                  <label className="block text-sm">
+                    {t.publish.sample}
+                    <Textarea
+                      className="mt-1.5 min-h-20"
+                      value={active.sample}
+                      maxLength={200}
+                      placeholder={t.publish.samplePlaceholder}
+                      onChange={(event) => updateSkill(focusIndex, { sample: event.target.value })}
+                    />
+                  </label>
+                  {!advanced && active.input.mode === "fields" && inputFields.length > 0 ? (
+                    <button
+                      type="button"
+                      className="text-sm text-action"
+                      onClick={() =>
+                        updateSkill(focusIndex, {
+                          input: { ...active.input, fields: [...inputFields, { name: "", type: "string", required: false }] },
+                        })
+                      }
+                    >
+                      {t.publish.askOptional}
+                    </button>
+                  ) : null}
+                  <div className="space-y-2">
+                    <p className="text-sm">{t.publish.deliver}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {deliveryChoices.map(([kind, label]) => (
+                        <button key={kind} type="button" aria-pressed={delivery === kind} className={capsule(delivery === kind)} onClick={() => setDelivery(kind)}>
+                          {label}
+                        </button>
+                      ))}
+                      {delivery === "custom" ? (
+                        <span className="rounded-full bg-ink px-3 py-1 text-sm text-[#fbf7ee]">{t.publish.deliverCustom}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <button type="button" className="text-sm text-action" onClick={() => setAdvanced((current) => !current)}>
+                    {advanced ? t.publish.advancedHide : t.publish.advanced}
+                  </button>
+                  {advanced ? (
+                    <SchemaEditor input={active.input} output={active.output} onChange={(next) => updateSkill(focusIndex, next)} />
+                  ) : null}
+                </>
+              )}
             </section>
           ) : null}
         </div>
