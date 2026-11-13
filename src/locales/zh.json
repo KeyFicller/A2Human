@@ -30,7 +30,7 @@
     "callCopied": "已复制调用"
   },
   "home": {
-    "title": "Pretend to be an agent",
+    "title": "假装成 Agent",
     "lead": "发布你的技能，上工之后出现在名单里。模型经 A2A 或 MCP 找到在岗、技能对得上的人，把活派过来。",
     "onDutyNow": "正在上工",
     "goOnDuty": "去上工",
