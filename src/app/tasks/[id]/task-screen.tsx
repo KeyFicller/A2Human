@@ -10,10 +10,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { ApiError, api } from "@/lib/client"
 import { decisionText } from "@/lib/decision"
-import { formatWhen, kindLabel, statusLabel } from "@/lib/format"
-import { needsWorker, readableArtifact, scoreWasSkipped } from "@/lib/task-view"
+import { statusLabel } from "@/lib/format"
+import { briefRepeatsTitle, needsWorker, readableArtifact, scoreWasSkipped } from "@/lib/task-view"
 import { SchemaSummary } from "@/components/schema-summary"
 import { OutputForm } from "@/components/output-form"
+import { CallTimeline } from "@/components/call-timeline"
+import { StageClock } from "@/components/stage-clock"
 import { describeSchema, schemaRequiresImage } from "@/lib/schema-fields"
 import { activePlay, deliveryOf, playHintKey, promisesOpenMic, promisesTimedDraw, usesTimedBoard, usesTimedMic, type PlayMode } from "@/lib/publish-skills"
 import { skillLabel } from "@/lib/skill-catalog"
@@ -223,237 +225,268 @@ export default function TaskScreen({ id }: { id?: string }) {
       .finally(() => setPending(false))
   }
 
+  const delivered = Boolean(task.artifact || task.artifactImage || task.artifactAudio)
+  const live = mine && task.status === "working"
+  const showBrief = !briefRepeatsTitle(task.title, task.brief)
+  const statusText = waitingForScore ? t.task.awaitingScore : statusLabel(task.status, locale)
+
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <section className="sheet p-6">
-        <p className="inline-flex rounded-full bg-[#f3e6c8] px-2 py-0.5 font-mono text-[11px] tracking-[0.14em] text-stamp">
-          {waitingForScore ? t.task.awaitingScore : statusLabel(task.status, locale)}
-        </p>
-        {stance && !waitingForScore && task.status !== "working" && task.status !== "completed" ? (
-          <p className="mt-3 leading-7">{stance.text}</p>
-        ) : null}
-        <h1 className="mt-3 font-serif text-4xl break-words">{task.title}</h1>
-        {skill ? (
-          <div className="mt-4">
-            <p className="font-serif text-xl">{skillLabel(skill)}</p>
-            <p className="text-sm leading-6 text-muted-foreground">{skill.description}</p>
-            <SchemaSummary skill={skill} />
+    <div className="grid items-start gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+      <section className="sheet overflow-hidden">
+        <header className="border-b border-[#e4d8c4] px-6 pt-6 pb-5">
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] tracking-[0.14em]">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 ${live ? "bg-stamp text-[#fbf7ee]" : "bg-[#f3e6c8] text-stamp"}`}>
+              {live ? <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-[#fbf7ee]" /> : null}
+              {live ? t.task.liveMark : statusText}
+            </span>
+            <span className="text-muted-foreground">{t.task.from(task.posterName)}</span>
           </div>
-        ) : null}
-        <p className="mt-4 whitespace-pre-wrap leading-7">{task.brief}</p>
-        {task.images?.length ? (
-          <div className="mt-4 grid gap-3">
-            {task.images.map((item, index) => (
-              <Picture
-                key={`${item.filename ?? "image"}-${index}`}
-                image={item}
-                alt={item.filename || t.task.incomingAlt}
-                className="max-h-80 rounded-2xl border border-[#d9d0c0] object-contain"
-              />
-            ))}
-          </div>
-        ) : null}
-        {task.audios?.length ? (
-          <div className="mt-4 grid gap-3">
-            {task.audios.map((item, index) => (
-              <audio key={`${item.filename ?? "audio"}-${index}`} className="w-full" controls src={imageSrc(item)} />
-            ))}
-          </div>
-        ) : null}
-        {task.progress && !(mine && task.status === "working") ? <p className="mt-4 break-words leading-7">{task.progress}</p> : null}
-        {mine && task.status === "working" ? (
-          <form className="mt-4 space-y-3" onSubmit={saveProgress}>
-            <label className="block text-sm">
-              {t.task.progress}
-              <Input
-                className="mt-1.5 w-full min-w-0"
-                value={progress}
-                maxLength={80}
-                onChange={(event) => setProgress(event.target.value)}
-                placeholder={progressHint(play, t.task)}
-              />
-            </label>
-            <Button type="submit" disabled={pending}>
-              {pending ? t.task.submitting : t.task.progressSave}
-            </Button>
-          </form>
-        ) : null}
-        <p className="mt-4 text-sm text-muted-foreground">{t.task.from(task.posterName)}</p>
-        {typeof task.workScore === "number" ? <p className="mt-2 text-sm">{t.task.scoredBy(task.posterName, task.workScore)}</p> : null}
-        {scoreWasSkipped(task) ? <p className="mt-2 text-sm">{t.task.scoreSkipped}</p> : null}
-        {waitingForScore && secondsLeft != null ? <p className="mt-3 text-sm text-stamp">{t.task.scoreLeft(secondsLeft)}</p> : null}
-        {agent && !mine && waitingForScore ? (
-          <form
-            className="mt-4 space-y-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (!agent || score == null) return
-              setPending(true)
-              setNotice(null)
-              api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id, score })
-                .then(() => {
-                  setNotice(t.task.scoreDone)
-                  load()
-                })
-                .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
-                .finally(() => setPending(false))
-            }}
-          >
-            <p className="text-sm">{t.task.scoreNow}</p>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4, 5].map((value) => (
-                <Button key={value} type="button" variant={score === value ? "default" : "outline"} onClick={() => setScore(value)}>
-                  {value}
-                </Button>
+          <h1 className="mt-3 font-serif text-4xl leading-tight break-words sm:text-5xl">{task.title}</h1>
+          {skill ? (
+            <p className="mt-3 inline-flex items-baseline gap-2 rounded-lg border border-[#e8c9c3] bg-[#fffdf8] px-3 py-1">
+              <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground">{t.task.skillChip}</span>
+              <span className="font-serif text-lg text-stamp">{skillLabel(skill)}</span>
+            </p>
+          ) : null}
+          {showBrief ? <p className="mt-4 max-w-prose whitespace-pre-wrap leading-7">{task.brief}</p> : null}
+          {stance && !waitingForScore && task.status !== "working" && task.status !== "completed" && stance.text ? (
+            <p className="mt-3 text-sm leading-6 text-stamp">{stance.text}</p>
+          ) : null}
+        </header>
+        <div className="space-y-6 px-6 py-6">
+          {task.images?.length ? (
+            <div className="grid gap-3">
+              {task.images.map((item, index) => (
+                <Picture
+                  key={`${item.filename ?? "image"}-${index}`}
+                  image={item}
+                  alt={item.filename || t.task.incomingAlt}
+                  className="max-h-80 rounded-2xl border border-[#d9d0c0] object-contain"
+                />
               ))}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={pending || score == null}>
-                {pending ? t.task.submitting : t.task.scoreNow}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                onClick={() => {
-                  if (!agent) return
-                  setPending(true)
-                  api<Task>(`/api/tasks/${task.id}`, { action: "skip", agentId: agent.id })
-                    .then(() => load())
-                    .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
-                    .finally(() => setPending(false))
-                }}
-              >
-                {t.task.scoreSkip}
-              </Button>
+          ) : null}
+          {task.audios?.length ? (
+            <div className="grid gap-3">
+              {task.audios.map((item, index) => (
+                <audio key={`${item.filename ?? "audio"}-${index}`} className="w-full" controls src={imageSrc(item)} />
+              ))}
             </div>
-          </form>
-        ) : null}
-        {task.artifact || task.artifactImage || task.artifactAudio ? (
-          <div className="mt-6 rounded-2xl bg-[#f7f1e4] p-4">
-            <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">{t.task.artifact}</p>
-            {task.artifact ? <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7">{readableArtifact(task.artifact)}</p> : null}
-            {task.artifactImage ? (
-              <Picture image={task.artifactImage} alt={task.artifactImage.filename || t.task.returnedAlt} className="mt-3 max-h-80 rounded-2xl object-contain" />
-            ) : null}
-            {task.artifactAudio ? <audio className="mt-3 w-full" controls src={imageSrc(task.artifactAudio)} /> : null}
-          </div>
-        ) : null}
-        {mine && answering && skill?.outputSchema ? (
-          <div className="mt-6 space-y-3">
-            <p className="text-sm leading-6 text-muted-foreground">{t.task.handBack(describeSchema(skill.outputSchema, locale))}</p>
-            <OutputForm
-              key={`${task.id}:${skill.name}`}
-              schema={skill.outputSchema}
-              pending={pending}
-              hint={play ? t.output[playHintKey(play)] : undefined}
-              board={board}
-              mic={mic}
-              onError={(message) => setNotice(message || null)}
-              onSubmit={handIn}
-            />
-          </div>
-        ) : null}
-        {mine && answering && !skill?.outputSchema ? (
-          <form
-            className="mt-6 space-y-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (needsImage && !image) {
-                setNotice(t.task.needImage)
-                return
-              }
-              handIn(text, image, null)
-            }}
-          >
-            <Textarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder={needsImage ? t.task.textOptional : t.task.writeHere}
-            />
-            <label className="block text-sm">
-              {t.task.image}
-              <input
-                className="mt-1.5 block text-sm"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (!file) {
-                    setImage(null)
-                    return
-                  }
-                  if (file.size > 1_000_000) {
-                    setImage(null)
-                    setNotice(t.task.imageTooBig)
-                    return
-                  }
-                  const reader = new FileReader()
-                  reader.onload = () => {
-                    const result = typeof reader.result === "string" ? reader.result : ""
-                    const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(result)
-                    if (!matched) {
+          ) : null}
+          {mine && answering && skill?.outputSchema ? (
+            <div className="space-y-3">
+              {!board && !mic ? <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{t.task.yourMove}</p> : null}
+              <OutputForm
+                key={`${task.id}:${skill.name}`}
+                schema={skill.outputSchema}
+                pending={pending}
+                hint={play ? t.output[playHintKey(play)] : undefined}
+                board={board}
+                mic={mic}
+                onError={(message) => setNotice(message || null)}
+                onSubmit={handIn}
+              />
+            </div>
+          ) : null}
+          {mine && answering && !skill?.outputSchema ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (needsImage && !image) {
+                  setNotice(t.task.needImage)
+                  return
+                }
+                handIn(text, image, null)
+              }}
+            >
+              <Textarea
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder={needsImage ? t.task.textOptional : t.task.writeHere}
+              />
+              <label className="block text-sm">
+                {t.task.image}
+                <input
+                  className="mt-1.5 block text-sm"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (!file) {
                       setImage(null)
-                      setNotice(t.task.imageType)
                       return
                     }
-                    setImage({ mediaType: matched[1] as TaskImage["mediaType"], raw: matched[2].replace(/\s/g, ""), filename: file.name })
-                    setNotice(null)
-                  }
-                  reader.readAsDataURL(file)
-                }}
-              />
-            </label>
-            {image?.raw ? <Picture image={image} alt={image.filename || t.task.pendingAlt} className="max-h-48 rounded-2xl object-contain" /> : null}
-            <Button type="submit" disabled={pending}>
-              {pending ? t.task.submitting : t.task.submit}
-            </Button>
-          </form>
-        ) : null}
-        {mine && needsWorker(task) ? (
-          <div className="mt-6 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {decisions.map(([action, label]) => (
-                <Button key={action} type="button" variant={decision === action ? "default" : "outline"} onClick={() => setDecision(action)}>
-                  {label}
-                </Button>
-              ))}
-            </div>
-            {decision ? (
-              <>
-                <Textarea
-                  value={reason}
-                  maxLength={200}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder={
-                    decision === "input"
-                      ? t.task.inputPlaceholder
-                      : decision === "reject"
-                        ? t.task.rejectPlaceholder
-                        : decision === "fail"
-                          ? t.task.failPlaceholder
-                          : t.task.cancelPlaceholder
-                  }
+                    if (file.size > 1_000_000) {
+                      setImage(null)
+                      setNotice(t.task.imageTooBig)
+                      return
+                    }
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                      const result = typeof reader.result === "string" ? reader.result : ""
+                      const matched = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(result)
+                      if (!matched) {
+                        setImage(null)
+                        setNotice(t.task.imageType)
+                        return
+                      }
+                      setImage({ mediaType: matched[1] as TaskImage["mediaType"], raw: matched[2].replace(/\s/g, ""), filename: file.name })
+                      setNotice(null)
+                    }
+                    reader.readAsDataURL(file)
+                  }}
                 />
-                <Button type="button" disabled={pending} onClick={sendDecision}>
-                  {pending ? t.task.submitting : t.task.confirm}
+              </label>
+              {image?.raw ? <Picture image={image} alt={image.filename || t.task.pendingAlt} className="max-h-48 rounded-2xl object-contain" /> : null}
+              <Button type="submit" disabled={pending}>
+                {pending ? t.task.submitting : t.task.submit}
+              </Button>
+            </form>
+          ) : null}
+          {delivered ? (
+            <div className="rounded-2xl border border-[#e4d8c4] bg-[#f7f1e4] p-4">
+              <p className="font-mono text-[11px] tracking-[0.16em] text-stamp">{t.task.delivered}</p>
+              {task.artifactImage ? (
+                <Picture
+                  image={task.artifactImage}
+                  alt={task.artifactImage.filename || t.task.returnedAlt}
+                  className="mt-3 max-h-96 w-full rounded-xl border border-[#d9d0c0] bg-[#fffdf8] object-contain"
+                />
+              ) : null}
+              {task.artifactAudio ? <audio className="mt-3 w-full" controls src={imageSrc(task.artifactAudio)} /> : null}
+              {task.artifact ? <p className="mt-3 whitespace-pre-wrap break-words leading-7">{readableArtifact(task.artifact)}</p> : null}
+              {typeof task.workScore === "number" ? <p className="mt-3 text-sm">{t.task.scoredBy(task.posterName, task.workScore)}</p> : null}
+              {scoreWasSkipped(task) ? <p className="mt-3 text-sm text-muted-foreground">{t.task.scoreSkipped}</p> : null}
+            </div>
+          ) : null}
+          {waitingForScore && secondsLeft != null ? (
+            <div className="space-y-1">
+              <StageClock label={t.task.scoreWait} seconds={secondsLeft} unit={t.task.secondsUnit} state={secondsLeft > 0 ? "live" : "done"} />
+              <p className="text-xs text-muted-foreground">{t.task.scoreLeft(secondsLeft)}</p>
+            </div>
+          ) : null}
+          {agent && !mine && waitingForScore ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (!agent || score == null) return
+                setPending(true)
+                setNotice(null)
+                api<Task>(`/api/tasks/${task.id}`, { action: "score", agentId: agent.id, score })
+                  .then(() => {
+                    setNotice(t.task.scoreDone)
+                    load()
+                  })
+                  .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
+                  .finally(() => setPending(false))
+              }}
+            >
+              <p className="text-sm">{t.task.scoreNow}</p>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <Button key={value} type="button" variant={score === value ? "default" : "outline"} onClick={() => setScore(value)}>
+                    {value}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={pending || score == null}>
+                  {pending ? t.task.submitting : t.task.scoreNow}
                 </Button>
-              </>
-            ) : null}
-          </div>
-        ) : null}
-        {handed || notice ? <p className="mt-3 text-sm">{handed ? t.task.handedWaiting : notice}</p> : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => {
+                    if (!agent) return
+                    setPending(true)
+                    api<Task>(`/api/tasks/${task.id}`, { action: "skip", agentId: agent.id })
+                      .then(() => load())
+                      .catch((caught: unknown) => setNotice(caught instanceof ApiError ? showError(caught, t.task.statusError) : t.task.statusError))
+                      .finally(() => setPending(false))
+                  }}
+                >
+                  {t.task.scoreSkip}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+          {task.progress && !live ? <p className="break-words text-sm leading-6 text-muted-foreground">{t.task.progress} · {task.progress}</p> : null}
+          {live ? (
+            <form className="flex flex-wrap items-end gap-2" onSubmit={saveProgress}>
+              <label className="block min-w-0 flex-1 text-sm text-muted-foreground">
+                {t.task.progress}
+                <Input
+                  className="mt-1.5 w-full min-w-0"
+                  value={progress}
+                  maxLength={80}
+                  onChange={(event) => setProgress(event.target.value)}
+                  placeholder={progressHint(play, t.task)}
+                />
+              </label>
+              <Button type="submit" variant="outline" disabled={pending}>
+                {pending ? t.task.submitting : t.task.progressSave}
+              </Button>
+            </form>
+          ) : null}
+          {handed || notice ? <p className="text-sm">{handed ? t.task.handedWaiting : notice}</p> : null}
+          {mine && needsWorker(task) ? (
+            <details className="group rounded-xl border border-dashed border-[#d9d0c0] px-4 py-3" open={decision != null}>
+              <summary className="cursor-pointer text-sm text-muted-foreground select-none">{t.task.moreActions}</summary>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">{t.task.moreHint}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {decisions.map(([action, label]) => (
+                  <Button key={action} type="button" size="sm" variant={decision === action ? "default" : "ghost"} onClick={() => setDecision(action)}>
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              {decision ? (
+                <div className="mt-3 space-y-3">
+                  <Textarea
+                    value={reason}
+                    maxLength={200}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder={
+                      decision === "input"
+                        ? t.task.inputPlaceholder
+                        : decision === "reject"
+                          ? t.task.rejectPlaceholder
+                          : decision === "fail"
+                            ? t.task.failPlaceholder
+                            : t.task.cancelPlaceholder
+                    }
+                  />
+                  <Button type="button" variant="outline" disabled={pending} onClick={sendDecision}>
+                    {pending ? t.task.submitting : t.task.confirm}
+                  </Button>
+                </div>
+              ) : null}
+            </details>
+          ) : null}
+          <details className="rounded-xl border border-[#e4d8c4] bg-[#fffdf8]/60 px-4 py-3">
+            <summary className="cursor-pointer text-sm text-muted-foreground select-none">{t.task.details}</summary>
+            <div className="mt-3 space-y-4 text-sm leading-6">
+              {skill ? (
+                <div>
+                  <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">{t.task.detailsSkill}</p>
+                  <p className="mt-1 font-serif text-lg">{skillLabel(skill)}</p>
+                  <p className="text-muted-foreground">{skill.description}</p>
+                  <SchemaSummary skill={skill} />
+                  {skill.outputSchema ? <p className="mt-2 text-xs leading-5 text-muted-foreground">{t.task.handBack(describeSchema(skill.outputSchema, locale))}</p> : null}
+                </div>
+              ) : null}
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">{t.task.detailsBrief}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words">{task.brief}</p>
+              </div>
+            </div>
+          </details>
+        </div>
       </section>
-      <section className="space-y-3">
-        {messages.filter((message) => message.kind !== "task.scoreRequest").map((message) => (
-          <article key={message.id} className="sheet p-4">
-            <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">
-              {kindLabel(message.kind, locale)} · {message.fromName} · {formatWhen(message.createdAt, locale)}
-            </p>
-            <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{readableArtifact(message.text)}</p>
-          </article>
-        ))}
-      </section>
+      <CallTimeline task={task} messages={messages} />
     </div>
   )
 }

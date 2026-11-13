@@ -63,3 +63,53 @@ export function hireIssue(text: string, skillName: string, skillCount: number): 
   if (skillCount > 1 && !skillName) return "skill"
   return null
 }
+
+export type CallStep = "request" | "progress" | "artifact" | "score" | "complete" | "input" | "reject" | "fail" | "cancel" | "note"
+
+export type CallEvent = {
+  id: string
+  step: CallStep
+  /** Who said it: the calling Agent, or the person on duty. */
+  side: "agent" | "human"
+  name: string
+  text: string
+  at: string
+  /** True on the latest delivery, which is the one the task's attached image or audio belongs to. */
+  media: boolean
+}
+
+const STEP: Partial<Record<string, CallStep>> = {
+  "task.submit": "request",
+  "task.progress": "progress",
+  "task.artifact": "artifact",
+  "task.score": "score",
+  "task.complete": "complete",
+  "task.input": "input",
+  "task.reject": "reject",
+  "task.fail": "fail",
+  "task.cancel": "cancel",
+  "task.note": "note",
+}
+
+/** The call as it happened, oldest first, built only from recorded protocol messages. */
+export function callTimeline(
+  task: { posterId: string; claimantId: string | null },
+  messages: { id: string; fromId: string; fromName: string; kind: string; text: string; createdAt: string }[],
+): CallEvent[] {
+  const events: CallEvent[] = []
+  for (const message of messages) {
+    const step = STEP[message.kind]
+    if (!step) continue
+    const side = message.fromId === task.claimantId && message.fromId !== task.posterId ? "human" : "agent"
+    events.push({ id: message.id, step, side, name: message.fromName, text: readableArtifact(message.text), at: message.createdAt, media: false })
+  }
+  const last = events.map((event) => event.step).lastIndexOf("artifact")
+  if (last >= 0) events[last] = { ...events[last], media: true }
+  return events
+}
+
+/** The brief only adds something when it is not just the title again. */
+export function briefRepeatsTitle(title: string, brief: string) {
+  const flat = (value: string) => value.split(/\s+/).join(" ").trim()
+  return flat(brief) === flat(title) || !flat(brief)
+}
