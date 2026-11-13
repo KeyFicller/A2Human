@@ -524,20 +524,24 @@ export default function PublishPage() {
                       className="mt-1.5 min-h-24"
                       value={active.description}
                       maxLength={320}
+                      placeholder={t.publish.callHint}
                       onChange={(event) => updateSkill(focusIndex, { description: event.target.value })}
                     />
-                    <span className="mt-1 block text-xs text-muted-foreground">{t.publish.callHint}</span>
                   </label>
                   <label className="block text-sm">
                     {t.publish.toolId}
-                    <Input
-                      className="mt-1.5 h-10 font-mono"
+                    <Textarea
+                      className="mt-1.5 min-h-[3.5rem] resize-none font-mono"
+                      rows={2}
                       value={active.name}
                       spellCheck={false}
+                      placeholder={t.publish.toolIdHint}
                       aria-invalid={toolIssue ? true : undefined}
-                      onChange={(event) => updateSkill(focusIndex, { name: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.preventDefault()
+                      }}
+                      onChange={(event) => updateSkill(focusIndex, { name: event.target.value.replace(/[\r\n]+/g, "") })}
                     />
-                    <span className="mt-1 block text-xs text-muted-foreground">{t.publish.toolIdHint}</span>
                     {toolIssue ? (
                       <span className="mt-1 block text-sm text-stamp" role="alert">
                         {toolIssue === "empty" ? t.publish.toolIdEmpty : t.publish.toolIdInvalid}
