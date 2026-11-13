@@ -289,6 +289,24 @@ export function relocalizeFields(current: CatalogCopy, previous: CatalogCopy, ne
 }
 
 /** Installed chips use the display title, or the tool id when there is no title. Never the blank-action label. */
+/** The name people read: the written title, else the preset's title for a preset tool id, else the tool id. */
+export function displayTitle(
+  skill: { name: string; title?: string },
+  catalog: Array<{ name: string; title: string; description: string; sample: string; en?: CatalogCopy }>,
+  locale: "zh" | "en",
+) {
+  const title = skill.title?.trim() ?? ""
+  if (title && title !== skill.name) return title
+  const preset = catalog.find((item) => item.name === skill.name)
+  return (preset && catalogText(preset, locale).title) || title || skill.name
+}
+
+/** A stored title that only repeats the tool id is not a display name. The edit form leaves it blank. */
+export function editableTitle(title: string | undefined, name: string) {
+  const trimmed = title?.trim() ?? ""
+  return trimmed === name ? "" : trimmed
+}
+
 export function installedLabel(skill: { title?: string; name?: string }) {
   const title = skill.title?.trim() ?? ""
   if (title) return title

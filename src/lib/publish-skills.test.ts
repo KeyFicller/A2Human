@@ -4,6 +4,8 @@ import { test } from "node:test"
 
 import {
   addAnotherSlot,
+  displayTitle,
+  editableTitle,
   applyToSlot,
   blankDeliveryText,
   blankIdentity,
@@ -408,4 +410,15 @@ test("audio delivery and the open mic stay attached to a custom tool id", () => 
   const mic = SKILL_CATALOG.find((skill) => skill.name === "open_mic")
   assert.equal(deliveryOf(mic?.outputSchema), "audio_text")
   assert.deepEqual(mic?.outputSchema?.required, ["answer", "audio"])
+})
+
+test("people read the skill title, and the tool id is never promoted to a title", () => {
+  const catalog = [{ name: "hand_draw", title: "碳基图像生成", description: "画", sample: "画猫", en: { title: "Carbon image generator", description: "Draw", sample: "Cat" } }]
+  assert.equal(displayTitle({ name: "hand_draw" }, catalog, "zh"), "碳基图像生成")
+  assert.equal(displayTitle({ name: "hand_draw", title: "hand_draw" }, catalog, "en"), "Carbon image generator")
+  assert.equal(displayTitle({ name: "hand_draw", title: "我的画板" }, catalog, "en"), "我的画板")
+  assert.equal(displayTitle({ name: "do_anything" }, catalog, "zh"), "do_anything")
+  assert.equal(editableTitle("do_anything", "do_anything"), "")
+  assert.equal(editableTitle(" 随便写写 ", "skill_6d5f"), "随便写写")
+  assert.equal(editableTitle(undefined, "skill_6d5f"), "")
 })

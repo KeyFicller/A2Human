@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { briefRepeatsTitle, callTimeline, handedOff, hireIssue, needsWorker, readableArtifact, scoreWasSkipped } from "./task-view.ts"
+import { briefRepeatsTitle, callTimeline, handedOff, hireIssue, needsWorker, readableArtifact, scoreWasSkipped, scorerFor, sentBy } from "./task-view.ts"
 
 test("a handed-in task is not still open for the person doing it", () => {
   assert.equal(handedOff({ status: "input-required", artifact: "7" }), true)
@@ -59,4 +59,18 @@ test("the call timeline follows the recorded messages and marks who spoke", () =
 test("a brief that only repeats the title stays folded", () => {
   assert.equal(briefRepeatsTitle("画一只正在喝茶的猫", " 画一只正在喝茶的猫 "), true)
   assert.equal(briefRepeatsTitle("画一只正在喝茶的…", "画一只正在喝茶的猫，要有热气"), false)
+})
+
+test("outbound lists and the score form follow every id this browser sent as", () => {
+  const tasks = [
+    { id: "a", senderId: "visitor-12345678", claimantId: "p", updatedAt: "2026-11-13T01:00:00Z" },
+    { id: "b", senderId: "agent-1", claimantId: "p", updatedAt: "2026-11-13T02:00:00Z" },
+    { id: "c", claimantId: "p", updatedAt: "2026-11-13T03:00:00Z" },
+    { id: "d", senderId: "agent-1", claimantId: "agent-1", updatedAt: "2026-11-13T04:00:00Z" },
+  ]
+  assert.deepEqual(sentBy(tasks, ["agent-1", "visitor-12345678"]).map((task) => task.id), ["d", "b", "a"])
+  assert.deepEqual(sentBy(tasks, []), [])
+  assert.equal(scorerFor(tasks[0], ["agent-1", "visitor-12345678"]), "visitor-12345678")
+  assert.equal(scorerFor(tasks[2], ["agent-1"]), null)
+  assert.equal(scorerFor(tasks[3], ["agent-1"]), null)
 })

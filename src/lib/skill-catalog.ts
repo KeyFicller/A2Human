@@ -1,7 +1,7 @@
 import catalog from "@/locales/skill-catalog.json"
 import type { JsonSchema } from "./types"
 
-import type { CatalogCopy } from "./publish-skills"
+import { displayTitle, type CatalogCopy } from "./publish-skills"
 
 export type { CatalogCopy } from "./publish-skills"
 
@@ -15,9 +15,8 @@ export type CatalogSkill = {
   outputSchema?: JsonSchema
 }
 
-export function skillLabel(skill: { name: string; title?: string }) {
-  const title = skill.title?.trim()
-  return title || skill.name
+export function skillLabel(skill: { name: string; title?: string }, locale: "zh" | "en" = "zh") {
+  return displayTitle(skill, SKILL_CATALOG, locale)
 }
 
 /** Same file the API validates against (`GET /api/skill-catalog`). */

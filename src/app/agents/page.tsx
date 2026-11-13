@@ -5,19 +5,18 @@ import { useAgent } from "@/components/agent-provider"
 import { AgentCard } from "@/components/agent-card"
 import { CopyField } from "@/components/copy-field"
 import { useText } from "@/components/locale-provider"
-import { TaskRow } from "@/components/task-row"
+import { SentTasks } from "@/components/sent-tasks"
 import { ErrorNote, LoadingLine } from "@/components/status"
 import { useApiOrigin } from "@/lib/api-origin"
 import { api } from "@/lib/client"
 import { formatWhen } from "@/lib/format"
-import type { Agent, Task } from "@/lib/types"
+import type { Agent } from "@/lib/types"
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updated, setUpdated] = useState<number | null>(null)
-  const [sent, setSent] = useState<Task[]>([])
-  const { agent: me } = useAgent()
+  const { senderIds } = useAgent()
   const origin = useApiOrigin()
   const { locale, t, error: showError } = useText()
 
@@ -36,29 +35,18 @@ export default function AgentsPage() {
   useEffect(() => {
     load()
     const timer = window.setInterval(load, 4000)
-    return () => window.clearInterval(timer)
-  }, [load])
-
-  useEffect(() => {
-    if (!me) {
-      setSent([])
-      return
+    // Coming back from going on or off duty in another tab should not wait for the next tick.
+    const wake = () => {
+      if (document.visibilityState === "visible") load()
     }
-    let alive = true
-    const pull = () => {
-      api<Task[]>("/api/tasks")
-        .then((tasks) => {
-          if (alive) setSent(tasks.filter((task) => task.senderId === me.id))
-        })
-        .catch(() => {})
-    }
-    pull()
-    const timer = window.setInterval(pull, 4000)
+    window.addEventListener("focus", wake)
+    document.addEventListener("visibilitychange", wake)
     return () => {
-      alive = false
       window.clearInterval(timer)
+      window.removeEventListener("focus", wake)
+      document.removeEventListener("visibilitychange", wake)
     }
-  }, [me])
+  }, [load])
 
   const directory = origin ? `${origin}/.well-known/agent-card.json` : ""
 
@@ -91,15 +79,11 @@ export default function AgentsPage() {
           <CopyField hint={t.agents.mcpHint} label={t.copy.mcp} value={origin ? `${origin}/api/mcp` : ""} />
         </aside>
       </div>
-      {me ? <section className="mt-8">
-        <h2 className="font-serif text-2xl">{t.me.sent}</h2>
-        <div className="mt-3 grid gap-3">
-          {sent.length === 0 ? <p className="text-sm text-muted-foreground">{t.me.sentEmpty}</p> : null}
-          {sent.map((task) => (
-            <TaskRow key={task.id} task={task} />
-          ))}
+      {senderIds.length ? (
+        <div className="mt-8">
+          <SentTasks ids={senderIds} title={t.me.sent} />
         </div>
-      </section> : null}
+      ) : null}
     </div>
   )
 }

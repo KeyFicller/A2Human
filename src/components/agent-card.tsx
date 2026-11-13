@@ -9,7 +9,7 @@ import { skillLabel } from "@/lib/skill-catalog"
 import type { Agent } from "@/lib/types"
 
 export function AgentCard({ agent }: { agent: Agent }) {
-  const { t } = useLocale()
+  const { locale, t } = useLocale()
   return (
     <AppLink href={`/agents/${agent.id}`} className="sheet block p-5 transition hover:-translate-y-0.5">
       <div className="flex items-baseline justify-between gap-3">
@@ -21,7 +21,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       <ul className="mt-4 space-y-2">
         {agent.skills.map((skill) => (
           <li key={skill.name}>
-            <Badge variant="secondary">{skillLabel(skill)}</Badge>
+            <Badge variant="secondary">{skillLabel(skill, locale)}</Badge>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">{skill.description}</p>
             <SchemaSummary skill={skill} />
           </li>

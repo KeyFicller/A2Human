@@ -160,6 +160,9 @@ export const SkillPreview = memo(function SkillPreview({
   const [tab, setTab] = useState<"agent" | "worker">("agent")
   const schema = skill ? readSchema(skill.output) : null
   const play = skill && schema ? activePlay(skill.name, deliveryOf(schema), skill.play) : null
+  // A fresh blank (write-your-own) slot has nothing to show yet. One line beats a card full of "not yet" placeholders.
+  const shown = previewFields(skill)
+  const blank = Boolean(skill) && !shown.title && !shown.description && !shown.task
 
   return (
     <aside className="sheet p-5 lg:sticky lg:top-24">
@@ -173,9 +176,12 @@ export const SkillPreview = memo(function SkillPreview({
         </button>
       </div>
       {!skill ? <p className="mt-6 text-sm leading-6 text-muted-foreground">{t.publish.noPreview}</p> : null}
-      {skill && tab === "agent" ? <AgentCard skill={skill} schema={schema} personName={personName} /> : null}
-      {skill && schema && tab === "worker" ? <WorkerCheck key={resetKey ?? schemaPayload(skill.output)} skill={skill} schema={schema} play={play} /> : null}
-      {skill && !schema && tab === "worker" ? <p className="mt-6 text-sm text-muted-foreground">{t.publish.outputUnread}</p> : null}
+      {blank ? (
+        <p className="mt-5 rounded-2xl border border-dashed border-[#d9d0c0] px-5 py-8 text-center text-sm leading-6 text-muted-foreground">{t.publish.previewBlank}</p>
+      ) : null}
+      {skill && !blank && tab === "agent" ? <AgentCard skill={skill} schema={schema} personName={personName} /> : null}
+      {skill && !blank && schema && tab === "worker" ? <WorkerCheck key={resetKey ?? schemaPayload(skill.output)} skill={skill} schema={schema} play={play} /> : null}
+      {skill && !blank && !schema && tab === "worker" ? <p className="mt-6 text-sm text-muted-foreground">{t.publish.outputUnread}</p> : null}
       <p className="mt-6 text-xs leading-5 text-muted-foreground">{t.publish.deliveryHint}</p>
     </aside>
   )

@@ -4,6 +4,7 @@ import { AppLink } from "@/components/app-link"
 import { useLocale } from "@/components/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { statusLabel } from "@/lib/format"
+import { skillLabel } from "@/lib/skill-catalog"
 import { scoreWasSkipped } from "@/lib/task-view"
 import type { Task } from "@/lib/types"
 import { cn } from "cn"
@@ -31,7 +32,7 @@ export function TaskRow({ task, skillTitles }: { task: Task; skillTitles?: Recor
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         {task.skills.map((skill) => (
           <Badge key={skill} variant="secondary">
-            {skillTitles?.[skill] || skill}
+            {skillTitles?.[skill] || skillLabel({ name: skill }, locale)}
           </Badge>
         ))}
         {typeof task.workScore === "number" ? <span className="text-xs text-muted-foreground">{t.task.gotScore(task.workScore)}</span> : null}

@@ -120,7 +120,7 @@
     "url": "图片要是 http 地址，或 data:image/png;base64,…"
   },
   "list": { "sep": "、" },
-  "caller": { "name": "外部模型", "bio": "从 JSON-RPC 进来的调用方。不接任务，只把活派给人。" },
+  "caller": { "name": "外部模型", "visitor": "网页访客", "bio": "从 JSON-RPC 进来的调用方。不接任务，只把活派给人。" },
   "command": { "length": "指令用 1 到 {max} 个字" },
   "images": { "max": "最多 4 张图片" },
   "audios": { "max": "最多 4 段音频" },
@@ -139,11 +139,13 @@
     "ask": "请{name}给这次工作打分",
     "noImage": "打分不用附图片",
     "line": "{caller}给{person}打了 {score} 分",
-    "expired": "模型没有打分，这次打分取消。",
+    "expired": "60 秒内没有打分，这次打分取消。",
     "format": "分数要写成 {\"score\":4}",
     "range": "分数要是 1 到 5 的整数",
     "needsTask": "打分要带上任务 id",
     "own": "不能给自己打分",
+    "sender": "只有派这单的人能打分",
+    "self": "自己派给自己的单，交了就算完成，不打分。",
     "skipped": "这单没有打分，按已交付记下。"
   },
   "person": { "fallback": "这个人" },
