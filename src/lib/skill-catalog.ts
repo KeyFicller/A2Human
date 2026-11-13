@@ -20,7 +20,8 @@ export function skillLabel(skill: { name: string; title?: string }, locale: "zh"
 }
 
 /** Same file the API validates against (`GET /api/skill-catalog`). */
-export const SKILL_CATALOG = catalog as CatalogSkill[]
+// JSON inference makes each item a union of field shapes; the catalog tests check the real shape.
+export const SKILL_CATALOG = catalog as unknown as CatalogSkill[]
 
 export const CUSTOM_SKILL_NAME = /^[a-z][a-z0-9_]{0,23}$/
 
@@ -32,4 +33,4 @@ export function isCatalogName(name: string, skills: CatalogSkill[] = SKILL_CATAL
   return catalogNames(skills).has(name)
 }
 
-export { alignPresetCopy, catalogText, relocalizeFields } from "./publish-skills"
+export { alignPresetCopy, catalogText, localizedPresetSchema, relabelPresetFields, relocalizeFields } from "./publish-skills"

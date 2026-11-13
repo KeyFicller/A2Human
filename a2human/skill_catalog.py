@@ -34,6 +34,19 @@ def _schema(item: dict[str, Any], key: str) -> dict[str, Any]:
     return value
 
 
+def _labels(name: str, english: dict[str, Any], side: str, schema: dict[str, Any]) -> None:
+    """Each field needs a Chinese label (its description) and an English one under ``en.fields``."""
+    fields = english.get("fields")
+    labels = fields.get(side) if isinstance(fields, dict) else None
+    properties = schema["properties"]
+    if not isinstance(labels, dict) or set(labels) != set(properties):
+        raise RuntimeError(f"skill catalog {name} needs English {side} field labels")
+    for field, prop in properties.items():
+        for label in (prop.get("description") if isinstance(prop, dict) else None, labels[field]):
+            if not isinstance(label, str) or not label.strip() or len(label) > 120:
+                raise RuntimeError(f"skill catalog {name} needs labels for {side} field {field}")
+
+
 @lru_cache(maxsize=1)
 def skill_catalog() -> list[dict[str, Any]]:
     payload = json.loads((locales_dir() / "skill-catalog.json").read_text(encoding="utf-8"))
@@ -58,7 +71,9 @@ def skill_catalog() -> list[dict[str, Any]]:
         _text(named, "description", 320)
         _text(named, "sample", 200)
         incoming = _schema(item, "inputSchema")
-        _schema(item, "outputSchema")
+        outgoing = _schema(item, "outputSchema")
+        _labels(name, english, "input", incoming)
+        _labels(name, english, "output", outgoing)
         if list(incoming["properties"]) != ["task"] or incoming.get("required") != ["task"]:
             raise RuntimeError(f"skill catalog {name} starts from one required text input")
         task = incoming["properties"]["task"]
