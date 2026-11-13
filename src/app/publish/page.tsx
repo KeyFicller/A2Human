@@ -39,7 +39,17 @@ import {
   type SlotIdentity,
 } from "@/lib/publish-skills"
 import { FIELD_TYPES, draftFromSchema, duplicateFieldName, fieldTypeLabel, schemaPayload, type SchemaDraft, type SchemaField } from "@/lib/schema-fields"
-import { CUSTOM_SKILL_NAME, SKILL_CATALOG, alignPresetCopy, catalogNames, catalogText, relocalizeFields, type CatalogSkill } from "@/lib/skill-catalog"
+import {
+  CUSTOM_SKILL_NAME,
+  SKILL_CATALOG,
+  alignPresetCopy,
+  catalogNames,
+  catalogText,
+  localizedPresetSchema,
+  relabelPresetFields,
+  relocalizeFields,
+  type CatalogSkill,
+} from "@/lib/skill-catalog"
 import type { Agent, Skill } from "@/lib/types"
 
 type SkillKind = "catalog" | "custom" | "legacy"
@@ -59,11 +69,11 @@ function kindFor(name: string, names: Set<string>, previous: SkillKind): SkillKi
   return previous === "legacy" ? "legacy" : "custom"
 }
 
-function draftOf(identity: SlotIdentity, item: CatalogSkill | null, taskLabel: string, names: Set<string>): SkillDraft {
+function draftOf(identity: SlotIdentity, item: CatalogSkill | null, taskLabel: string, names: Set<string>, locale: "zh" | "en" = "zh"): SkillDraft {
   return {
     ...identity,
-    input: item ? draftFromSchema(item.inputSchema) : { mode: "fields", fields: defaultTaskInput(taskLabel), json: "" },
-    output: item ? draftFromSchema(item.outputSchema) : draftFromSchema(deliverySchema("text")),
+    input: item ? draftFromSchema(localizedPresetSchema(item, "input", locale)) : { mode: "fields", fields: defaultTaskInput(taskLabel), json: "" },
+    output: item ? draftFromSchema(localizedPresetSchema(item, "output", locale)) : draftFromSchema(deliverySchema("text")),
     kind: names.has(identity.name) ? "catalog" : "custom",
     originalName: identity.name,
   }
@@ -71,6 +81,12 @@ function draftOf(identity: SlotIdentity, item: CatalogSkill | null, taskLabel: s
 
 function emptyCustom(taskLabel: string, names: Set<string>): SkillDraft {
   return draftOf(blankIdentity(), null, taskLabel, names)
+}
+
+/** Field labels a preset filled in follow the locale. Labels the person wrote, and raw JSON, stay. */
+function relabel(draft: SchemaDraft, preset: CatalogSkill, side: "input" | "output", locale: "zh" | "en"): SchemaDraft {
+  if (draft.mode !== "fields") return draft
+  return { ...draft, fields: relabelPresetFields(draft.fields, preset, side, locale) }
 }
 
 function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[], locale: "zh" | "en"): SkillDraft {
@@ -82,8 +98,8 @@ function draftFrom(skill: Skill, names: Set<string>, catalog: CatalogSkill[], lo
     title: preset ? copy.title : editableTitle(copy.title, skill.name),
     description: copy.description,
     sample: copy.sample,
-    input: draftFromSchema(skill.inputSchema),
-    output: draftFromSchema(skill.outputSchema),
+    input: preset ? relabel(draftFromSchema(skill.inputSchema), preset, "input", locale) : draftFromSchema(skill.inputSchema),
+    output: preset ? relabel(draftFromSchema(skill.outputSchema), preset, "output", locale) : draftFromSchema(skill.outputSchema),
     kind,
     nameTouched: true,
     originalName: skill.name,
@@ -140,6 +156,8 @@ export default function PublishPage() {
         if (!item) return skill
         return {
           ...skill,
+          input: relabel(skill.input, item, "input", locale),
+          output: relabel(skill.output, item, "output", locale),
           ...relocalizeFields(
             { title: skill.title, description: skill.description, sample: skill.sample },
             catalogText(item, previous),
@@ -190,7 +208,7 @@ export default function PublishPage() {
     const index = skillValue.length ? focusIndex : 0
     const taken = skillValue.filter((_, itemIndex) => itemIndex !== index).map((skill) => skill.name)
     const copy = catalogText(item, locale)
-    const next = draftOf(presetIdentity({ ...item, ...copy }, taken, catalog), item, t.publish.taskLabel, names)
+    const next = draftOf(presetIdentity({ ...item, ...copy }, taken, catalog), item, t.publish.taskLabel, names, locale)
     setSkills(applyToSlot(skillValue, index, next))
     setFocus(index)
     setAdvanced(false)
@@ -215,7 +233,7 @@ export default function PublishPage() {
     if (!active) return
     const preset = active.template ? catalog.find((item) => item.name === active.template) : undefined
     const presetKind = preset?.outputSchema ? deliveryOf(preset.outputSchema) : "custom"
-    const output = preset && presetKind === kind ? preset.outputSchema : deliverySchema(kind)
+    const output = preset && presetKind === kind ? localizedPresetSchema(preset, "output", locale) : deliverySchema(kind)
     updateSkill(focusIndex, { output: draftFromSchema(output) })
   }
 

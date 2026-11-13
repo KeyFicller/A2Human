@@ -2,6 +2,7 @@
 
 import base64
 import json
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -85,6 +86,14 @@ def test_catalog_lists_the_carbon_presets_and_not_the_office_catalog():
         assert item["inputSchema"]["properties"]["task"]["description"] == "任务描述"
         assert item["outputSchema"]["type"] == "object"
         assert item["outputSchema"]["properties"]
+        for side in ("input", "output"):
+            properties = item[f"{side}Schema"]["properties"]
+            labels = english["fields"][side]
+            assert set(labels) == set(properties)
+            for field, prop in properties.items():
+                assert prop["description"].strip()
+                assert labels[field].strip()
+                assert not re.search(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]", labels[field])
 
 
 def test_catalog_delivery_uses_the_duty_output_check():

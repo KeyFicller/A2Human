@@ -244,10 +244,66 @@ export function mergePresetCatalog<T extends { name: string }>(remote: T[], bund
   return merged
 }
 
+export type CatalogFieldLabels = { input: Record<string, string>; output: Record<string, string> }
+
 export type CatalogCopy = {
   title: string
   description: string
   sample: string
+  /** English labels for the preset's schema fields. The Chinese ones are the schema descriptions. */
+  fields?: CatalogFieldLabels
+}
+
+type SchemaSide = "input" | "output"
+
+type LabeledPreset = {
+  inputSchema?: Record<string, unknown>
+  outputSchema?: Record<string, unknown>
+  en?: { fields?: CatalogFieldLabels }
+}
+
+function presetProperties(preset: LabeledPreset, side: SchemaSide) {
+  const schema = side === "input" ? preset.inputSchema : preset.outputSchema
+  const properties = schema?.properties
+  return properties && typeof properties === "object" ? (properties as Record<string, Record<string, unknown>>) : {}
+}
+
+/** A preset's field labels in one locale, keyed by field name. */
+export function presetFieldLabels(preset: LabeledPreset, side: SchemaSide, locale: "zh" | "en"): Record<string, string> {
+  if (locale === "en") return { ...(preset.en?.fields?.[side] ?? {}) }
+  const labels: Record<string, string> = {}
+  for (const [name, property] of Object.entries(presetProperties(preset, side))) {
+    if (typeof property.description === "string") labels[name] = property.description
+  }
+  return labels
+}
+
+/** The preset schema with each field described in the current locale. */
+export function localizedPresetSchema(preset: LabeledPreset, side: SchemaSide, locale: "zh" | "en") {
+  const schema = side === "input" ? preset.inputSchema : preset.outputSchema
+  if (!schema || locale === "zh") return schema
+  const labels = presetFieldLabels(preset, side, "en")
+  const properties = Object.fromEntries(
+    Object.entries(presetProperties(preset, side)).map(([name, property]) => [name, labels[name] ? { ...property, description: labels[name] } : property]),
+  )
+  return { ...schema, properties }
+}
+
+/** Swap labels that still read as the preset's label in either locale. A label the person wrote stays. */
+export function relabelPresetFields<F extends { name: string; description?: string }>(
+  fields: F[],
+  preset: LabeledPreset,
+  side: SchemaSide,
+  locale: "zh" | "en",
+): F[] {
+  const zh = presetFieldLabels(preset, side, "zh")
+  const en = presetFieldLabels(preset, side, "en")
+  const target = locale === "en" ? en : zh
+  return fields.map((field) => {
+    const label = target[field.name]
+    if (!label || !field.description) return field
+    return field.description === zh[field.name] || field.description === en[field.name] ? { ...field, description: label } : field
+  })
 }
 
 export function catalogText(

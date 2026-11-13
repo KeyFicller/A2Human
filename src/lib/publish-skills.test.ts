@@ -38,6 +38,9 @@ import {
   toolIdProblem,
   activePlay,
   bioIssue,
+  localizedPresetSchema,
+  presetFieldLabels,
+  relabelPresetFields,
   promisesTimedDraw,
   usesTimedBoard,
   withToolId,
@@ -421,4 +424,47 @@ test("people read the skill title, and the tool id is never promoted to a title"
   assert.equal(editableTitle("do_anything", "do_anything"), "")
   assert.equal(editableTitle(" 随便写写 ", "skill_6d5f"), "随便写写")
   assert.equal(editableTitle(undefined, "skill_6d5f"), "")
+})
+
+const CJK = /[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]/
+
+test("every preset field has a Chinese label and an English label", () => {
+  for (const item of SKILL_CATALOG as unknown as Parameters<typeof presetFieldLabels>[0][]) {
+    for (const side of ["input", "output"] as const) {
+      const schema = side === "input" ? item.inputSchema : item.outputSchema
+      const names = Object.keys((schema?.properties as Record<string, unknown>) ?? {})
+      const zh = presetFieldLabels(item, side, "zh")
+      const en = presetFieldLabels(item, side, "en")
+      assert.ok(names.length > 0)
+      assert.deepEqual(Object.keys(zh).sort(), [...names].sort(), `${side} zh labels`)
+      assert.deepEqual(Object.keys(en).sort(), [...names].sort(), `${side} en labels`)
+      for (const name of names) {
+        assert.ok(zh[name].trim() && CJK.test(zh[name]), `${name} zh`)
+        assert.ok(en[name].trim() && !CJK.test(en[name]), `${name} en`)
+      }
+    }
+  }
+})
+
+test("a preset picked in English carries English field labels into the schema", () => {
+  const draw = (SKILL_CATALOG as unknown as Array<Parameters<typeof localizedPresetSchema>[0] & { name: string }>).find((item) => item.name === "hand_draw")!
+  const input = localizedPresetSchema(draw, "input", "en") as { properties: Record<string, { type: string; description: string }>; required: string[] }
+  const output = localizedPresetSchema(draw, "output", "en") as { properties: Record<string, { contentMediaType: string; description: string }> }
+  assert.deepEqual(input.properties.task, { type: "string", description: "Task" })
+  assert.deepEqual(input.required, ["task"])
+  assert.equal(output.properties.picture.contentMediaType, "image/*")
+  assert.ok(!CJK.test(JSON.stringify([input, output])))
+  assert.equal(localizedPresetSchema(draw, "input", "zh"), draw.inputSchema)
+})
+
+test("switching language relabels preset field labels but keeps written ones", () => {
+  const think = (SKILL_CATALOG as unknown as Array<Parameters<typeof relabelPresetFields>[1] & { name: string }>).find((item) => item.name === "paper_think")!
+  const fields = [
+    { name: "answer", description: "算出来的答案" },
+    { name: "picture", description: "My own label" },
+    { name: "extra", description: "纸上草稿的照片" },
+  ]
+  const english = relabelPresetFields(fields, think, "output", "en")
+  assert.deepEqual(english.map((field) => field.description), ["The worked-out answer", "My own label", "纸上草稿的照片"])
+  assert.deepEqual(relabelPresetFields(english, think, "output", "zh").map((field) => field.description), ["算出来的答案", "My own label", "纸上草稿的照片"])
 })
