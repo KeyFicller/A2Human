@@ -125,7 +125,7 @@
     "toolId": "调用标识",
     "toolIdHint": "小写字母开头，后面只能是小写字母、数字或下划线，最多 24 个字符。智能体按这个标识调用你。",
     "customAdd": "自己写",
-    "addSkill": "再写一项",
+    "addSkill": "再加一个技能",
     "sample": "一条示例需求",
     "samplePlaceholder": "写一条别人可能会发来的需求。右边会按这条预览。",
     "askOptional": "再加一项可选输入",

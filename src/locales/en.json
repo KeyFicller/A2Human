@@ -125,7 +125,7 @@
     "toolId": "Tool id",
     "toolIdHint": "Start with a lowercase letter, then lowercase letters, digits, or underscores, at most 24 characters. Agents call you by this id.",
     "customAdd": "Start blank",
-    "addSkill": "Write another",
+    "addSkill": "Add another skill",
     "sample": "One sample request",
     "samplePlaceholder": "Write a request someone might send. The preview on the right uses it.",
     "askOptional": "Add another optional input",

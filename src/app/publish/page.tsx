@@ -432,9 +432,19 @@ export default function PublishPage() {
       <p className="mt-2 text-xs text-muted-foreground">{t.publish.personHint}</p>
 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-        <div className="sheet space-y-8 p-5">
+        <div className="sheet relative space-y-8 p-5">
+          {active ? (
+            <button
+              type="button"
+              aria-label={t.publish.removeSkill}
+              className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-full text-lg leading-none text-stamp hover:bg-[#f3e6c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stamp"
+              onClick={() => removeSkill(focusIndex)}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          ) : null}
           <section className="space-y-4">
-            <h2 className="font-mono text-[11px] tracking-[0.16em] text-stamp">01 / {t.publish.who}</h2>
+            <h2 className="pr-10 font-mono text-[11px] tracking-[0.16em] text-stamp">01 / {t.publish.who}</h2>
             <div className="flex flex-wrap gap-2">
               {catalog.map((item) => {
                 const selected = active?.template === item.name
@@ -447,16 +457,11 @@ export default function PublishPage() {
               <button type="button" aria-pressed={Boolean(active && isBlankDraft(active))} className={capsule(Boolean(active && isBlankDraft(active)))} onClick={writeOwn}>
                 {t.publish.customAdd}
               </button>
-              {canStartAnother(skillValue.length) ? (
-                <button type="button" className={capsule(false)} onClick={addAnother}>
-                  {t.publish.addSkill}
-                </button>
-              ) : null}
             </div>
-            {skillValue.length > 1 ? (
+            {skillValue.length ? (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">{t.publish.installed}</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {skillValue.map((skill, index) => (
                     <button
                       key={`${skill.originalName}-${index}`}
@@ -472,6 +477,16 @@ export default function PublishPage() {
                       {installedLabel(skill) || t.publish.untitled(index + 1)}
                     </button>
                   ))}
+                  {canStartAnother(skillValue.length) ? (
+                    <button
+                      type="button"
+                      aria-label={t.publish.addSkill}
+                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-[#d9d0c0] text-lg leading-none text-stamp hover:bg-[#f3e6c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stamp"
+                      onClick={addAnother}
+                    >
+                      <span aria-hidden="true">+</span>
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -513,9 +528,6 @@ export default function PublishPage() {
                     </span>
                   ) : null}
                 </label>
-                <button type="button" className="text-sm text-action" onClick={() => removeSkill(focusIndex)}>
-                  {t.publish.removeSkill}
-                </button>
               </>
             ) : null}
           </section>
