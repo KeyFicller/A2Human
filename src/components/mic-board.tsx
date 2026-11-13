@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
+import { StageClock } from "@/components/stage-clock"
 import { AUDIO_ACCEPT, AUDIO_MAX_BYTES, audioFromDataUrl } from "@/lib/field-control"
 import { MIC_LIMIT_MS, timedClock } from "@/lib/publish-skills"
 import type { TaskAudio } from "@/lib/types"
@@ -118,13 +119,18 @@ export function MicBoard({
   }
 
   return (
-    <div className="space-y-2">
-      {phase === "live" && timed ? (
-        <p className="sticky top-28 z-10 rounded-lg bg-[#fbf7ee]/95 px-2 py-1 font-mono text-sm text-stamp">{t.output.micLeft(left)}</p>
+    <div className="space-y-3">
+      {timed ? (
+        <StageClock
+          label={phase === "live" ? t.output.micLive : phase === "done" ? (left <= 0 ? t.output.timeUp : t.output.micTaken) : t.output.micReady}
+          seconds={left}
+          unit={t.output.secondsUnit}
+          state={phase === "live" ? "live" : phase === "done" ? "done" : "idle"}
+        />
       ) : null}
       {phase === "idle" ? (
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" variant="outline" onClick={() => void start()}>
+          <Button type="button" size="lg" className="px-5" onClick={() => void start()}>
             {t.output.micStart}
           </Button>
           <p className="text-sm text-muted-foreground">{timed ? t.output.micIdle : t.output.micUpload}</p>

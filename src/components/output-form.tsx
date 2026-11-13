@@ -85,6 +85,8 @@ export function OutputForm({
     onSubmit(text, imageRef.current, audioRef.current)
   }
 
+  // The hand-in is the one loud button on a live job; the publish preview keeps it quiet.
+  const submitClass = submitVariant === "default" ? "w-full px-6 text-base sm:w-auto" : undefined
   const note = hint ? <p className="text-sm leading-6">{hint}</p> : null
 
   if (shape.kind === "image") {
@@ -92,7 +94,7 @@ export function OutputForm({
       <div className="space-y-3">
         {note}
         {board ? <DrawBoard onImage={takeImage} /> : fileInput(t.output.image)}
-        <Button type="button" variant={submitVariant} disabled={pending} onClick={() => submit("")}>
+        <Button type="button" variant={submitVariant} size="lg" className={submitClass} disabled={pending} onClick={() => submit("")}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
@@ -104,7 +106,7 @@ export function OutputForm({
       <div className="space-y-3">
         {note}
         <MicBoard limitMs={mic ? 15_000 : undefined} onAudio={takeAudio} />
-        <Button type="button" variant={submitVariant} disabled={pending} onClick={() => submit("")}>
+        <Button type="button" variant={submitVariant} size="lg" className={submitClass} disabled={pending} onClick={() => submit("")}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
@@ -134,6 +136,8 @@ export function OutputForm({
         <Button
           type="button"
           variant={submitVariant}
+          size="lg"
+          className={submitClass}
           disabled={pending}
           onClick={() => {
             const parsed = parseFieldValue(shape.type, values.value ?? "", shape.enum)
@@ -165,7 +169,7 @@ export function OutputForm({
           }}
           placeholder={t.output.jsonPlaceholder}
         />
-        <Button type="button" variant={submitVariant} disabled={pending} onClick={() => submit(json)}>
+        <Button type="button" variant={submitVariant} size="lg" className={submitClass} disabled={pending} onClick={() => submit(json)}>
           {pending ? t.output.submitting : submitLabel || t.output.submit}
         </Button>
       </div>
@@ -213,6 +217,8 @@ export function OutputForm({
       <Button
         type="button"
         variant={submitVariant}
+        size="lg"
+        className={submitClass}
         disabled={pending || images.length > 1 || audios.length > 1}
         onClick={() => {
           const data: Record<string, unknown> = {}

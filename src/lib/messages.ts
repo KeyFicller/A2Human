@@ -178,6 +178,13 @@ export type Messages = {
     previewPerson: (name: string) => string
     previewNoPerson: string
     previewSkill: (title: string) => string
+    cardMark: string
+    delivers: (kind: string) => string
+    timedDraw: string
+    timedMic: string
+    cardBy: (name: string) => string
+    cardNoPerson: string
+    cardInputs: string
     nameVsSkill: string
   }
   schema: {
@@ -274,6 +281,32 @@ export type Messages = {
     scoreLeft: (seconds: number) => string
     scoreSkipped: string
     scoreDone: string
+    liveMark: string
+    skillChip: string
+    details: string
+    detailsSkill: string
+    detailsBrief: string
+    moreActions: string
+    moreHint: string
+    delivered: string
+    scoreWait: string
+    secondsUnit: string
+    yourMove: string
+    timelineTitle: string
+    timelineLead: string
+    timelineEmpty: string
+    sideAgent: string
+    sideHuman: string
+    stepRequest: string
+    stepProgress: string
+    stepArtifact: string
+    stepScore: string
+    stepComplete: string
+    stepInput: string
+    stepReject: string
+    stepFail: string
+    stepCancel: string
+    stepNote: string
   }
   output: {
     image: string
@@ -317,6 +350,13 @@ export type Messages = {
     drawUndo: string
     drawRestart: string
     drawLocked: string
+    drawReady: string
+    drawLive: string
+    timeUp: string
+    micReady: string
+    micLive: string
+    micTaken: string
+    secondsUnit: string
   }
   status: { loading: string; retry: string }
 }
@@ -504,6 +544,13 @@ function bind(locale: Locale): Messages {
       previewPerson: (name) => text("publish.previewPerson", { name }),
       previewNoPerson: text("publish.previewNoPerson"),
       previewSkill: (title) => text("publish.previewSkill", { title }),
+      cardMark: text("publish.cardMark"),
+      delivers: (kind) => text("publish.delivers", { kind }),
+      timedDraw: text("publish.timedDraw"),
+      timedMic: text("publish.timedMic"),
+      cardBy: (name) => text("publish.cardBy", { name }),
+      cardNoPerson: text("publish.cardNoPerson"),
+      cardInputs: text("publish.cardInputs"),
       nameVsSkill: text("publish.nameVsSkill"),
     },
     schema: {
@@ -600,6 +647,32 @@ function bind(locale: Locale): Messages {
       scoreLeft: (seconds) => text("task.scoreLeft", { seconds }),
       scoreSkipped: text("task.scoreSkipped"),
       scoreDone: text("task.scoreDone"),
+      liveMark: text("task.liveMark"),
+      skillChip: text("task.skillChip"),
+      details: text("task.details"),
+      detailsSkill: text("task.detailsSkill"),
+      detailsBrief: text("task.detailsBrief"),
+      moreActions: text("task.moreActions"),
+      moreHint: text("task.moreHint"),
+      delivered: text("task.delivered"),
+      scoreWait: text("task.scoreWait"),
+      secondsUnit: text("task.secondsUnit"),
+      yourMove: text("task.yourMove"),
+      timelineTitle: text("task.timelineTitle"),
+      timelineLead: text("task.timelineLead"),
+      timelineEmpty: text("task.timelineEmpty"),
+      sideAgent: text("task.sideAgent"),
+      sideHuman: text("task.sideHuman"),
+      stepRequest: text("task.stepRequest"),
+      stepProgress: text("task.stepProgress"),
+      stepArtifact: text("task.stepArtifact"),
+      stepScore: text("task.stepScore"),
+      stepComplete: text("task.stepComplete"),
+      stepInput: text("task.stepInput"),
+      stepReject: text("task.stepReject"),
+      stepFail: text("task.stepFail"),
+      stepCancel: text("task.stepCancel"),
+      stepNote: text("task.stepNote"),
     },
     output: {
       image: text("output.image"),
@@ -643,6 +716,13 @@ function bind(locale: Locale): Messages {
       drawUndo: text("output.drawUndo"),
       drawRestart: text("output.drawRestart"),
       drawLocked: text("output.drawLocked"),
+      drawReady: text("output.drawReady"),
+      drawLive: text("output.drawLive"),
+      timeUp: text("output.timeUp"),
+      micReady: text("output.micReady"),
+      micLive: text("output.micLive"),
+      micTaken: text("output.micTaken"),
+      secondsUnit: text("output.secondsUnit"),
     },
     status: { loading: text("status.loading"), retry: text("status.retry") },
   }

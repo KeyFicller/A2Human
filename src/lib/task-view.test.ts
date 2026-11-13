@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { handedOff, hireIssue, needsWorker, readableArtifact, scoreWasSkipped } from "./task-view.ts"
+import { briefRepeatsTitle, callTimeline, handedOff, hireIssue, needsWorker, readableArtifact, scoreWasSkipped } from "./task-view.ts"
 
 test("a handed-in task is not still open for the person doing it", () => {
   assert.equal(handedOff({ status: "input-required", artifact: "7" }), true)
@@ -29,4 +29,34 @@ test("a hire needs text, and a skill when there is more than one", () => {
   assert.equal(hireIssue("画一只猫", "", 1), null)
   assert.equal(hireIssue("画一只猫", "", 2), "skill")
   assert.equal(hireIssue("画一只猫", "hand_draw", 2), null)
+})
+
+test("the call timeline follows the recorded messages and marks who spoke", () => {
+  const task = { posterId: "agent-1", claimantId: "human-1" }
+  const at = "2026-11-13T00:00:00.000Z"
+  const events = callTimeline(task, [
+    { id: "m1", fromId: "agent-1", fromName: "Painter Bot", kind: "task.submit", text: "画一只正在喝茶的猫", createdAt: at },
+    { id: "m2", fromId: "human-1", fromName: "Yuhui", kind: "task.progress", text: "茶杯画上了", createdAt: at },
+    { id: "m3", fromId: "human-1", fromName: "Yuhui", kind: "task.artifact", text: "{\"answer\":\"first\"}", createdAt: at },
+    { id: "m4", fromId: "human-1", fromName: "Yuhui", kind: "task.artifact", text: "second", createdAt: at },
+    { id: "m5", fromId: "agent-1", fromName: "Painter Bot", kind: "task.scoreRequest", text: "", createdAt: at },
+    { id: "m6", fromId: "agent-1", fromName: "Painter Bot", kind: "task.score", text: "4", createdAt: at },
+    { id: "m7", fromId: "agent-1", fromName: "Painter Bot", kind: "task.complete", text: "", createdAt: at },
+  ])
+  assert.deepEqual(events.map((event) => [event.step, event.side]), [
+    ["request", "agent"],
+    ["progress", "human"],
+    ["artifact", "human"],
+    ["artifact", "human"],
+    ["score", "agent"],
+    ["complete", "agent"],
+  ])
+  assert.equal(events[2].text, "first")
+  assert.deepEqual(events.map((event) => event.media), [false, false, false, true, false, false])
+  assert.deepEqual(callTimeline(task, []), [])
+})
+
+test("a brief that only repeats the title stays folded", () => {
+  assert.equal(briefRepeatsTitle("画一只正在喝茶的猫", " 画一只正在喝茶的猫 "), true)
+  assert.equal(briefRepeatsTitle("画一只正在喝茶的…", "画一只正在喝茶的猫，要有热气"), false)
 })

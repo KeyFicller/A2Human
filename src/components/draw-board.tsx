@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react"
 import { useLocale } from "@/components/locale-provider"
 import { Button } from "@/components/ui/button"
+import { StageClock } from "@/components/stage-clock"
 import { imageFromDataUrl } from "@/lib/field-control"
 import { DRAW_LIMIT_MS, drawClock } from "@/lib/publish-skills"
 import type { TaskImage } from "@/lib/types"
@@ -134,10 +135,13 @@ export function DrawBoard({ onImage }: { onImage: (image: TaskImage | null) => v
   }
 
   return (
-    <div className="space-y-2">
-      {phase === "live" ? (
-        <p className="sticky top-28 z-10 rounded-lg bg-[#fbf7ee]/95 px-2 py-1 font-mono text-sm text-stamp">{t.output.drawLeft(left)}</p>
-      ) : null}
+    <div className="space-y-3">
+      <StageClock
+        label={phase === "live" ? t.output.drawLive : phase === "frozen" ? t.output.timeUp : t.output.drawReady}
+        seconds={phase === "frozen" ? 0 : left}
+        unit={t.output.secondsUnit}
+        state={phase === "live" ? "live" : phase === "frozen" ? "done" : "idle"}
+      />
       <canvas
         ref={canvasRef}
         width={WIDTH}
@@ -182,7 +186,7 @@ export function DrawBoard({ onImage }: { onImage: (image: TaskImage | null) => v
       />
       {phase === "idle" ? (
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" variant="outline" onClick={start}>
+          <Button type="button" size="lg" className="px-5" onClick={start}>
             {t.output.drawStart}
           </Button>
           <p className="text-sm text-muted-foreground">{t.output.drawIdle}</p>
@@ -190,13 +194,13 @@ export function DrawBoard({ onImage }: { onImage: (image: TaskImage | null) => v
       ) : null}
       {phase === "live" ? (
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={undo}>
+          <Button type="button" variant="outline" size="sm" onClick={undo}>
             {t.output.drawUndo}
           </Button>
-          <Button type="button" variant="outline" onClick={clearBoard}>
+          <Button type="button" variant="outline" size="sm" onClick={clearBoard}>
             {t.output.drawClear}
           </Button>
-          <Button type="button" variant="outline" onClick={restart}>
+          <Button type="button" variant="outline" size="sm" onClick={restart}>
             {t.output.drawRestart}
           </Button>
         </div>
